@@ -3,16 +3,25 @@ import 'package:flutter/material.dart';
 import '../../../shared/widgets/empty_state_view.dart';
 
 class DashboardPage extends StatelessWidget {
-  const DashboardPage({super.key});
+  const DashboardPage({this.onNewParkingEntry, super.key});
+
+  final VoidCallback? onNewParkingEntry;
 
   @override
   Widget build(BuildContext context) {
-    return const _PageContent(
+    return _PageContent(
       title: 'Dashboard',
       child: EmptyStateView(
         icon: Icons.local_parking_outlined,
         title: 'Your parking overview will appear here',
-        message: 'Parking sessions will be available after the data and authentication phases are implemented.',
+        message: 'Create a parking entry to start tracking a vehicle.',
+        action: onNewParkingEntry == null
+            ? null
+            : FilledButton.icon(
+                onPressed: onNewParkingEntry,
+                icon: const Icon(Icons.add),
+                label: const Text('New Parking Entry'),
+              ),
       ),
     );
   }

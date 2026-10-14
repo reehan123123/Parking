@@ -128,8 +128,15 @@ against the linked project or inspecting the resulting catalog state.
   project and key copied from the same Supabase project.
 - Authentication failures are shown in the sign-in page without logging the
   password or token.
-- If a photo upload is added in a later phase, create the owned database row
-  before uploading to
-  `{user-id}/{parking-session-id}/{filename}`. If the upload fails, remove the
-  row. Delete the Storage object before deleting the database row because the
-  Storage policy checks the row's ownership.
+- The Phase 5 photo flow creates the owned database row before uploading to
+  `{user-id}/{parking-session-id}/{filename}`. If the upload fails, it removes
+  the Storage object before deleting the database row because the Storage
+  policy checks the row's ownership. If cleanup fails, the row is retained and
+  the form exposes a retry action.
+- The Phase 5 form supports one optional photo, accepts JPEG/PNG/WebP images,
+  uses the official `camera: 0.12.1` package for an on-demand live browser
+  preview, and keeps `image_picker` for normal file selection. File-picker
+  images request an approximately 1600-pixel/quality-85 transform where
+  supported; captured and selected images larger than 10 MB are rejected.
+  Camera behavior still depends on localhost/HTTPS, browser support, and user
+  permissions; file selection remains the fallback.

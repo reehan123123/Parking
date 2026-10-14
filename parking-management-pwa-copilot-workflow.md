@@ -22,13 +22,13 @@ The app is for personal or small private parking use. The priority is minimal ma
 - **Development assistant:** GitHub Copilot Agent mode.
 - **Testing:** Dart/Flutter formatter, analyzer, unit tests, and practical browser/device tests.
 
-Use stable versions compatible with the installed Flutter SDK. Verify current package APIs before adding dependencies. Prefer Flutter built-in widgets and standard libraries. Add a package only when it provides a clear benefit. Do not add state-management frameworks, backend services, paid APIs, OCR, analytics, push notifications, or other infrastructure unless explicitly approved.
+Use stable versions compatible with the installed Flutter SDK. Verify current package APIs before adding dependencies. Prefer Flutter built-in widgets and standard libraries. Add a package only when it provides a clear benefit. Do not add state-management frameworks, custom backend services, paid APIs, analytics, push notifications, or other infrastructure unless explicitly approved. OCR is now an approved requirement, but it must be evaluated as a local/on-device or browser-side capability first; any paid/cloud OCR service requires separate explicit approval.
 
 ## 3. Non-goals
 
 Do not implement these in the first version:
 
-- Automatic number-plate recognition/OCR.
+- Paid/cloud OCR services or uploading vehicle images to third-party OCR providers. Local/browser-side OCR is in scope in the dedicated OCR phase.
 - Payments, fines, invoicing, subscriptions, or billing.
 - Parking-slot allocation or reservations.
 - Multi-location administration.
@@ -45,7 +45,7 @@ Do not implement these in the first version:
 4. User selects **New Parking Entry**.
 5. User captures a vehicle/number-plate photo with the browser camera, or selects an existing photo if camera access is unavailable.
 6. User previews the photo and can retake or replace it.
-7. User manually enters the vehicle registration/plate number. No OCR is used.
+7. The app attempts to read the registration number from the captured/selected image using the approved local/browser-side OCR flow, then prefills the plate field. The user must review and confirm or manually correct the result; manual entry remains available at all times.
 8. User selects the entry date and time.
 9. User chooses an allowed duration unit: **minutes, hours, days, or months**.
 10. User enters a positive whole-number duration.
@@ -131,7 +131,13 @@ Use a single, tested duration-calculation service, separate from UI and database
 - Never make the bucket public to avoid implementing authentication.
 - Handle camera denial, unavailable camera, unsupported browser, too-large file, upload failure, and network failure with helpful messages.
 - Avoid orphaned files and incomplete records. Document and implement a safe upload/save sequence with cleanup on failure where practical.
-- Do not upload photos to third-party OCR or image-processing services.
+- OCR must process images locally in the browser/device wherever practical. Do not upload vehicle images to third-party OCR or image-processing services.
+- OCR must never save a parking session automatically or treat its result as authoritative. The user must confirm/edit the detected plate before saving.
+- OCR is an enhancement, not a requirement for completing an entry: if OCR is unavailable, fails, or returns no useful text, allow manual plate entry without blocking the workflow.
+- Prefer a no-per-request-cost approach with minimal ongoing maintenance. Evaluate browser-compatible OCR (for example, a locally loaded Tesseract.js/WebAssembly solution) for Flutter Web compatibility before selecting a package or interop approach. Verify current licensing, browser support, model/worker asset hosting, bundle size, and performance. Do not assume a native-only Flutter ML Kit package works on Web.
+- Keep OCR behind a small interface/service so it can be tested without camera hardware and replaced if necessary.
+- Show a clear processing state and a way to cancel; enforce a timeout/error state so OCR cannot leave the entry screen loading indefinitely.
+- Restrict recognition to the vehicle/plate image or a user-adjustable crop when feasible. Normalize whitespace and case for the proposed value, but do not silently change ambiguous characters (for example, O/0 or I/1).
 
 ### 5.6 History and details
 
@@ -249,7 +255,11 @@ The first release is complete only when these checks pass:
 - User can sign in and sign out.
 - User can capture a photo or choose a file.
 - User can preview, retake, and upload a photo.
-- User can enter/edit a plate number manually.
+- OCR attempts to detect the registration text from a captured/selected image when supported.
+- OCR results prefill the plate field but always require user review/confirmation before saving.
+- Manual plate entry remains available when OCR fails, is cancelled, or is unavailable.
+- OCR processing has loading, cancellation, timeout, empty-result, and error states; it never blocks the whole form indefinitely.
+- OCR processes images locally/browser-side; no vehicle images are sent to a third-party OCR API.
 - User can select entry date/time and all four duration units.
 - Expiry preview matches the saved database timestamp.
 - Active/expired status changes correctly at the expiry boundary.
@@ -331,18 +341,32 @@ Do not generate the entire app in a single uncontrolled change. Use the phases b
 - Verify database and Storage permissions.
 - Run quality gates.
 
-### Phase 6 — Dashboard, history, edit/delete
+### Phase 6 — Local/browser-side vehicle plate OCR
+- Inspect the current Phase 5 camera and file-selection flow before changing it. Fix any camera/capture flow that can remain indefinitely loading; ensure capture returns an image or a clear recoverable error.
+- Evaluate the simplest maintainable OCR option compatible with Flutter Web and the current Flutter/Dart versions. Prefer browser-side/local processing with no per-request fees and no image uploads to external OCR services. Verify current package/API support, license, model/worker assets, browser compatibility, bundle size, and performance before adding dependencies.
+- Do not assume native-only OCR plugins support Flutter Web. If browser JavaScript/WebAssembly interop is needed, keep it isolated behind a small Dart service and document the asset/hosting requirements.
+- Run OCR after the user captures or selects an image, then prefill the existing plate field with the candidate result. Never auto-save. Require the user to review and confirm or edit the value.
+- Keep manual plate entry, retake/replace, Choose File, and Continue without photo available. OCR failure must not block saving a manually entered plate.
+- Add clear processing, cancel, timeout, no-text-found, permission/error, and retry states. Prevent indefinite loading and release camera resources correctly.
+- Normalize safe formatting such as whitespace and letter case, but do not silently guess ambiguous characters.
+- Add unit/widget tests using mocked OCR results, including success, empty result, failure, cancellation, timeout, and manual correction. Add a documented manual browser test with clear/blurred/angled plate images.
+- Do not change Supabase schema, authentication, RLS, Storage policies, duration calculations, or the session-first save flow unless a demonstrated requirement is approved.
+- Run quality gates and document limitations and the actual recognition accuracy observed.
+
+### Phase 7 — Dashboard, history, edit/delete
 - Implement lists, search, status, detail view, editing, and deletion.
 - Handle loading, empty, and failure states.
 - Run quality gates.
 
-### Phase 7 — Browser/PWA testing
-- Test responsive UI, camera permissions, file upload, home-screen installation, refresh, and authentication on desktop, Android, and iPhone.
+### Phase 8 — Browser/PWA testing
+- Test responsive UI, camera permissions, file upload, OCR, home-screen installation, refresh, and authentication on desktop, Android, and iPhone.
+- Verify OCR fallback and manual correction when recognition is inaccurate or unavailable.
 - Document anything that cannot be tested in the current environment.
 - Fix issues and run quality gates.
 
-### Phase 8 — Deployment and handover
-- Document Supabase project setup, environment config, migration application, account setup, static hosting, HTTPS, deployment, PWA installation, backups, and troubleshooting.
+### Phase 9 — Deployment and handover
+- Document Supabase project setup, environment config, migration application, account setup, static hosting, HTTPS, deployment, PWA installation, OCR assets/licensing, backups, and troubleshooting.
+- Ensure any OCR worker/model assets are hosted reliably under the selected static host and work with the deployed base path and CSP/security configuration.
 - Add CI checks and deployment automation only when simple and reliable.
 - Do not deploy automatically to a paid plan.
 - Verify the live site if deployment access is available.
@@ -357,7 +381,7 @@ Follow these rules throughout the project:
 3. Inspect current package documentation/API signatures rather than guessing.
 4. Keep changes small and reviewable.
 5. Explain any new dependency and why Flutter built-ins are insufficient.
-6. Do not introduce paid services, custom servers, native mobile targets, OCR, or complex abstractions.
+6. Do not introduce paid services, custom servers, native mobile targets, cloud OCR/image uploads, or complex abstractions. Local/browser-side OCR is approved by this specification; any paid or cloud OCR option requires explicit approval first.
 7. Never hardcode credentials or secrets.
 8. Never disable security controls to get a passing test.
 9. Run formatter, analyzer, and tests after meaningful changes.
@@ -369,6 +393,6 @@ Follow these rules throughout the project:
 
 ## 14. Definition of done
 
-The project is done when the authenticated PWA is hosted over HTTPS, can be added to an Android and iPhone home screen, captures/uploads a vehicle photo, saves manually entered plate details and an allowed duration in minutes/hours/days/months, calculates expiry correctly, shows active/expired sessions, supports search and history, enforces Supabase security, passes documented tests, and includes setup/deployment/backup documentation.
+The project is done when the authenticated PWA is hosted over HTTPS, can be added to an Android and iPhone home screen, captures/uploads a vehicle photo, attempts local/browser-side OCR to prefill a vehicle plate with mandatory user review and manual fallback, saves confirmed plate details and an allowed duration in minutes/hours/days/months, calculates expiry correctly, shows active/expired sessions, supports search and history, enforces Supabase security, passes documented tests, and includes setup/deployment/OCR asset/backup documentation.
 
 Begin with **Phase 1 only**. Inspect the repository and environment, propose the plan, and wait for approval before making substantial changes.

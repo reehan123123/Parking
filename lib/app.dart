@@ -5,11 +5,15 @@ import 'features/auth/data/auth_repository.dart';
 import 'features/auth/presentation/auth_gate.dart';
 import 'features/dashboard/presentation/dashboard_page.dart';
 import 'features/history/presentation/history_page.dart';
+import 'features/parking/data/parking_session_repository.dart';
+import 'features/parking/domain/parking_session.dart';
+import 'features/parking/presentation/parking_entry_page.dart';
 import 'features/settings/presentation/settings_page.dart';
 
 class ParkingManagementApp extends StatelessWidget {
   const ParkingManagementApp({
     this.authRepository,
+    this.parkingSessionRepository,
     this.configurationError,
     super.key,
   });
@@ -17,6 +21,7 @@ class ParkingManagementApp extends StatelessWidget {
   static const _primaryColor = Color(0xFF176B4D);
 
   final AuthRepository? authRepository;
+  final ParkingSessionRepository? parkingSessionRepository;
   final String? configurationError;
 
   @override
@@ -57,17 +62,25 @@ class ParkingManagementApp extends StatelessWidget {
 
     return AuthGate(
       authRepository: repository,
-      authenticatedBuilder: (context, onSignOut) =>
-          AppShell(onSignOut: onSignOut),
+      authenticatedBuilder: (context, onSignOut) => AppShell(
+        onSignOut: onSignOut,
+        parkingSessionRepository: parkingSessionRepository,
+      ),
     );
   }
 }
 
 class AppShell extends StatefulWidget {
-  const AppShell({this.initialIndex = 0, this.onSignOut, super.key});
+  const AppShell({
+    this.initialIndex = 0,
+    this.onSignOut,
+    this.parkingSessionRepository,
+    super.key,
+  });
 
   final int initialIndex;
   final Future<void> Function()? onSignOut;
+  final ParkingSessionRepository? parkingSessionRepository;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -94,12 +107,6 @@ class _AppShellState extends State<AppShell> {
     ),
   ];
 
-  List<Widget> get _pages => [
-    const DashboardPage(),
-    const HistoryPage(),
-    SettingsPage(onSignOut: widget.onSignOut),
-  ];
-
   void _selectDestination(int index) {
     if (index == _selectedIndex) {
       return;
@@ -110,12 +117,47 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
+  Future<void> _openNewParkingEntry(BuildContext context) async {
+    final repository = widget.parkingSessionRepository;
+    if (repository == null) {
+      return;
+    }
+
+    final session = await Navigator.of(context).push<ParkingSession>(
+      MaterialPageRoute(
+        builder: (context) => ParkingEntryPage(repository: repository),
+      ),
+    );
+    if (!context.mounted || session == null) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Parking entry for ${session.plateNumber} was saved successfully.',
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 700;
-        final content = IndexedStack(index: _selectedIndex, children: _pages);
+        final content = IndexedStack(
+          index: _selectedIndex,
+          children: [
+            DashboardPage(
+              onNewParkingEntry: widget.parkingSessionRepository == null
+                  ? null
+                  : () => _openNewParkingEntry(context),
+            ),
+            const HistoryPage(),
+            SettingsPage(onSignOut: widget.onSignOut),
+          ],
+        );
 
         return Scaffold(
           appBar: AppBar(

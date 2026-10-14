@@ -6,15 +6,16 @@ photo storage, and is intended for free-tier-friendly static hosting.
 
 ## Current status
 
-Phase 3 is implemented in source control: public Supabase configuration,
-private email/password sign-in and sign-out, the `parking_sessions` migration,
+Phase 5 is implemented locally: public Supabase configuration, private
+email/password sign-in and sign-out, the `parking_sessions` migration,
 owner-only database policies, a private `vehicle-photos` bucket policy set,
-and local auth widget tests are present.
+the tested duration service, and the authenticated parking-entry/photo flow
+are present. The Phase 5 changes have not been committed or pushed yet.
 
 No hosted Supabase project, migration, bucket, policy, or user is assumed to
 exist. Apply and verify the SQL against the intended project before using the
-application with real data. Parking CRUD, photo capture/upload UI, duration
-calculation, dashboard data, and history data remain deferred to later phases.
+application with real data. Dashboard data, history data, search, editing,
+deletion, and stored-photo display remain deferred to later phases.
 
 ## Local development
 
@@ -54,6 +55,9 @@ the defines shows an explicit configuration-required page.
 Follow [docs/supabase.md](docs/supabase.md) to create a project, apply the
 migration, create the initial private user, and run the local verification
 commands.
+
+See [docs/parking-entry.md](docs/parking-entry.md) for the Phase 5 form,
+photo limits, persistence sequence, cleanup behavior, and manual checks.
 
 The source-controlled SQL is under `supabase/migrations/`. It creates the
 database table, indexes, `updated_at` trigger, owner-only RLS policies, and

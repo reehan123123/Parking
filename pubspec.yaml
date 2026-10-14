@@ -28,8 +28,10 @@ environment:
 # the latest version available on pub.dev. To see which dependencies have newer
 # versions available, run `flutter pub outdated`.
 dependencies:
+  camera: 0.12.1
   flutter:
     sdk: flutter
+  image_picker: 1.2.4
   supabase_flutter: 2.18.3
 
 dev_dependencies:
