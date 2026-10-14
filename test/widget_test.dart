@@ -16,23 +16,16 @@ void main() {
 
     expect(find.text('Parking Management'), findsOneWidget);
     expect(find.text('Dashboard'), findsWidgets);
-    expect(find.text('Your parking overview will appear here'), findsOneWidget);
+    expect(find.text('No parking sessions yet'), findsOneWidget);
   });
 
-  testWidgets('navigates between placeholder destinations', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('navigates between destinations', (WidgetTester tester) async {
     await tester.pumpWidget(_buildShell());
 
     await tester.tap(find.text('History').last);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text(
-        'Historical parking sessions will be available after Supabase integration.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('No parking history'), findsOneWidget);
   });
 
   testWidgets('renders the narrow-screen navigation bar', (

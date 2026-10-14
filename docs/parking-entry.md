@@ -1,8 +1,9 @@
 # Parking entry and vehicle photos
 
-Phase 5 adds an authenticated **New Parking Entry** form. It is intentionally
-limited to creating one session. Dashboard/history lists, search, editing,
-deletion, and displaying stored photos remain Phase 6 work.
+Phase 5 adds an authenticated **New Parking Entry** form. Phase 7 reuses the
+same form for editing from the session details page. Dashboard/history lists,
+search, deletion, and displaying stored photos are documented in
+[parking-session-management.md](parking-session-management.md).
 
 ## Form behavior
 
@@ -82,8 +83,41 @@ or row deletion fails, the owned row is retained and the form exposes
 **Retry cleanup**. The form never reports a complete save when a required
 upload has failed.
 
+## Editing an existing session
+
+The edit form initializes its plate, local entry date/time, duration, expiry
+preview, and existing private photo path from the selected session. It always
+reuses the Phase 4 duration calculator; it does not recalculate expiry with
+widget-local date arithmetic.
+
+- Saving without selecting a replacement retains the existing `photo_path`.
+- Selecting a camera or file photo replaces the existing object at its
+  session-scoped path.
+- Adding a photo to a session that has none uploads the object before updating
+  the row. If the row update fails, the new object is removed or exposed for
+  explicit cleanup retry.
+- Existing photos are not removed independently in this phase.
+
+The session ID is retained when the form submits an edit, so updates remain
+scoped to the authenticated owner through the repository and Supabase RLS.
+
 The Storage policies remain the security boundary. No public bucket, signed
 URL, service-role key, database password, or custom API is used by this flow.
+
+## Optional local OCR
+
+After a photo is captured or selected, the Phase 6 browser-side OCR service
+can read a registration candidate using the locally hosted Tesseract.js
+runtime. The candidate is normalized with the same trim-and-uppercase rules
+as manual input, shown for review, and never treated as authoritative. The
+user must confirm it or explicitly keep a manual value before saving.
+
+OCR can be cancelled, times out after 30 seconds, fail, return no useful text,
+or be unavailable in a non-Web test build. Each path keeps manual entry,
+retaking/replacing the photo, retrying OCR, and **Continue without photo**
+available. Vehicle photos remain in memory during OCR and are not sent to a
+third-party OCR service. See [parking-ocr.md](parking-ocr.md) for the local
+asset, licensing, hosting, privacy, and browser-testing details.
 
 ## Manual verification
 
@@ -106,8 +140,11 @@ project:
 8. Test denied photo permissions, unavailable cameras, an oversized/unsupported
    image, and a network interruption. The UI must show an error and must not
    claim success.
+9. Test OCR with a clear plate, a blurred/angled plate, multiple text regions,
+   no text, cancellation, retry, manual correction, and explicit confirmation.
 
 Local Flutter tests cover validation, calculator composition, persistence
 mapping, row-before-upload order, cleanup failure handling, camera dialog
-states, camera disposal, and entry-page camera integration. They do not prove
-hosted RLS/Storage behavior or physical camera support on Android/iPhone.
+states, camera disposal, entry-page camera integration, OCR candidate review,
+manual fallback, and cancellation. They do not prove hosted RLS/Storage
+behavior, OCR accuracy, or physical camera support on Android/iPhone.

@@ -88,6 +88,7 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   late int _selectedIndex = widget.initialIndex;
+  int _dataVersion = 0;
 
   static const _destinations = [
     _AppDestination(
@@ -132,6 +133,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
 
+    _notifyDataChanged();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -139,6 +141,16 @@ class _AppShellState extends State<AppShell> {
         ),
       ),
     );
+  }
+
+  void _notifyDataChanged() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _dataVersion++;
+    });
   }
 
   @override
@@ -150,11 +162,18 @@ class _AppShellState extends State<AppShell> {
           index: _selectedIndex,
           children: [
             DashboardPage(
+              repository: widget.parkingSessionRepository,
               onNewParkingEntry: widget.parkingSessionRepository == null
                   ? null
                   : () => _openNewParkingEntry(context),
+              onDataChanged: _notifyDataChanged,
+              refreshToken: _dataVersion,
             ),
-            const HistoryPage(),
+            HistoryPage(
+              repository: widget.parkingSessionRepository,
+              onDataChanged: _notifyDataChanged,
+              refreshToken: _dataVersion,
+            ),
             SettingsPage(onSignOut: widget.onSignOut),
           ],
         );

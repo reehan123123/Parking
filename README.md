@@ -6,16 +6,17 @@ photo storage, and is intended for free-tier-friendly static hosting.
 
 ## Current status
 
-Phase 5 is implemented locally: public Supabase configuration, private
+Phase 7 is implemented locally: public Supabase configuration, private
 email/password sign-in and sign-out, the `parking_sessions` migration,
 owner-only database policies, a private `vehicle-photos` bucket policy set,
-the tested duration service, and the authenticated parking-entry/photo flow
-are present. The Phase 5 changes have not been committed or pushed yet.
+the tested duration service, authenticated parking entry/photo/OCR flow, and
+dashboard, history, details, edit, and delete flows are present. Phase 4
+through Phase 7 are checkpointed in Git; hosted/mobile verification remains
+pending.
 
 No hosted Supabase project, migration, bucket, policy, or user is assumed to
 exist. Apply and verify the SQL against the intended project before using the
-application with real data. Dashboard data, history data, search, editing,
-deletion, and stored-photo display remain deferred to later phases.
+application with real data.
 
 ## Local development
 
@@ -56,8 +57,11 @@ Follow [docs/supabase.md](docs/supabase.md) to create a project, apply the
 migration, create the initial private user, and run the local verification
 commands.
 
-See [docs/parking-entry.md](docs/parking-entry.md) for the Phase 5 form,
-photo limits, persistence sequence, cleanup behavior, and manual checks.
+See [docs/parking-entry.md](docs/parking-entry.md) for the entry form, photo
+limits, persistence sequence, edit behavior, cleanup handling, and manual
+checks. See [docs/parking-session-management.md](docs/parking-session-management.md)
+for dashboard, history, details, search, signed photos, editing, deletion, and
+refresh behavior.
 
 The source-controlled SQL is under `supabase/migrations/`. It creates the
 database table, indexes, `updated_at` trigger, owner-only RLS policies, and
@@ -81,5 +85,5 @@ verification checklist, and known manual checks.
 ## Scope guardrails
 
 The first release remains web-only and free-tier friendly. It does not include
-native app builds, OCR, payments, public self-registration, custom backend
+native app builds, payments, public self-registration, custom backend
 services, or full offline operation.
