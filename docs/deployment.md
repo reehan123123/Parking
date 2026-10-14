@@ -2,13 +2,14 @@
 
 The production target is a static Flutter Web release on Cloudflare Pages
 using the free `pages.dev` hostname and the selected project name
-`parking-management`. The application
-continues to use Supabase for authentication, PostgreSQL, and private vehicle
-photo storage. No server-side Flutter process or custom backend is required.
+`parking`. The expected production hostname is
+`https://parking-85u.pages.dev/`. The application continues to use Supabase
+for authentication, PostgreSQL, and private vehicle photo storage. No
+server-side Flutter process or custom backend is required.
 
-The repository does not contain a production URL until Cloudflare creates the
-Pages project and a deployment succeeds. Do not replace the placeholder status
-in this document with a guessed URL.
+The Pages project exists, but the last observed deployment served HTTP 404 for
+the root and expected Flutter/OCR assets. Treat production as unverified until
+a GitHub Actions deployment uploads `build/web` and the live asset checks pass.
 
 ## Architecture and security boundary
 
@@ -30,11 +31,12 @@ in this document with a guessed URL.
 ## GitHub Actions configuration
 
 The workflow is `.github/workflows/deploy-pages.yml`. It runs only for pushes
-to `main` or an intentional `workflow_dispatch`; preview deployments are not
-enabled because a separate staging Supabase project is not configured.
+to `main` or an intentional `workflow_dispatch`, and it uses the protected
+GitHub environment named `production`. Preview deployments are not enabled
+because a separate staging Supabase project is not configured.
 
-Configure these GitHub Actions repository secrets before enabling a production
-push:
+Configure these secrets in the GitHub **production environment** before
+running the workflow:
 
 | Secret | Purpose |
 | --- | --- |
@@ -42,6 +44,10 @@ push:
 | `SUPABASE_PUBLISHABLE_KEY` | Existing project publishable/anon key for browser use |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account containing the Pages project |
 | `CLOUDFLARE_API_TOKEN` | Scoped Cloudflare API token with Pages Edit permission |
+
+Require an environment reviewer if the repository's protection settings
+support it. The account ID is configuration rather than a credential, but it
+is kept in the protected environment with the token to prevent account drift.
 
 Use the Supabase **publishable** key, or the legacy low-privilege `anon` key
 where the project has not migrated. Never use a `sb_secret_*`,
@@ -54,31 +60,43 @@ The action uses:
 Flutter: 3.47.7 stable
 Build: flutter build web --release
 Output: build/web
-Pages project: parking-management
+Pages project: parking
+Production hostname: https://parking-85u.pages.dev/
+Wrangler: 4.151.0
 ```
 
-The build validates formatting, analysis, tests, the OCR bridge syntax, the
-required OCR assets, lazy runtime loading, and a credential-shaped-value scan
-before invoking Wrangler. The generated Supabase values are intentionally
-public client configuration; the workflow still keeps them in GitHub secret
-settings to avoid accidental logging and to make environment changes
-controlled.
+The build validates formatting, analysis, tests, the OCR bridge syntax, every
+required non-empty Flutter/PWA/OCR release asset, lazy runtime loading, and a
+credential-shaped-value scan before invoking Wrangler. The generated Supabase
+values are intentionally public client configuration; the workflow still keeps
+them in protected GitHub environment secrets to avoid accidental logging and
+to make environment changes controlled. The workflow records Wrangler's
+deployment URL and Pages alias URL in the GitHub Actions summary.
 
 ## First-time Cloudflare setup
 
 1. Sign in to Cloudflare and open **Workers & Pages**.
-2. Create a Pages project named `parking-management` using the Direct Upload
-   path. Keep the project on the free plan and do not add a custom domain.
+2. Open the existing Pages project named `parking`. Keep it on the free plan
+   and do not add a custom domain.
 3. Create a custom Cloudflare API token with Account -> Cloudflare Pages ->
    Edit permission. Store it only as `CLOUDFLARE_API_TOKEN`.
 4. Copy the Cloudflare account ID into
    `CLOUDFLARE_ACCOUNT_ID`. Do not put either value in the repository.
-5. Add the two Supabase public configuration values as the corresponding
-   GitHub Actions secrets.
+5. Add the two Supabase public configuration values to the corresponding
+   GitHub `production` environment secrets.
 6. Review the workflow and trigger it from the GitHub Actions tab with
-   `workflow_dispatch`, or push an approved change to `main`.
-7. Record the actual URL printed by Wrangler and shown in the Cloudflare
-   deployment. The URL must be tested before it is documented as production.
+   `workflow_dispatch`, or push an approved change to `main`. The workflow
+   deploys `build/web` with:
+
+   ```text
+   pages deploy build/web --project-name=parking
+   ```
+
+   Do not add `--branch=main`; that option is for an explicit Pages preview
+   branch, while this workflow is the production deployment from `main`.
+7. Record the actual Wrangler deployment URL and Pages alias URL from the
+   workflow summary. Test the root, Flutter bootstrap files, manifest, icons,
+   and OCR assets before treating the hostname as production.
 
 Cloudflare's current Pages build image does not list Flutter. That is why this
 repository builds in GitHub Actions and sends the already-built static
@@ -129,6 +147,18 @@ It does not make Supabase responses, signed URLs, or private photos public or
 cacheable. If Flutter stops copying `_headers` into `build/web`, configure the
 equivalent Pages rule in the dashboard instead and verify the resulting
 headers with `curl -I`.
+
+## Current 404 diagnosis
+
+The Cloudflare project `parking` has a successful deployment record, but the
+last observed production and deployment-specific URLs returned 404 for
+`index.html`, `main.dart.js`, `flutter.js`, `manifest.json`, and the local OCR
+assets. The corresponding GitHub Actions run stopped before the release build
+because `SUPABASE_URL` was not configured, so it could not have uploaded the
+Flutter output. The corrected workflow now targets `parking`, removes the
+preview branch flag, and verifies the generated `build/web` directory before
+uploading it. Do not accept a deployment until those checks pass against the
+live hostname.
 
 The OCR bridge loads `tesseract.min.js`, the worker, the compatible core, and
 the English model only when OCR is requested. The checked-in OCR inventory is
@@ -225,7 +255,11 @@ As of the repository inspection for Phase 9:
 
 - Local Phase 4-8 code is committed and pushed.
 - Local release, analysis, test, OCR, and static security checks have passed.
-- No Cloudflare Pages project or production URL has been verified by this
-  session.
+- Cloudflare Pages project `parking` exists at the expected hostname, but the
+  last observed deployment served 404 responses for the Flutter shell and
+  assets.
+- The corrected GitHub Actions workflow is ready to build `3.47.7`, verify
+  `build/web`, and deploy the production upload after the protected
+  environment secrets are configured.
 - Hosted Supabase migration/Auth/RLS/Storage behavior is not yet verified.
 - Android/iPhone production/PWA checks are not yet verified.

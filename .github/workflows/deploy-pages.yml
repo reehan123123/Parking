@@ -19,6 +19,9 @@ jobs:
     name: Build and deploy to Cloudflare Pages
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://parking-85u.pages.dev
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
@@ -116,13 +119,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f build/web/index.html
-          test -f build/web/manifest.json
-          test -f build/web/parking_ocr.js
-          test -f build/web/ocr-v1/tesseract.min.js
-          test -f build/web/ocr-v1/worker.min.js
-          test -f build/web/ocr-v1/lang/eng.traineddata.gz
-          test -f build/web/ocr-v1/core/tesseract-core-lstm.wasm
+          test -s build/web/index.html
+          test -s build/web/main.dart.js
+          test -s build/web/flutter.js
+          test -s build/web/manifest.json
+          test -s build/web/favicon.png
+          test -s build/web/icons/Icon-192.png
+          test -s build/web/icons/Icon-512.png
+          test -s build/web/_headers
+          test -s build/web/parking_ocr.js
+          test -s build/web/ocr-v1/tesseract.min.js
+          test -s build/web/ocr-v1/worker.min.js
+          test -s build/web/ocr-v1/lang/eng.traineddata.gz
+          test -s build/web/ocr-v1/core/tesseract-core-lstm.wasm
 
           if grep -Fq 'tesseract.min.js' build/web/index.html; then
             echo "The Tesseract runtime must remain lazy-loaded."
@@ -139,7 +148,7 @@ jobs:
               const entryPath = path.join(directory, entry.name);
               if (entry.isDirectory()) {
                 collectFiles(entryPath);
-              } else if (entry.name.endsWith('.js') || entry.name.endsWith('.html')) {
+              } else if (/\.(?:css|html|js|json|svg|txt)$/i.test(entry.name)) {
                 files.push(entryPath);
               }
             }
@@ -185,18 +194,37 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${CLOUDFLARE_ACCOUNT_ID}" || {
-            echo "CLOUDFLARE_ACCOUNT_ID is not configured in GitHub Actions secrets."
+            echo "CLOUDFLARE_ACCOUNT_ID is not configured in the production environment."
             exit 1
           }
           test -n "${CLOUDFLARE_API_TOKEN}" || {
-            echo "CLOUDFLARE_API_TOKEN is not configured in GitHub Actions secrets."
+            echo "CLOUDFLARE_API_TOKEN is not configured in the production environment."
             exit 1
           }
 
       - name: Deploy to Cloudflare Pages
+        id: deploy-pages
         uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy build/web --project-name=parking-management --branch=main
+          wranglerVersion: '4.151.0'
+          command: pages deploy build/web --project-name=parking
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Record Cloudflare deployment
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy-pages.outputs.deployment-url }}
+          DEPLOYMENT_ALIAS_URL: ${{ steps.deploy-pages.outputs.pages-deployment-alias-url }}
+        run: |
+          set -euo pipefail
+          test -n "${DEPLOYMENT_URL}"
+
+          {
+            echo "### Cloudflare Pages deployment"
+            echo "- Wrangler deployment URL: ${DEPLOYMENT_URL}"
+            if [[ -n "${DEPLOYMENT_ALIAS_URL}" ]]; then
+              echo "- Pages alias URL: ${DEPLOYMENT_ALIAS_URL}"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
