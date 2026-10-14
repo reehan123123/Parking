@@ -6,10 +6,10 @@ photo storage, and will target Cloudflare Pages for static hosting.
 
 ## Current status
 
-Phase 1 is complete: the Flutter Web project has been scaffolded and the
-planned feature folders are present. Application features, Supabase
-configuration, migrations, and deployment are intentionally deferred to their
-specified phases.
+Phase 2 is complete: the responsive Flutter Web shell, placeholder navigation,
+reusable UI state widgets, and PWA metadata are in place. Supabase
+configuration, migrations, authentication, and parking features remain
+intentionally deferred to their specified phases.
 
 ## Local development
 

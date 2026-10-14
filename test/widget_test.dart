@@ -1,30 +1,80 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:parking_management/main.dart';
+import 'package:parking_management/app.dart';
+import 'package:parking_management/shared/widgets/empty_state_view.dart';
+import 'package:parking_management/shared/widgets/error_state_view.dart';
+import 'package:parking_management/shared/widgets/loading_view.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('renders the dashboard shell', (WidgetTester tester) async {
+    await tester.pumpWidget(const ParkingManagementApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('Parking Management'), findsOneWidget);
+    expect(find.text('Dashboard'), findsWidgets);
+    expect(find.text('Your parking overview will appear here'), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+  testWidgets('navigates between placeholder destinations', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const ParkingManagementApp());
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    await tester.tap(find.text('History').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Historical parking sessions will be available after Supabase integration.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('renders the narrow-screen navigation bar', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(480, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const ParkingManagementApp());
+
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.byType(NavigationRail), findsNothing);
+  });
+
+  testWidgets('renders the wide-screen navigation rail', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(const ParkingManagementApp());
+
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(NavigationBar), findsNothing);
+  });
+
+  testWidgets('renders reusable loading empty and error states', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Column(
+          children: [
+            LoadingView(message: 'Loading sessions'),
+            EmptyStateView(title: 'No sessions', message: 'Nothing to show'),
+            ErrorStateView(message: 'The connection failed'),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('Loading sessions'), findsOneWidget);
+    expect(find.text('No sessions'), findsOneWidget);
+    expect(find.text('The connection failed'), findsOneWidget);
+    expect(find.text('Something went wrong'), findsOneWidget);
   });
 }

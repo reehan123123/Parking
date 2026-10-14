@@ -1,11 +1,11 @@
 {
-    "name": "parking_management",
-    "short_name": "parking_management",
+    "name": "Parking Management",
+    "short_name": "Parking",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F6FAF7",
+    "theme_color": "#176B4D",
+    "description": "Private parking management app.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
