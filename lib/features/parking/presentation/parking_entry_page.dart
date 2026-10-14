@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../shared/widgets/error_state_view.dart';
 import '../data/parking_camera_source.dart';
+import '../data/parking_ocr_service.dart';
 import '../data/parking_photo.dart';
 import '../data/parking_photo_codec.dart';
+import '../data/parking_plate_normalizer.dart';
 import '../data/parking_photo_source.dart';
 import '../data/parking_session_repository.dart';
 import '../domain/duration_calculation_result.dart';
@@ -19,15 +23,19 @@ import 'parking_entry_limits.dart';
 class ParkingEntryPage extends StatefulWidget {
   const ParkingEntryPage({
     required this.repository,
+    this.initialSession,
     this.photoSource,
     this.cameraSource,
+    this.ocrService,
     this.now,
     super.key,
   });
 
   final ParkingSessionRepository repository;
+  final ParkingSession? initialSession;
   final ParkingPhotoSource? photoSource;
   final ParkingCameraSource? cameraSource;
+  final ParkingOcrService? ocrService;
   final DateTime Function()? now;
 
   @override
@@ -44,21 +52,49 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       widget.photoSource ?? ImagePickerParkingPhotoSource();
   late final ParkingCameraSource _cameraSource =
       widget.cameraSource ?? const CameraPackageParkingCameraSource();
+  late final ParkingOcrService _ocrService =
+      widget.ocrService ?? createParkingOcrService();
   late DateTime _entryDate;
   late TimeOfDay _entryTime;
   ParkingDurationUnit _durationUnit = ParkingDurationUnit.minutes;
   ParkingPhoto? _selectedPhoto;
+  String? _existingPhotoPath;
   ParkingSessionSaveFailure? _saveFailure;
+  ParkingSessionUpdateFailure? _updateFailure;
+  ParkingOcrCancellationToken? _ocrCancellationToken;
+  ParkingOcrProgress? _ocrProgress;
+  String? _ocrCandidate;
+  String? _ocrMessage;
   String? _photoError;
   String? _saveError;
   bool _continueWithoutPhoto = false;
+  bool _isApplyingOcrCandidate = false;
+  bool _isProcessingOcr = false;
   bool _isPickingPhoto = false;
   bool _isSaving = false;
   bool _isCleaningUp = false;
+  bool _ocrNeedsReview = false;
+  bool _plateWasEditedDuringOcr = false;
+
+  bool get _isEditing => widget.initialSession != null;
 
   @override
   void initState() {
     super.initState();
+    final initialSession = widget.initialSession;
+    if (initialSession != null) {
+      final entryTime = initialSession.entryTime.toLocal();
+      _entryDate = DateTime(entryTime.year, entryTime.month, entryTime.day);
+      _entryTime = TimeOfDay.fromDateTime(entryTime);
+      _durationUnit = initialSession.allowedDuration.unit;
+      _plateController.text = initialSession.plateNumber;
+      _durationController.text = initialSession.allowedDuration.value
+          .toString();
+      _existingPhotoPath = initialSession.photoPath;
+      _continueWithoutPhoto = initialSession.photoPath == null;
+      return;
+    }
+
     final initialNow = (widget.now ?? DateTime.now)().toLocal();
     _entryDate = DateTime(initialNow.year, initialNow.month, initialNow.day);
     _entryTime = TimeOfDay.fromDateTime(initialNow);
@@ -66,6 +102,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
 
   @override
   void dispose() {
+    _ocrCancellationToken?.cancel();
     _plateController.dispose();
     _durationController.dispose();
     super.dispose();
@@ -154,10 +191,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       }
 
       if (photo != null) {
-        setState(() {
-          _selectedPhoto = photo;
-          _continueWithoutPhoto = false;
-        });
+        _setSelectedPhoto(photo);
       }
     } on Exception {
       if (mounted) {
@@ -193,10 +227,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       }
 
       if (photo != null) {
-        setState(() {
-          _selectedPhoto = photo;
-          _continueWithoutPhoto = false;
-        });
+        _setSelectedPhoto(photo);
       }
     } on ParkingPhotoException catch (error) {
       if (mounted) {
@@ -220,21 +251,223 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
   }
 
   void _removePhoto() {
+    _cancelOcr();
     setState(() {
       _selectedPhoto = null;
+      _ocrCandidate = null;
+      _ocrMessage = null;
+      _ocrNeedsReview = false;
       _photoError = null;
+      if (_existingPhotoPath == null) {
+        _continueWithoutPhoto = false;
+      }
     });
   }
 
   void _setContinueWithoutPhoto(bool? value) {
     final continueWithoutPhoto = value ?? false;
+    if (continueWithoutPhoto) {
+      _cancelOcr();
+    }
     setState(() {
       _continueWithoutPhoto = continueWithoutPhoto;
       if (continueWithoutPhoto) {
         _selectedPhoto = null;
+        _ocrCandidate = null;
+        _ocrMessage = null;
+        _ocrNeedsReview = false;
         _photoError = null;
       }
     });
+  }
+
+  void _setSelectedPhoto(ParkingPhoto photo) {
+    _cancelOcr();
+    setState(() {
+      _selectedPhoto = photo;
+      _continueWithoutPhoto = false;
+      _ocrCandidate = null;
+      _ocrMessage = null;
+      _ocrNeedsReview = false;
+      _plateWasEditedDuringOcr = false;
+    });
+    unawaited(_runOcr(photo));
+  }
+
+  Future<void> _runOcr(ParkingPhoto photo) async {
+    _ocrCancellationToken?.cancel();
+    final cancellationToken = ParkingOcrCancellationToken();
+    if (!mounted) {
+      cancellationToken.cancel();
+      return;
+    }
+
+    setState(() {
+      _ocrCancellationToken = cancellationToken;
+      _ocrMessage = null;
+      _ocrProgress = null;
+      _isProcessingOcr = true;
+      _ocrNeedsReview = false;
+    });
+
+    late final ParkingOcrResult result;
+    try {
+      result = await _ocrService.recognize(
+        photo: photo,
+        cancellationToken: cancellationToken,
+        onProgress: (progress) {
+          if (!mounted ||
+              !identical(_ocrCancellationToken, cancellationToken)) {
+            return;
+          }
+
+          setState(() {
+            _ocrProgress = progress;
+          });
+        },
+      );
+    } on Exception catch (_) {
+      result = const ParkingOcrFailureResult(
+        message: 'The local OCR engine failed. Enter the registration manually or try again.',
+      );
+    }
+
+    if (!mounted || !identical(_ocrCancellationToken, cancellationToken)) {
+      return;
+    }
+
+    _ocrCancellationToken = null;
+    if (cancellationToken.isCancelled) {
+      setState(() {
+        _isProcessingOcr = false;
+        _ocrProgress = null;
+        _ocrMessage = 'OCR was cancelled. Enter the registration manually.';
+      });
+      return;
+    }
+
+    switch (result) {
+      case ParkingOcrTextResult(:final rawText):
+        _applyOcrText(rawText);
+      case ParkingOcrNoTextResult():
+        _setOcrResult(
+          message: 'No registration text was found. Enter it manually or try another photo.',
+        );
+      case ParkingOcrUnavailableResult(:final message):
+        _setOcrResult(message: message);
+      case ParkingOcrCancelledResult():
+        _setOcrResult(
+          message: 'OCR was cancelled. Enter the registration manually.',
+        );
+      case ParkingOcrFailureResult(:final message):
+        _setOcrResult(message: message);
+    }
+  }
+
+  void _applyOcrText(String rawText) {
+    final candidate = ParkingPlateNormalizer.candidateFromOcr(rawText);
+    if (candidate == null) {
+      _setOcrResult(
+        message: 'No usable registration text was found. Enter it manually or try another photo.',
+      );
+      return;
+    }
+
+    final shouldPrefill =
+        _plateController.text.trim().isEmpty && !_plateWasEditedDuringOcr;
+    if (shouldPrefill) {
+      _isApplyingOcrCandidate = true;
+      _plateController.text = candidate;
+      _isApplyingOcrCandidate = false;
+    }
+
+    setState(() {
+      _isProcessingOcr = false;
+      _ocrProgress = null;
+      _ocrCandidate = candidate;
+      _ocrNeedsReview = true;
+      _ocrMessage = 'Review the detected registration before saving.';
+    });
+  }
+
+  void _setOcrResult({required String message}) {
+    setState(() {
+      _isProcessingOcr = false;
+      _ocrProgress = null;
+      _ocrMessage = message;
+      _ocrNeedsReview = false;
+    });
+  }
+
+  void _cancelOcr() {
+    final cancellationToken = _ocrCancellationToken;
+    if (cancellationToken == null) {
+      return;
+    }
+
+    cancellationToken.cancel();
+    _ocrCancellationToken = null;
+    if (mounted) {
+      setState(() {
+        _isProcessingOcr = false;
+        _ocrProgress = null;
+        _ocrMessage = 'OCR was cancelled. Enter the registration manually.';
+        _ocrNeedsReview = false;
+      });
+    }
+  }
+
+  void _retryOcr() {
+    final photo = _selectedPhoto;
+    if (photo == null || _isProcessingOcr || _isSaving) {
+      return;
+    }
+
+    unawaited(_runOcr(photo));
+  }
+
+  void _confirmOcrCandidate() {
+    if (_ocrCandidate == null) {
+      return;
+    }
+
+    setState(() {
+      _ocrNeedsReview = false;
+      _ocrMessage =
+          'Detected registration confirmed. Check it once more before saving.';
+    });
+  }
+
+  void _useOcrCandidate() {
+    final candidate = _ocrCandidate;
+    if (candidate == null) {
+      return;
+    }
+
+    _isApplyingOcrCandidate = true;
+    _plateController.text = candidate;
+    _isApplyingOcrCandidate = false;
+    setState(() {
+      _ocrNeedsReview = false;
+      _ocrMessage = 'Detected registration applied. Check it before saving.';
+    });
+  }
+
+  void _keepManualPlate() {
+    setState(() {
+      _ocrNeedsReview = false;
+      _ocrMessage = 'Your manually entered registration will be used.';
+    });
+  }
+
+  void _handlePlateChanged(String value) {
+    if (_isApplyingOcrCandidate) {
+      return;
+    }
+
+    if (_isProcessingOcr) {
+      _plateWasEditedDuringOcr = true;
+    }
   }
 
   String? _validatePlate(String? value) {
@@ -304,6 +537,14 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       return;
     }
 
+    if (_ocrNeedsReview) {
+      setState(() {
+        _ocrMessage =
+            'Review and confirm the detected registration before saving.';
+      });
+      return;
+    }
+
     final calculation = _expiryCalculation;
     final duration = _enteredDuration;
     if (calculation is! DurationCalculationSuccess || duration == null) {
@@ -314,25 +555,34 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     }
 
     final session = ParkingSession(
-      plateNumber: _plateController.text.trim().toUpperCase(),
+      id: widget.initialSession?.id,
+      plateNumber: ParkingPlateNormalizer.normalize(_plateController.text),
+      photoPath: _existingPhotoPath,
       entryTime: _entryDateTime,
       allowedDuration: duration,
       expiresAt: calculation.expiresAt,
-      photoPath: null,
     );
 
     setState(() {
       _isSaving = true;
       _saveError = null;
       _saveFailure = null;
+      _updateFailure = null;
     });
 
-    late final ParkingSessionSaveResult result;
+    late final Object result;
     try {
-      result = await widget.repository.save(
-        session: session,
-        photo: _selectedPhoto,
-      );
+      if (_isEditing) {
+        result = await widget.repository.update(
+          session: session,
+          replacementPhoto: _selectedPhoto,
+        );
+      } else {
+        result = await widget.repository.save(
+          session: session,
+          photo: _selectedPhoto,
+        );
+      }
     } on Exception {
       if (mounted) {
         setState(() {
@@ -351,16 +601,38 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       return;
     }
 
-    final failure = result as ParkingSessionSaveFailure;
+    if (result is ParkingSessionUpdateSuccess) {
+      Navigator.of(context).pop(result.session);
+      return;
+    }
+
+    if (result is ParkingSessionSaveFailure) {
+      final failure = result;
+      setState(() {
+        _isSaving = false;
+        _saveFailure = failure;
+        _saveError = failure.message;
+      });
+      return;
+    }
+
+    final failure = result as ParkingSessionUpdateFailure;
     setState(() {
       _isSaving = false;
-      _saveFailure = failure;
+      _updateFailure = failure;
       _saveError = failure.message;
     });
   }
 
   bool _validatePhotoSelection() {
     if (_selectedPhoto != null || _continueWithoutPhoto) {
+      setState(() {
+        _photoError = null;
+      });
+      return true;
+    }
+
+    if (_existingPhotoPath != null) {
       setState(() {
         _photoError = null;
       });
@@ -425,6 +697,55 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     });
   }
 
+  Future<void> _retryPhotoCleanup() async {
+    final failure = _updateFailure;
+    if (failure == null ||
+        !failure.cleanupRequired ||
+        failure.photoPath == null ||
+        _isCleaningUp) {
+      return;
+    }
+
+    setState(() {
+      _isCleaningUp = true;
+      _saveError = null;
+    });
+
+    late final ParkingPhotoCleanupResult result;
+    try {
+      result = await widget.repository.retryPhotoCleanup(
+        photoPath: failure.photoPath!,
+      );
+    } on Exception {
+      if (mounted) {
+        setState(() {
+          _isCleaningUp = false;
+          _saveError = 'Photo cleanup could not complete. Check your connection and retry.';
+        });
+      }
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    if (result is ParkingPhotoCleanupSuccess) {
+      setState(() {
+        _isCleaningUp = false;
+        _updateFailure = null;
+        _saveError =
+            'Photo cleanup completed. Review the changes and try saving again.';
+      });
+      return;
+    }
+
+    final cleanupFailure = result as ParkingPhotoCleanupFailure;
+    setState(() {
+      _isCleaningUp = false;
+      _saveError = cleanupFailure.message;
+    });
+  }
+
   String _formatDateTime(DateTime value) {
     final localizations = MaterialLocalizations.of(context);
     final date = localizations.formatMediumDate(value);
@@ -439,7 +760,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('New Parking Entry'),
+        title: Text(_isEditing ? 'Edit Parking Entry' : 'New Parking Entry'),
         actions: [
           TextButton(
             onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
@@ -479,7 +800,11 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                               )
                             : const Icon(Icons.save_outlined),
                         label: Text(
-                          _isSaving ? 'Saving...' : 'Save parking entry',
+                          _isSaving
+                              ? (_isEditing ? 'Updating...' : 'Saving...')
+                              : (_isEditing
+                                    ? 'Update parking entry'
+                                    : 'Save parking entry'),
                         ),
                       ),
                     ],
@@ -495,7 +820,9 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
 
   Widget _buildIntro(BuildContext context) {
     return Text(
-      'Enter the vehicle details and confirm the expiry time before saving.',
+      _isEditing
+          ? 'Update the vehicle details and confirm the expiry time before saving.'
+          : 'Enter the vehicle details and confirm the expiry time before saving.',
       style: Theme.of(context).textTheme.bodyLarge,
     );
   }
@@ -526,6 +853,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                 hintText: 'For example, ABC 123',
               ),
               validator: _validatePlate,
+              onChanged: _handlePlateChanged,
             ),
             const SizedBox(height: 16),
             _buildDateTimeButtons(context),
@@ -632,6 +960,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
 
   Widget _buildPhotoCard(BuildContext context) {
     final photo = _selectedPhoto;
+    final hasExistingPhoto = _existingPhotoPath != null;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -669,6 +998,20 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
               ),
               const SizedBox(height: 12),
             ],
+            if (photo == null && hasExistingPhoto) ...[
+              Card(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: const ListTile(
+                  leading: Icon(Icons.photo_outlined),
+                  title: Text('Existing private photo will be kept'),
+                  subtitle: Text(
+                    'Choose a new photo only if you want to replace it.',
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            _buildOcrStatus(context),
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -682,7 +1025,13 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.camera_alt_outlined),
-                  label: Text(photo == null ? 'Take photo' : 'Retake photo'),
+                  label: Text(
+                    photo == null && hasExistingPhoto
+                        ? 'Replace with camera'
+                        : photo == null
+                        ? 'Take photo'
+                        : 'Retake photo',
+                  ),
                 ),
                 OutlinedButton.icon(
                   onPressed: _isPickingPhoto || _isSaving
@@ -695,20 +1044,25 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                   TextButton.icon(
                     onPressed: _isSaving ? null : _removePhoto,
                     icon: const Icon(Icons.delete_outline),
-                    label: const Text('Remove'),
+                    label: Text(
+                      _isEditing && hasExistingPhoto
+                          ? 'Discard replacement'
+                          : 'Remove',
+                    ),
                   ),
               ],
             ),
-            CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _continueWithoutPhoto,
-              onChanged: _isSaving ? null : _setContinueWithoutPhoto,
-              title: const Text('Continue without photo'),
-              subtitle: const Text(
-                'Choose this explicitly if no photo is available.',
+            if (!hasExistingPhoto)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _continueWithoutPhoto,
+                onChanged: _isSaving ? null : _setContinueWithoutPhoto,
+                title: const Text('Continue without photo'),
+                subtitle: const Text(
+                  'Choose this explicitly if no photo is available.',
+                ),
+                controlAffinity: ListTileControlAffinity.leading,
               ),
-              controlAffinity: ListTileControlAffinity.leading,
-            ),
             if (_photoError != null) ...[
               const SizedBox(height: 8),
               Text(
@@ -716,6 +1070,101 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOcrStatus(BuildContext context) {
+    final candidate = _ocrCandidate;
+    final message = _ocrMessage;
+    if (!_isProcessingOcr && candidate == null && message == null) {
+      return const SizedBox.shrink();
+    }
+
+    final colorScheme = Theme.of(context).colorScheme;
+    final currentPlate = ParkingPlateNormalizer.normalize(
+      _plateController.text,
+    );
+    final candidateMatchesPlate =
+        candidate != null &&
+        currentPlate == ParkingPlateNormalizer.normalize(candidate);
+
+    return Card(
+      color: _ocrNeedsReview
+          ? colorScheme.tertiaryContainer
+          : colorScheme.surfaceContainerHighest,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (_isProcessingOcr) ...[
+              const Text('Reading registration from the photo...'),
+              const SizedBox(height: 8),
+              LinearProgressIndicator(value: _ocrProgress?.fraction),
+              const SizedBox(height: 8),
+              Text(_ocrProgress?.status ?? 'Starting local OCR'),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: _cancelOcr,
+                  child: const Text('Cancel OCR'),
+                ),
+              ),
+            ],
+            if (!_isProcessingOcr && message != null)
+              Text(
+                message,
+                style: TextStyle(
+                  color: _ocrNeedsReview
+                      ? colorScheme.onTertiaryContainer
+                      : null,
+                ),
+              ),
+            if (candidate != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Detected candidate: $candidate',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ],
+            if (!_isProcessingOcr && candidate != null && _ocrNeedsReview) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  FilledButton(
+                    onPressed: candidateMatchesPlate
+                        ? _confirmOcrCandidate
+                        : _useOcrCandidate,
+                    child: Text(
+                      candidateMatchesPlate
+                          ? 'Confirm detected plate'
+                          : 'Use detected plate',
+                    ),
+                  ),
+                  if (!candidateMatchesPlate)
+                    TextButton(
+                      onPressed: _keepManualPlate,
+                      child: const Text('Keep current entry'),
+                    ),
+                ],
+              ),
+            ],
+            if (!_isProcessingOcr &&
+                candidate == null &&
+                _selectedPhoto != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton(
+                  onPressed: _isSaving ? null : _retryOcr,
+                  child: const Text('Retry OCR'),
+                ),
+              ),
           ],
         ),
       ),
@@ -732,6 +1181,9 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
         _saveFailure?.cleanupRequired == true &&
         _saveFailure?.sessionId != null &&
         _saveFailure?.photoPath != null;
+    final canRetryPhotoCleanup =
+        _updateFailure?.cleanupRequired == true &&
+        _updateFailure?.photoPath != null;
     return Card(
       color: Theme.of(context).colorScheme.errorContainer,
       child: Padding(
@@ -746,6 +1198,17 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                 onPressed: _isCleaningUp ? null : _retryCleanup,
                 child: Text(
                   _isCleaningUp ? 'Retrying cleanup...' : 'Retry cleanup',
+                ),
+              ),
+            ],
+            if (canRetryPhotoCleanup) ...[
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: _isCleaningUp ? null : _retryPhotoCleanup,
+                child: Text(
+                  _isCleaningUp
+                      ? 'Retrying photo cleanup...'
+                      : 'Retry photo cleanup',
                 ),
               ),
             ],
