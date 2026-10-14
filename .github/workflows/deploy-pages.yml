@@ -1,0 +1,202 @@
+name: Build and deploy Parking PWA
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: parking-pages-production
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    name: Build and deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.47.7'
+          cache: true
+          pub-cache: true
+
+      - name: Show Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Validate public Supabase configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SUPABASE_URL}" ]]; then
+            echo "SUPABASE_URL is not configured in GitHub Actions secrets."
+            exit 1
+          fi
+
+          if [[ -z "${SUPABASE_PUBLISHABLE_KEY}" ]]; then
+            echo "SUPABASE_PUBLISHABLE_KEY is not configured in GitHub Actions secrets."
+            exit 1
+          fi
+
+          case "${SUPABASE_URL}" in
+            http://*|https://*) ;;
+            *)
+              echo "SUPABASE_URL must use http:// or https://."
+              exit 1
+              ;;
+          esac
+
+          case "${SUPABASE_PUBLISHABLE_KEY}" in
+            sb_secret_*|sb_service_role_*|*service_role*)
+              echo "A secret/service-role key cannot be used in the browser build."
+              exit 1
+              ;;
+          esac
+
+          node <<'NODE'
+          const key = process.env.SUPABASE_PUBLISHABLE_KEY;
+          const parts = key.split('.');
+
+          if (parts.length === 3) {
+            try {
+              const payload = JSON.parse(
+                Buffer.from(parts[1], 'base64url').toString('utf8'),
+              );
+              if (payload.role === 'service_role') {
+                console.error(
+                  'A legacy service-role JWT cannot be used in the browser build.',
+                );
+                process.exit(1);
+              }
+            } catch {
+              // Non-JWT publishable keys are handled by the prefix checks above.
+            }
+          }
+          NODE
+
+      - name: Validate OCR bridge
+        run: node --check web/parking_ocr.js
+
+      - name: Build release web app
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter build web --release \
+            --dart-define="SUPABASE_URL=${SUPABASE_URL}" \
+            --dart-define="SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
+
+      - name: Verify release output
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f build/web/index.html
+          test -f build/web/manifest.json
+          test -f build/web/parking_ocr.js
+          test -f build/web/ocr-v1/tesseract.min.js
+          test -f build/web/ocr-v1/worker.min.js
+          test -f build/web/ocr-v1/lang/eng.traineddata.gz
+          test -f build/web/ocr-v1/core/tesseract-core-lstm.wasm
+
+          if grep -Fq 'tesseract.min.js' build/web/index.html; then
+            echo "The Tesseract runtime must remain lazy-loaded."
+            exit 1
+          fi
+
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+
+          const files = [];
+          const collectFiles = (directory) => {
+            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+              const entryPath = path.join(directory, entry.name);
+              if (entry.isDirectory()) {
+                collectFiles(entryPath);
+              } else if (entry.name.endsWith('.js') || entry.name.endsWith('.html')) {
+                files.push(entryPath);
+              }
+            }
+          };
+
+          collectFiles('build/web');
+
+          const exposedKeyPatterns = [
+            /sb_(?:secret|service_role)_[A-Za-z0-9_-]{16,}/,
+            /postgres(?:ql)?:\/\/[^:\s]+:[^@\s]+@/i,
+          ];
+          const jwtPattern =
+            /eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g;
+
+          for (const file of files) {
+            const content = fs.readFileSync(file, 'utf8');
+            if (exposedKeyPatterns.some((pattern) => pattern.test(content))) {
+              console.error('A privileged credential-shaped value was found in release output.');
+              process.exit(1);
+            }
+
+            for (const match of content.matchAll(jwtPattern)) {
+              try {
+                const payload = JSON.parse(
+                  Buffer.from(match[0].split('.')[1], 'base64url').toString('utf8'),
+                );
+                if (payload.role === 'service_role') {
+                  console.error('A service-role JWT was found in release output.');
+                  process.exit(1);
+                }
+              } catch {
+                // Ignore non-JWT strings that happen to match the shape.
+              }
+            }
+          }
+          NODE
+
+      - name: Validate Cloudflare configuration
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID}" || {
+            echo "CLOUDFLARE_ACCOUNT_ID is not configured in GitHub Actions secrets."
+            exit 1
+          }
+          test -n "${CLOUDFLARE_API_TOKEN}" || {
+            echo "CLOUDFLARE_API_TOKEN is not configured in GitHub Actions secrets."
+            exit 1
+          }
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy build/web --project-name=parking-management --branch=main
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}

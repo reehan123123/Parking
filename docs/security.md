@@ -19,6 +19,14 @@ Configuration is supplied with `--dart-define` and validated before
 `Supabase.initialize` runs. Missing configuration produces an explicit setup
 page instead of a fake client or a silent unauthenticated mode.
 
+The production GitHub Actions workflow reads `SUPABASE_URL` and
+`SUPABASE_PUBLISHABLE_KEY` from GitHub secret settings and passes them to the
+same compile-time defines. These values are intentionally visible in the
+browser release because the URL and publishable/anon key identify a public
+client; the workflow must never receive or embed a Supabase secret/service-role
+key. Cloudflare deployment credentials are used only by the workflow and are
+not application configuration.
+
 ## Authentication
 
 The current UI supports only email/password sign-in and local sign-out. There
@@ -103,6 +111,11 @@ These checks are source-controlled but were not executed in the current
 environment because Supabase CLI and Docker were unavailable. No hosted
 project, bucket, migration, user, or policy is claimed as verified until the
 manual checklist is completed.
+
+After deployment, verify the actual Pages origin in Supabase Auth URL
+Configuration and run the two-account database and private-Storage checks
+from [deployment.md](deployment.md). A successful frontend build is not proof
+of hosted RLS or Storage isolation.
 
 ## Review requirements for later phases
 

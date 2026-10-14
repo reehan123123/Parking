@@ -6,13 +6,14 @@ photo storage, and is intended for free-tier-friendly static hosting.
 
 ## Current status
 
-Phase 7 is implemented locally: public Supabase configuration, private
-email/password sign-in and sign-out, the `parking_sessions` migration,
+Phase 9 deployment preparation is implemented locally: public Supabase
+configuration, private email/password sign-in and sign-out, the
+`parking_sessions` migration,
 owner-only database policies, a private `vehicle-photos` bucket policy set,
 the tested duration service, authenticated parking entry/photo/OCR flow, and
 dashboard, history, details, edit, and delete flows are present. Phase 4
-through Phase 7 are checkpointed in Git; hosted/mobile verification remains
-pending.
+through Phase 7 are checkpointed in Git. Cloudflare deployment, hosted
+Supabase verification, and mobile/PWA production checks remain pending.
 
 No hosted Supabase project, migration, bucket, policy, or user is assumed to
 exist. Apply and verify the SQL against the intended project before using the
@@ -61,7 +62,9 @@ See [docs/parking-entry.md](docs/parking-entry.md) for the entry form, photo
 limits, persistence sequence, edit behavior, cleanup handling, and manual
 checks. See [docs/parking-session-management.md](docs/parking-session-management.md)
 for dashboard, history, details, search, signed photos, editing, deletion, and
-refresh behavior.
+refresh behavior. See [docs/deployment.md](docs/deployment.md) for the
+GitHub Actions, Cloudflare Pages, Supabase production, verification, and
+rollback handover.
 
 The source-controlled SQL is under `supabase/migrations/`. It creates the
 database table, indexes, `updated_at` trigger, owner-only RLS policies, and

@@ -35,6 +35,11 @@ flutter run -d chrome `
 PowerShell expands the values before Flutter embeds them. Do not record the
 command in a shared log or commit a script containing real values.
 
+For production, configure the same two public values as GitHub Actions secrets
+named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The deployment workflow
+passes them to Flutter with `--dart-define`; it does not read `.env` files and
+must never receive a secret/service-role key.
+
 ## 2. Apply the migration
 
 The migration file is:
@@ -99,6 +104,12 @@ The bucket query must show `public = false`, and the table query must show
 Email confirmation behavior depends on the project's Auth settings. If email
 confirmation is enabled, complete the confirmation flow before testing the
 Flutter sign-in page.
+
+After the Cloudflare Pages URL is known, set that exact HTTPS origin as the
+Supabase Auth Site URL and add only the required exact redirect URLs. Keep
+local development URLs separate from the production origin. The current app
+uses password sign-in rather than an OAuth callback, but Auth URL settings also
+affect email confirmation and future password-reset links.
 
 ## 4. Verify the policies
 

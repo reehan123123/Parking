@@ -91,6 +91,11 @@ the same origin. A deployment that strips or rewrites files under
 `web/ocr-v1/` will make OCR unavailable while leaving manual plate entry
 usable.
 
+The production Cloudflare Pages handover uses `web/_headers` to apply the
+immutable cache policy only to `/ocr-v1/*`. Verify that the file is copied to
+`build/web` and that the deployed response includes the header. Do not apply
+public caching to Supabase responses, signed URLs, or private vehicle photos.
+
 ## Recognition limitations
 
 OCR is not authoritative plate recognition. Blur, glare, skew, low contrast,
