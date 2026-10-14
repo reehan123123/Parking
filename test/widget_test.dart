@@ -6,9 +6,13 @@ import 'package:parking_management/shared/widgets/empty_state_view.dart';
 import 'package:parking_management/shared/widgets/error_state_view.dart';
 import 'package:parking_management/shared/widgets/loading_view.dart';
 
+Widget _buildShell() {
+  return const MaterialApp(home: AppShell());
+}
+
 void main() {
   testWidgets('renders the dashboard shell', (WidgetTester tester) async {
-    await tester.pumpWidget(const ParkingManagementApp());
+    await tester.pumpWidget(_buildShell());
 
     expect(find.text('Parking Management'), findsOneWidget);
     expect(find.text('Dashboard'), findsWidgets);
@@ -18,7 +22,7 @@ void main() {
   testWidgets('navigates between placeholder destinations', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(const ParkingManagementApp());
+    await tester.pumpWidget(_buildShell());
 
     await tester.tap(find.text('History').last);
     await tester.pumpAndSettle();
@@ -38,7 +42,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(const ParkingManagementApp());
+    await tester.pumpWidget(_buildShell());
 
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
@@ -51,10 +55,19 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await tester.pumpWidget(const ParkingManagementApp());
+    await tester.pumpWidget(_buildShell());
 
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
+  });
+
+  testWidgets('shows configuration guidance without Supabase setup', (
+    WidgetTester tester,
+  ) async {
+    await tester.pumpWidget(const ParkingManagementApp());
+
+    expect(find.text('Supabase configuration required'), findsOneWidget);
+    expect(find.textContaining('SUPABASE_URL'), findsOneWidget);
   });
 
   testWidgets('renders reusable loading empty and error states', (

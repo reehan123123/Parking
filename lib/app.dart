@@ -1,13 +1,23 @@
 import 'package:flutter/material.dart';
 
+import 'core/config/configuration_required_page.dart';
+import 'features/auth/data/auth_repository.dart';
+import 'features/auth/presentation/auth_gate.dart';
 import 'features/dashboard/presentation/dashboard_page.dart';
 import 'features/history/presentation/history_page.dart';
 import 'features/settings/presentation/settings_page.dart';
 
 class ParkingManagementApp extends StatelessWidget {
-  const ParkingManagementApp({super.key});
+  const ParkingManagementApp({
+    this.authRepository,
+    this.configurationError,
+    super.key,
+  });
 
   static const _primaryColor = Color(0xFF176B4D);
+
+  final AuthRepository? authRepository;
+  final String? configurationError;
 
   @override
   Widget build(BuildContext context) {
@@ -32,58 +42,72 @@ class ParkingManagementApp extends StatelessWidget {
           margin: EdgeInsets.zero,
         ),
       ),
-      initialRoute: '/',
-      routes: {
-        '/': (_) => const AppShell(initialIndex: 0),
-        '/dashboard': (_) => const AppShell(initialIndex: 0),
-        '/history': (_) => const AppShell(initialIndex: 1),
-        '/settings': (_) => const AppShell(initialIndex: 2),
-      },
+      home: _buildHome(),
+    );
+  }
+
+  Widget _buildHome() {
+    final error = configurationError;
+    final repository = authRepository;
+    if (error != null || repository == null) {
+      return ConfigurationRequiredPage(
+        message: error ?? 'Supabase is not configured for this build.',
+      );
+    }
+
+    return AuthGate(
+      authRepository: repository,
+      authenticatedBuilder: (context, onSignOut) =>
+          AppShell(onSignOut: onSignOut),
     );
   }
 }
 
 class AppShell extends StatefulWidget {
-  const AppShell({required this.initialIndex, super.key});
+  const AppShell({this.initialIndex = 0, this.onSignOut, super.key});
 
   final int initialIndex;
+  final Future<void> Function()? onSignOut;
 
   @override
   State<AppShell> createState() => _AppShellState();
 }
 
 class _AppShellState extends State<AppShell> {
-  late final int _selectedIndex = widget.initialIndex;
+  late int _selectedIndex = widget.initialIndex;
 
   static const _destinations = [
     _AppDestination(
       label: 'Dashboard',
       icon: Icons.dashboard_outlined,
       selectedIcon: Icons.dashboard,
-      route: '/dashboard',
     ),
     _AppDestination(
       label: 'History',
       icon: Icons.history_outlined,
       selectedIcon: Icons.history,
-      route: '/history',
     ),
     _AppDestination(
       label: 'Settings',
       icon: Icons.settings_outlined,
       selectedIcon: Icons.settings,
-      route: '/settings',
     ),
   ];
 
-  static const _pages = [DashboardPage(), HistoryPage(), SettingsPage()];
+  List<Widget> get _pages => [
+    const DashboardPage(),
+    const HistoryPage(),
+    SettingsPage(onSignOut: widget.onSignOut),
+  ];
 
   void _selectDestination(int index) {
     if (index == _selectedIndex) {
       return;
     }
 
-    Navigator.of(context).pushReplacementNamed(_destinations[index].route);
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   @override
@@ -150,11 +174,9 @@ class _AppDestination {
     required this.label,
     required this.icon,
     required this.selectedIcon,
-    required this.route,
   });
 
   final String label;
   final IconData icon;
   final IconData selectedIcon;
-  final String route;
 }
