@@ -26,6 +26,21 @@ void main() {
   });
 
   test(
+    'rejects short incidental OCR text while preserving a plate candidate',
+    () {
+      expect(ParkingPlateNormalizer.candidateFromOcr('HAS'), isNull);
+      expect(
+        ParkingPlateNormalizer.candidateFromOcr('HAS\nMH03 V5823'),
+        'MH03 V5823',
+      );
+    },
+  );
+
+  test('does not require a country-specific registration format', () {
+    expect(ParkingPlateNormalizer.candidateFromOcr('ABCD'), 'ABCD');
+  });
+
+  test(
     'cancellation listeners run once and late listeners run immediately',
     () {
       final token = ParkingOcrCancellationToken();

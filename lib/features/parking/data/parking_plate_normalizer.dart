@@ -12,7 +12,7 @@ class ParkingPlateNormalizer {
     final candidates = rawText
         .split(RegExp(r'[\r\n]+'))
         .map((line) => normalize(line).replaceAll(RegExp(r'\s+'), ' '))
-        .where((line) => RegExp(r'[A-Z0-9]').hasMatch(line))
+        .where(_isPlausibleCandidate)
         .toList();
     if (candidates.isEmpty) {
       return null;
@@ -27,6 +27,11 @@ class ParkingPlateNormalizer {
       return second.length.compareTo(first.length);
     });
     return candidates.first;
+  }
+
+  /// Rejects short OCR fragments that are unlikely to be a full registration.
+  static bool _isPlausibleCandidate(String candidate) {
+    return RegExp(r'[A-Z0-9]').allMatches(candidate).length >= 4;
   }
 
   static int _score(String candidate) {

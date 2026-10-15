@@ -101,9 +101,11 @@ public caching to Supabase responses, signed URLs, or private vehicle photos.
 OCR is not authoritative plate recognition. Blur, glare, skew, low contrast,
 occlusion, multiple text regions, and unusual fonts can produce an empty or
 incorrect candidate. Similar characters such as `O`/`0`, `I`/`1`, and `B`/`8`
-can be confused. The parser only trims, uppercases, normalizes OCR whitespace,
-and ranks text lines; it does not impose a country-specific registration
-format or silently replace ambiguous characters.
+can be confused. The parser trims, uppercases, normalizes OCR whitespace,
+ignores fragments with fewer than four alphanumeric characters, and ranks the
+remaining text lines. It does not impose a country-specific registration format
+or silently replace ambiguous characters. Short incidental text is treated as
+no confident OCR candidate so the user can enter the registration manually.
 
 ## Manual Chrome verification
 
