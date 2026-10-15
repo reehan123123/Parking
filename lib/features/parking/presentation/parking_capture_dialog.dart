@@ -28,6 +28,7 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
   String? _errorMessage;
   bool _isInitializing = true;
   bool _isCapturing = false;
+  bool _isSwitching = false;
   bool _isDisposed = false;
 
   @override
@@ -80,7 +81,10 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
 
   Future<void> _capturePhoto() async {
     final session = _cameraSession;
-    if (session == null || _isCapturing || _capturedPhoto != null) {
+    if (session == null ||
+        _isCapturing ||
+        _isSwitching ||
+        _capturedPhoto != null) {
       return;
     }
 
@@ -107,16 +111,16 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
         _capturedPhoto = photo;
       });
     } on TimeoutException {
-      await _handleCaptureFailure(
+      await _handleSessionFailure(
         session,
         'The camera capture took too long. Try again or choose a file instead.',
       );
     } on ParkingPhotoException catch (error) {
-      await _handleCaptureFailure(session, error.message);
+      await _handleSessionFailure(session, error.message);
     } on ParkingCameraException catch (error) {
-      await _handleCaptureFailure(session, error.message);
+      await _handleSessionFailure(session, error.message);
     } on Exception {
-      await _handleCaptureFailure(
+      await _handleSessionFailure(
         session,
         'The photo could not be captured. Try again.',
       );
@@ -130,7 +134,7 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
   }
 
   void _retakePhoto() {
-    if (_isInitializing || _isCapturing) {
+    if (_isInitializing || _isCapturing || _isSwitching) {
       return;
     }
 
@@ -143,7 +147,7 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
   }
 
   void _retryCamera() {
-    if (_isInitializing || _isCapturing) {
+    if (_isInitializing || _isCapturing || _isSwitching) {
       return;
     }
 
@@ -154,6 +158,53 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
     unawaited(_initializeCamera());
   }
 
+  Future<void> _switchCamera() async {
+    final cameraSession = _cameraSession;
+    if (cameraSession == null) {
+      return;
+    }
+    if (cameraSession is! ParkingCameraSwitchingSession) {
+      return;
+    }
+    if (_isCapturing || _isSwitching || _capturedPhoto != null) {
+      return;
+    }
+
+    final switchingSession = cameraSession as ParkingCameraSwitchingSession;
+    if (!switchingSession.canSwitchCamera) {
+      return;
+    }
+
+    setState(() {
+      _isSwitching = true;
+      _errorMessage = null;
+    });
+
+    try {
+      await switchingSession.switchCamera().timeout(
+        widget.cameraOperationTimeout,
+      );
+    } on TimeoutException {
+      await _handleSessionFailure(
+        cameraSession,
+        'Switching cameras took too long. Try again or choose a file instead.',
+      );
+    } on ParkingCameraException catch (error) {
+      await _handleSessionFailure(cameraSession, error.message);
+    } on Exception {
+      await _handleSessionFailure(
+        cameraSession,
+        'The selected camera could not be opened. Try another camera or choose a file instead.',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSwitching = false;
+        });
+      }
+    }
+  }
+
   void _setError(String message) {
     if (!mounted) {
       return;
@@ -162,11 +213,12 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
     setState(() {
       _isInitializing = false;
       _isCapturing = false;
+      _isSwitching = false;
       _errorMessage = message;
     });
   }
 
-  Future<void> _handleCaptureFailure(
+  Future<void> _handleSessionFailure(
     ParkingCameraSession session,
     String message,
   ) async {
@@ -243,8 +295,28 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
         ),
         if (_errorMessage != null)
           OutlinedButton(
-            onPressed: _isInitializing || _isCapturing ? null : _retryCamera,
+            onPressed: _isInitializing || _isCapturing || _isSwitching
+                ? null
+                : _retryCamera,
             child: const Text('Retry'),
+          ),
+        if (_capturedPhoto == null &&
+            _cameraSession is ParkingCameraSwitchingSession &&
+            (_cameraSession! as ParkingCameraSwitchingSession)
+                .canSwitchCamera &&
+            _errorMessage == null)
+          OutlinedButton.icon(
+            onPressed: _isCapturing || _isSwitching
+                ? null
+                : () => unawaited(_switchCamera()),
+            icon: _isSwitching
+                ? const SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.cameraswitch_outlined),
+            label: Text(_isSwitching ? 'Switching...' : 'Switch camera'),
           ),
         if (_capturedPhoto == null &&
             _cameraSession != null &&

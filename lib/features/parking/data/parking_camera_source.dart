@@ -16,6 +16,12 @@ abstract interface class ParkingCameraSession {
   Future<void> dispose();
 }
 
+abstract interface class ParkingCameraSwitchingSession {
+  bool get canSwitchCamera;
+
+  Future<void> switchCamera();
+}
+
 class ParkingCameraException implements Exception {
   const ParkingCameraException(this.message);
 
@@ -47,22 +53,74 @@ class CameraPackageParkingCameraSource implements ParkingCameraSource {
       );
     }
 
-    final controller = camera.CameraController(
-      cameras.first,
-      camera.ResolutionPreset.high,
-      enableAudio: false,
-    );
+    final preferredCamera = selectPreferredParkingCamera(cameras);
+    final orderedCameras = <camera.CameraDescription>[
+      preferredCamera,
+      ...cameras.where((item) => item != preferredCamera),
+    ];
+    ParkingCameraException? lastError;
 
+    for (final cameraDescription in orderedCameras) {
+      final controller = camera.CameraController(
+        cameraDescription,
+        camera.ResolutionPreset.high,
+        enableAudio: false,
+      );
+
+      try {
+        await controller.initialize();
+        return CameraPackageParkingCameraSession(
+          controller,
+          cameras: cameras,
+          currentCameraIndex: cameras.indexOf(cameraDescription),
+        );
+      } on camera.CameraException catch (error) {
+        await _disposeController(controller);
+        lastError = ParkingCameraException(_messageForCameraError(error));
+        if (_isPermissionError(error)) {
+          throw lastError;
+        }
+      } on Exception {
+        await _disposeController(controller);
+        lastError = const ParkingCameraException(
+          'The camera could not be initialized. Try another camera or choose an existing photo instead.',
+        );
+      }
+    }
+
+    throw lastError ??
+        const ParkingCameraException(
+          'The camera could not be initialized. Try another camera or choose an existing photo instead.',
+        );
+  }
+
+  static bool _isPermissionError(camera.CameraException error) {
+    return switch (error.code) {
+      'CameraAccessDenied' ||
+      'CameraAccessDeniedWithoutPrompt' ||
+      'CameraAccessRestricted' ||
+      'permissionDenied' ||
+      'NotAllowedError' ||
+      'SecurityError' => true,
+      _ => false,
+    };
+  }
+
+  static Future<void> _disposeController(
+    camera.CameraController controller,
+  ) async {
     try {
-      await controller.initialize();
-      return CameraPackageParkingCameraSession(controller);
-    } on camera.CameraException catch (error) {
       await controller.dispose();
-      throw ParkingCameraException(_messageForCameraError(error));
-    } on Exception {
-      await controller.dispose();
-      throw const ParkingCameraException(
-        'The camera could not be initialized. Check browser permissions and try again.',
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'parking camera',
+          context: ErrorDescription(
+            'while releasing a failed camera initialization',
+          ),
+        ),
       );
     }
   }
@@ -74,23 +132,87 @@ class CameraPackageParkingCameraSource implements ParkingCameraSource {
       case 'CameraAccessRestricted':
       case 'permissionDenied':
       case 'NotAllowedError':
+      case 'SecurityError':
         return 'Camera access was denied or restricted. Allow access or choose an existing photo instead.';
       case 'CameraNotFound':
       case 'cameraNotFound':
         return 'No camera is available on this device. Choose an existing photo instead.';
+      case 'NotReadableError':
+      case 'TrackStartError':
+        return 'The selected camera is busy or unavailable. Try another camera or choose an existing photo instead.';
       default:
-        return 'The camera could not be initialized. Check browser permissions and try again.';
+        return 'The selected camera could not be initialized. Try another camera or choose an existing photo instead.';
     }
   }
 }
 
-class CameraPackageParkingCameraSession implements ParkingCameraSession {
-  CameraPackageParkingCameraSession(this._controller);
+camera.CameraDescription selectPreferredParkingCamera(
+  List<camera.CameraDescription> cameras,
+) {
+  if (cameras.isEmpty) {
+    throw ArgumentError.value(
+      cameras,
+      'cameras',
+      'At least one camera is required.',
+    );
+  }
+
+  return cameras.firstWhere(
+    (item) => item.lensDirection == camera.CameraLensDirection.back,
+    orElse: () => cameras.firstWhere(
+      (item) => item.lensDirection == camera.CameraLensDirection.external,
+      orElse: () => cameras.first,
+    ),
+  );
+}
+
+class CameraPackageParkingCameraSession
+    implements ParkingCameraSession, ParkingCameraSwitchingSession {
+  CameraPackageParkingCameraSession(
+    this._controller, {
+    required List<camera.CameraDescription> cameras,
+    required this._currentCameraIndex,
+  }) : _cameras = List<camera.CameraDescription>.unmodifiable(cameras);
 
   final camera.CameraController _controller;
+  final List<camera.CameraDescription> _cameras;
+  int _currentCameraIndex;
+  bool _isSwitching = false;
 
   @override
   Widget get preview => camera.CameraPreview(_controller);
+
+  @override
+  bool get canSwitchCamera => _cameras.length > 1;
+
+  @override
+  Future<void> switchCamera() async {
+    if (!canSwitchCamera) {
+      throw const ParkingCameraException(
+        'No other camera is available. Choose an existing photo instead.',
+      );
+    }
+    if (_isSwitching) {
+      throw const ParkingCameraException(
+        'The camera is already switching. Try again in a moment.',
+      );
+    }
+
+    _isSwitching = true;
+    final nextCameraIndex = (_currentCameraIndex + 1) % _cameras.length;
+    try {
+      await _controller.setDescription(_cameras[nextCameraIndex]);
+      _currentCameraIndex = nextCameraIndex;
+    } on camera.CameraException catch (error) {
+      throw ParkingCameraException(_messageForSwitchError(error));
+    } on Exception {
+      throw const ParkingCameraException(
+        'The selected camera could not be opened. Try another camera or choose an existing photo instead.',
+      );
+    } finally {
+      _isSwitching = false;
+    }
+  }
 
   @override
   Future<ParkingPhoto> capture() async {
@@ -116,4 +238,24 @@ class CameraPackageParkingCameraSession implements ParkingCameraSession {
 
   @override
   Future<void> dispose() => _controller.dispose();
+
+  static String _messageForSwitchError(camera.CameraException error) {
+    switch (error.code) {
+      case 'CameraAccessDenied':
+      case 'CameraAccessDeniedWithoutPrompt':
+      case 'CameraAccessRestricted':
+      case 'permissionDenied':
+      case 'NotAllowedError':
+      case 'SecurityError':
+        return 'Camera access was denied or restricted. Allow access or choose an existing photo instead.';
+      case 'CameraNotFound':
+      case 'cameraNotFound':
+        return 'The selected camera is no longer available. Try another camera or choose an existing photo instead.';
+      case 'NotReadableError':
+      case 'TrackStartError':
+        return 'The selected camera is busy or unavailable. Try another camera or choose an existing photo instead.';
+      default:
+        return 'The selected camera could not be opened. Try another camera or choose an existing photo instead.';
+    }
+  }
 }

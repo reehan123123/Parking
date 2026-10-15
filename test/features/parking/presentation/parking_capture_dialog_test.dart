@@ -151,6 +151,117 @@ void main() {
     expect(session.disposeCalls, 2);
   });
 
+  testWidgets('offers camera switching when multiple cameras are available', (
+    WidgetTester tester,
+  ) async {
+    final session = SwitchableFakeParkingCameraSession(photo: _photo());
+    final source = FakeParkingCameraSource(session: session);
+    final navigatorKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+    );
+    final dialogFuture = showDialog<ParkingPhoto?>(
+      context: navigatorKey.currentState!.context,
+      barrierDismissible: false,
+      builder: (context) => ParkingCaptureDialog(cameraSource: source),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('Switch camera'), findsOneWidget);
+    await tester.tap(find.text('Switch camera'));
+    await tester.pump();
+
+    expect(session.switchCalls, 1);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+    expect(await dialogFuture, isNull);
+    await tester.pumpAndSettle();
+    expect(session.disposeCalls, 1);
+  });
+
+  testWidgets('shows a recoverable error when camera switching fails', (
+    WidgetTester tester,
+  ) async {
+    final session = SwitchableFakeParkingCameraSession(
+      photo: _photo(),
+      switchError: const ParkingCameraException(
+        'The selected camera is busy or unavailable.',
+      ),
+    );
+    final source = FakeParkingCameraSource(session: session);
+    final navigatorKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+    );
+    final dialogFuture = showDialog<ParkingPhoto?>(
+      context: navigatorKey.currentState!.context,
+      barrierDismissible: false,
+      builder: (context) => ParkingCaptureDialog(cameraSource: source),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.text('Switch camera'));
+    await tester.pump();
+
+    expect(
+      find.text('The selected camera is busy or unavailable.'),
+      findsOneWidget,
+    );
+    expect(find.text('Retry'), findsOneWidget);
+    expect(session.disposeCalls, 1);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+    expect(await dialogFuture, isNull);
+  });
+
+  testWidgets('times out camera switching and releases the session', (
+    WidgetTester tester,
+  ) async {
+    final switchCompleter = Completer<void>();
+    final session = SwitchableFakeParkingCameraSession(
+      photo: _photo(),
+      switchResult: switchCompleter.future,
+    );
+    final source = FakeParkingCameraSource(session: session);
+    final navigatorKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+    );
+    final dialogFuture = showDialog<ParkingPhoto?>(
+      context: navigatorKey.currentState!.context,
+      barrierDismissible: false,
+      builder: (context) => ParkingCaptureDialog(
+        cameraSource: source,
+        cameraOperationTimeout: const Duration(milliseconds: 1),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    await tester.tap(find.text('Switch camera'));
+    await tester.pump(const Duration(milliseconds: 10));
+
+    expect(
+      find.text(
+        'Switching cameras took too long. Try again or choose a file instead.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Retry'), findsOneWidget);
+    expect(session.disposeCalls, 1);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pump();
+    expect(await dialogFuture, isNull);
+  });
+
   testWidgets('cancelling during capture releases the camera', (
     WidgetTester tester,
   ) async {
@@ -425,5 +536,35 @@ class FakeParkingCameraSession implements ParkingCameraSession {
   @override
   Future<void> dispose() async {
     disposeCalls++;
+  }
+}
+
+class SwitchableFakeParkingCameraSession extends FakeParkingCameraSession
+    implements ParkingCameraSwitchingSession {
+  SwitchableFakeParkingCameraSession({
+    super.photo,
+    this.switchError,
+    this.switchResult,
+  });
+
+  final ParkingCameraException? switchError;
+  final Future<void>? switchResult;
+  int switchCalls = 0;
+
+  @override
+  bool get canSwitchCamera => true;
+
+  @override
+  Future<void> switchCamera() async {
+    switchCalls++;
+    final pendingResult = switchResult;
+    if (pendingResult != null) {
+      return pendingResult;
+    }
+
+    final error = switchError;
+    if (error != null) {
+      throw error;
+    }
   }
 }

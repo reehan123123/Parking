@@ -32,10 +32,13 @@ checks **Continue without photo**.
 
 The **Take photo** action uses the official Flutter `camera: 0.12.1` package
 and its endorsed `camera_web` implementation. It opens a live browser camera
-preview only after the user clicks the action, then supports **Capture**,
-**Retake**, **Use Photo**, and **Cancel**. The camera session is disposed after
-a capture and when the dialog closes or the entry screen is disposed; **Retake**
-reopens the camera.
+preview only after the user clicks the action. When the browser reports lens
+direction metadata, phones and tablets prefer the rear/environment camera;
+desktop browsers prefer an external webcam. **Switch camera** cycles through
+the available cameras when more than one can be opened. The dialog supports
+**Capture**, **Retake**, **Use Photo**, and **Cancel**. The camera session is
+disposed after a capture, camera-switch failure, and when the dialog closes or
+the entry screen is disposed; **Retake** reopens the camera.
 
 The **Choose file** action continues to use `image_picker` and opens the normal
 file picker. Browser support varies:
@@ -44,11 +47,11 @@ file picker. Browser support varies:
   deployed sites.
 - Chrome prompts for camera permission when the preview opens. Permission
   denial, missing cameras, unsupported browser behavior, and initialization or
-  capture failures remain inside the dialog as clear errors. Initialization
-  and capture are bounded by a 20-second timeout; a timeout releases the
-  camera session and exposes a **Retry** action instead of leaving the dialog
-  loading indefinitely. **Cancel** remains available while a capture is in
-  progress.
+  capture or camera-switch failures remain inside the dialog as clear errors.
+  Initialization, capture, and camera switching are bounded by a 20-second
+  timeout; a timeout releases the camera session and exposes a **Retry** action
+  instead of leaving the dialog loading indefinitely. **Cancel** remains
+  available while a capture is in progress.
 - Desktop browsers may have no usable webcam; **Choose file** remains the
   fallback.
 
@@ -131,8 +134,9 @@ project:
 4. Verify plate normalization, each duration unit, the expiry preview, and the
    explicit no-photo option.
 5. Click **Take photo** and verify that Chrome requests permission and shows a
-   live webcam preview. Test **Capture**, **Retake**, **Use Photo**, and
-   **Cancel**.
+   live webcam preview. On a phone or tablet, verify that the rear camera is
+   preferred when available and that **Switch camera** cycles cameras. Test
+   **Capture**, **Retake**, **Use Photo**, and **Cancel**.
 6. Test **Choose file** and verify the normal file picker still accepts
    JPEG/PNG/WebP images.
 7. Confirm the new row has the expected UTC timestamps and that the photo
