@@ -104,13 +104,11 @@ jobs:
           }
           NODE
 
-      - name: Validate OCR bridge
-        run: node --check web/parking_ocr.js
-
       - name: Build release web app
         shell: bash
         run: |
           set -euo pipefail
+
           flutter build web --release \
             --dart-define="SUPABASE_URL=${SUPABASE_URL}" \
             --dart-define="SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
@@ -127,16 +125,6 @@ jobs:
           test -s build/web/icons/Icon-192.png
           test -s build/web/icons/Icon-512.png
           test -s build/web/_headers
-          test -s build/web/parking_ocr.js
-          test -s build/web/ocr-v1/tesseract.min.js
-          test -s build/web/ocr-v1/worker.min.js
-          test -s build/web/ocr-v1/lang/eng.traineddata.gz
-          test -s build/web/ocr-v1/core/tesseract-core-lstm.wasm
-
-          if grep -Fq 'tesseract.min.js' build/web/index.html; then
-            echo "The Tesseract runtime must remain lazy-loaded."
-            exit 1
-          fi
 
           node <<'NODE'
           const fs = require('fs');

@@ -10,7 +10,7 @@ Phase 9 deployment preparation is implemented locally: public Supabase
 configuration, private email/password sign-in and sign-out, the
 `parking_sessions` migration,
 owner-only database policies, a private `vehicle-photos` bucket policy set,
-the tested duration service, authenticated parking entry/photo/OCR flow, and
+the tested duration service, authenticated parking entry/photo flow, and
 dashboard, history, details, edit, and delete flows are present. Phase 4
 through Phase 7 are checkpointed in Git. Cloudflare deployment, hosted
 Supabase verification, and mobile/PWA production checks remain pending.
@@ -74,9 +74,10 @@ remote project by this repository.
 ## Security
 
 The browser receives only the Supabase project URL and publishable key. Never
-put a service-role key or another privileged secret in Flutter code, web
-assets, Git, or logs. RLS remains enabled, the photo bucket remains private,
-and Storage object paths must begin with:
+put a service-role key, provider secret, or another privileged secret in
+Flutter code, web assets, Git, or logs. RLS remains enabled, the photo bucket
+remains private, and Storage object paths must begin
+with:
 
 ```text
 {authenticated-user-id}/{parking-session-id}/{filename}
@@ -88,5 +89,5 @@ verification checklist, and known manual checks.
 ## Scope guardrails
 
 The first release remains web-only and free-tier friendly. It does not include
-native app builds, payments, public self-registration, custom backend
-services, or full offline operation.
+native app builds, payments, public self-registration, OCR, third-party image
+processing, or full offline operation.

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -6,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:parking_management/features/parking/data/parking_camera_source.dart';
-import 'package:parking_management/features/parking/data/parking_ocr_service.dart';
 import 'package:parking_management/features/parking/data/parking_photo.dart';
 import 'package:parking_management/features/parking/data/parking_photo_source.dart';
 import 'package:parking_management/features/parking/data/parking_session_repository.dart';
@@ -140,133 +138,6 @@ void main() {
     expect(cameraSession.disposeCalls, 1);
   });
 
-  testWidgets('prefills an OCR candidate and requires explicit confirmation', (
-    WidgetTester tester,
-  ) async {
-    final repository = FakeParkingSessionRepository();
-    final ocrService = FakeParkingOcrService(
-      result: const ParkingOcrTextResult(rawText: 'AB 123'),
-    );
-    await _pumpEntryPage(
-      tester,
-      repository: repository,
-      photoSource: FakeParkingPhotoSource(photo: _photo()),
-      ocrService: ocrService,
-    );
-
-    await _tapVisible(tester, 'Choose file');
-    await tester.pumpAndSettle();
-
-    expect(find.text('Detected candidate: AB 123'), findsOneWidget);
-    expect(find.text('Confirm detected plate'), findsOneWidget);
-
-    await tester.enterText(find.byType(TextFormField).at(1), '2');
-    await _tapWidgetWithText(tester, FilledButton, 'Save parking entry');
-    await tester.pump();
-
-    expect(
-      find.text('Review and confirm the detected registration before saving.'),
-      findsOneWidget,
-    );
-    expect(repository.savedSession, isNull);
-
-    await _tapWidgetWithText(tester, FilledButton, 'Confirm detected plate');
-    await _tapWidgetWithText(tester, FilledButton, 'Save parking entry');
-    await tester.pump();
-
-    expect(repository.savedSession?.plateNumber, 'AB 123');
-    expect(ocrService.calls, 1);
-  });
-
-  testWidgets(
-    'keeps a manual registration when the OCR candidate is rejected',
-    (WidgetTester tester) async {
-      final repository = FakeParkingSessionRepository();
-      await _pumpEntryPage(
-        tester,
-        repository: repository,
-        photoSource: FakeParkingPhotoSource(photo: _photo()),
-        ocrService: FakeParkingOcrService(
-          result: const ParkingOcrTextResult(rawText: 'XY 987'),
-        ),
-      );
-
-      await tester.enterText(find.byType(TextFormField).at(0), 'manual 1');
-      await _tapVisible(tester, 'Choose file');
-      await tester.pumpAndSettle();
-
-      expect(find.text('Keep current entry'), findsOneWidget);
-      await _tapWidgetWithText(tester, TextButton, 'Keep current entry');
-      await tester.enterText(find.byType(TextFormField).at(1), '2');
-      await _tapWidgetWithText(tester, FilledButton, 'Save parking entry');
-      await tester.pump();
-
-      expect(repository.savedSession?.plateNumber, 'MANUAL 1');
-    },
-  );
-
-  testWidgets('OCR failure leaves manual save available', (
-    WidgetTester tester,
-  ) async {
-    final repository = FakeParkingSessionRepository();
-    await _pumpEntryPage(
-      tester,
-      repository: repository,
-      photoSource: FakeParkingPhotoSource(photo: _photo()),
-      ocrService: FakeParkingOcrService(
-        result: ParkingOcrFailureResult(
-          message: 'OCR took too long. Enter the registration manually or try again.',
-        ),
-      ),
-    );
-
-    await _tapVisible(tester, 'Choose file');
-    await tester.pumpAndSettle();
-    expect(
-      find.text(
-        'OCR took too long. Enter the registration manually or try again.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.text('Retry OCR'), findsOneWidget);
-
-    await tester.enterText(find.byType(TextFormField).at(0), 'manual 2');
-    await tester.enterText(find.byType(TextFormField).at(1), '2');
-    await _tapWidgetWithText(tester, FilledButton, 'Save parking entry');
-    await tester.pump();
-
-    expect(repository.savedSession?.plateNumber, 'MANUAL 2');
-  });
-
-  testWidgets('cancelling OCR prevents a late result from changing the form', (
-    WidgetTester tester,
-  ) async {
-    final repository = FakeParkingSessionRepository();
-    final ocrService = FakeParkingOcrService.pending();
-    await _pumpEntryPage(
-      tester,
-      repository: repository,
-      photoSource: FakeParkingPhotoSource(photo: _photo()),
-      ocrService: ocrService,
-    );
-
-    await _tapVisible(tester, 'Choose file');
-    await tester.pump();
-    expect(find.text('Cancel OCR'), findsOneWidget);
-
-    await _tapWidgetWithText(tester, TextButton, 'Cancel OCR');
-    await tester.pump();
-    expect(
-      find.text('OCR was cancelled. Enter the registration manually.'),
-      findsOneWidget,
-    );
-
-    ocrService.complete(const ParkingOcrTextResult(rawText: 'LATE 999'));
-    await tester.pump();
-
-    expect(find.text('Detected candidate: LATE 999'), findsNothing);
-  });
-
   testWidgets('reuses the form to update an existing session', (
     WidgetTester tester,
   ) async {
@@ -340,7 +211,6 @@ Future<void> _pumpEntryPage(
   required FakeParkingSessionRepository repository,
   FakeParkingPhotoSource? photoSource,
   FakeParkingCameraSource? cameraSource,
-  ParkingOcrService? ocrService,
   ParkingSession? initialSession,
 }) async {
   tester.view.physicalSize = const Size(800, 1200);
@@ -355,7 +225,6 @@ Future<void> _pumpEntryPage(
         repository: repository,
         photoSource: photoSource,
         cameraSource: cameraSource,
-        ocrService: ocrService,
         initialSession: initialSession,
         now: () => DateTime(2026, 10, 14, 10, 30),
       ),
@@ -522,37 +391,5 @@ class FakeParkingCameraSession implements ParkingCameraSession {
   @override
   Future<void> dispose() async {
     disposeCalls++;
-  }
-}
-
-class FakeParkingOcrService implements ParkingOcrService {
-  FakeParkingOcrService({required this.result}) : _pendingResult = null;
-
-  FakeParkingOcrService.pending()
-    : result = null,
-      _pendingResult = Completer<ParkingOcrResult>();
-
-  final ParkingOcrResult? result;
-  final Completer<ParkingOcrResult>? _pendingResult;
-  int calls = 0;
-
-  @override
-  Future<ParkingOcrResult> recognize({
-    required ParkingPhoto photo,
-    required ParkingOcrCancellationToken cancellationToken,
-    required ParkingOcrProgressCallback onProgress,
-  }) {
-    calls++;
-    onProgress(ParkingOcrProgress(status: 'Recognizing text', fraction: 0.5));
-    final ocrResult = result;
-    if (ocrResult != null) {
-      return Future.value(ocrResult);
-    }
-
-    return _pendingResult!.future;
-  }
-
-  void complete(ParkingOcrResult result) {
-    _pendingResult?.complete(result);
   }
 }

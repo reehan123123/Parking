@@ -4,29 +4,25 @@ The production target is a static Flutter Web release on Cloudflare Pages
 using the free `pages.dev` hostname and the selected project name
 `parking`. The expected production hostname is
 `https://parking-85u.pages.dev/`. The application continues to use Supabase
-for authentication, PostgreSQL, and private vehicle photo storage. No
-server-side Flutter process or custom backend is required.
+for authentication, PostgreSQL, and private vehicle photo storage.
 
 The Pages project exists, but the last observed deployment served HTTP 404 for
-the root and expected Flutter/OCR assets. Treat production as unverified until
-a GitHub Actions deployment uploads `build/web` and the live asset checks pass.
+the root and expected Flutter assets. Treat production as unverified until a
+GitHub Actions deployment uploads `build/web` and the live asset checks pass.
 
 ## Architecture and security boundary
 
 - Cloudflare Pages serves the generated `build/web` files over HTTPS.
 - GitHub Actions installs Flutter `3.47.7`, runs the quality gates, builds the
   release, verifies the output, and uploads it with Wrangler.
-- The browser receives only `SUPABASE_URL` and
-  `SUPABASE_PUBLISHABLE_KEY`. Flutter embeds these compile-time values in the
-  public browser bundle because the Supabase publishable key is designed for
-  public clients.
+- The browser receives public compile-time configuration: `SUPABASE_URL`,
+  and `SUPABASE_PUBLISHABLE_KEY`. Flutter embeds these values in the public
+  browser bundle.
 - Authentication, PostgreSQL grants/RLS, and the private
   `vehicle-photos` Storage policies remain the authorization boundary.
 - The Cloudflare token, account ID, GitHub credentials, passwords, and any
   Supabase secret/service-role key must remain in secret stores and must never
   be placed in Dart, JavaScript, generated assets, or documentation.
-- OCR remains browser-local. Vehicle images are not uploaded to a third-party
-  OCR service.
 
 ## GitHub Actions configuration
 
@@ -65,9 +61,9 @@ Production hostname: https://parking-85u.pages.dev/
 Wrangler: 4.151.0
 ```
 
-The build validates formatting, analysis, tests, the OCR bridge syntax, every
-required non-empty Flutter/PWA/OCR release asset, lazy runtime loading, and a
-credential-shaped-value scan before invoking Wrangler. The generated Supabase
+The build validates formatting, analysis, tests, every required non-empty
+Flutter/PWA release asset, and a credential-shaped-value scan before invoking
+Wrangler. The generated Supabase
 values are intentionally public client configuration; the workflow still keeps
 them in protected GitHub environment secrets to avoid accidental logging and
 to make environment changes controlled. The workflow records Wrangler's
@@ -95,8 +91,8 @@ deployment URL and Pages alias URL in the GitHub Actions summary.
    Do not add `--branch=main`; that option is for an explicit Pages preview
    branch, while this workflow is the production deployment from `main`.
 7. Record the actual Wrangler deployment URL and Pages alias URL from the
-   workflow summary. Test the root, Flutter bootstrap files, manifest, icons,
-   and OCR assets before treating the hostname as production.
+   workflow summary. Test the root, Flutter bootstrap files, manifest, and
+   icons before treating the hostname as production.
 
 Cloudflare's current Pages build image does not list Flutter. That is why this
 repository builds in GitHub Actions and sends the already-built static
@@ -139,7 +135,6 @@ browser back/forward behavior against the real URL before adding redirects.
 
 `web/_headers` applies:
 
-- long-lived immutable caching only to versioned `/ocr-v1/*` assets;
 - `X-Content-Type-Options: nosniff`;
 - `Referrer-Policy: strict-origin-when-cross-origin`.
 
@@ -152,19 +147,13 @@ headers with `curl -I`.
 
 The Cloudflare project `parking` has a successful deployment record, but the
 last observed production and deployment-specific URLs returned 404 for
-`index.html`, `main.dart.js`, `flutter.js`, `manifest.json`, and the local OCR
-assets. The corresponding GitHub Actions run stopped before the release build
-because `SUPABASE_URL` was not configured, so it could not have uploaded the
-Flutter output. The corrected workflow now targets `parking`, removes the
-preview branch flag, and verifies the generated `build/web` directory before
+`index.html`, `main.dart.js`, `flutter.js`, and `manifest.json`. The
+corresponding GitHub Actions run stopped before the release build because
+`SUPABASE_URL` was not configured, so it could not have uploaded the Flutter
+output. The corrected workflow now targets `parking`, removes the preview
+branch flag, and verifies the generated `build/web` directory before
 uploading it. Do not accept a deployment until those checks pass against the
 live hostname.
-
-The OCR bridge loads `tesseract.min.js`, the worker, the compatible core, and
-the English model only when OCR is requested. The checked-in OCR inventory is
-approximately 31.4 MB; the measured local first-use request set was
-approximately 15.0 MB uncompressed. Repeat-use caching and compressed
-production transfer must be measured on the deployed host.
 
 ## Local release validation
 
@@ -180,13 +169,12 @@ flutter test
 flutter build web --release `
   --dart-define=SUPABASE_URL=$env:SUPABASE_URL `
   --dart-define=SUPABASE_PUBLISHABLE_KEY=$env:SUPABASE_PUBLISHABLE_KEY
-node --check web/parking_ocr.js
 git diff --check
 ```
 
-Inspect `build/web` for the manifest, icons, OCR runtime/worker/model files,
-and absence of service-role keys, secret keys, database passwords, access
-tokens, or local configuration files. Never commit `build/` or `.env`.
+Inspect `build/web` for the manifest and icons, and verify the absence of
+service-role keys, secret keys, database passwords, access tokens, or local
+configuration files. Never commit `build/` or `.env`.
 
 ## Live verification checklist
 
@@ -199,20 +187,18 @@ Record each item as **Passed**, **Failed**, **Blocked**, **Not tested**, or
   without a photo, private photo upload, and photo retrieval work.
 - Dashboard, search, history, detail, edit, delete, refresh, and navigation
   work.
-- OCR assets are absent at startup, load on request, show progress, and leave
-  manual entry available after no-text, timeout, cancellation, or failure.
-- Browser network inspection shows OCR requests are same-origin and photos/
-  Supabase calls go only to the configured Supabase project.
-- Android Chrome camera, OCR, manual correction, save/photo flow, responsive
+- Browser network inspection shows photos and Supabase calls go only to the
+  configured Supabase project.
+- Android Chrome camera, manual registration, save/photo flow, responsive
   layout, installation, refresh, and reopening work where the device is
   available.
-- iPhone Safari camera, OCR, manual correction, save/photo flow, responsive
+- iPhone Safari camera, manual registration, save/photo flow, responsive
   layout, Add to Home Screen, standalone launch, refresh, and navigation work
   where the device is available.
 - Two-account RLS and private Storage isolation are verified without sharing
   credentials.
-- `curl -I` confirms HTTPS, expected MIME types, OCR cache headers, and no
-  public-cache rule for private Supabase resources.
+- `curl -I` confirms HTTPS, expected MIME types, and no public-cache rule for
+  private Supabase resources.
 
 ## Rollback and recovery
 
@@ -228,9 +214,6 @@ Frontend rollback must not alter Supabase data:
    setting, rerun the workflow, and compare the resulting URL/assets.
 5. If Auth redirects fail, restore the previous exact Site URL/redirect list
    while preserving the database and Storage policies.
-6. If OCR assets fail, check the deployed `/ocr-v1/` paths, MIME responses,
-   cache headers, and base URL before changing code. Manual plate entry must
-   remain available.
 
 Do not reset the Supabase project, delete users, delete Storage objects, or
 run destructive SQL as part of a frontend rollback.
@@ -247,14 +230,14 @@ and [Supabase pricing](https://supabase.com/pricing) before production use.
 
 The app still requires internet access for Supabase operations, does not
 provide an offline photo queue, and cannot promise identical camera,
-WebAssembly, OCR memory, or PWA installation behavior across browsers.
+or PWA installation behavior across browsers.
 
 ## Current handover status
 
 As of the repository inspection for Phase 9:
 
 - Local Phase 4-8 code is committed and pushed.
-- Local release, analysis, test, OCR, and static security checks have passed.
+- Local release, analysis, test, and static security checks have passed.
 - Cloudflare Pages project `parking` exists at the expected hostname, but the
   last observed deployment served 404 responses for the Flutter shell and
   assets.

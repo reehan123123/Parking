@@ -1,12 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../shared/widgets/error_state_view.dart';
 import '../data/parking_camera_source.dart';
-import '../data/parking_ocr_service.dart';
 import '../data/parking_photo.dart';
 import '../data/parking_photo_codec.dart';
 import '../data/parking_plate_normalizer.dart';
@@ -26,7 +23,6 @@ class ParkingEntryPage extends StatefulWidget {
     this.initialSession,
     this.photoSource,
     this.cameraSource,
-    this.ocrService,
     this.now,
     super.key,
   });
@@ -35,7 +31,6 @@ class ParkingEntryPage extends StatefulWidget {
   final ParkingSession? initialSession;
   final ParkingPhotoSource? photoSource;
   final ParkingCameraSource? cameraSource;
-  final ParkingOcrService? ocrService;
   final DateTime Function()? now;
 
   @override
@@ -52,8 +47,6 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       widget.photoSource ?? ImagePickerParkingPhotoSource();
   late final ParkingCameraSource _cameraSource =
       widget.cameraSource ?? const CameraPackageParkingCameraSource();
-  late final ParkingOcrService _ocrService =
-      widget.ocrService ?? createParkingOcrService();
   late DateTime _entryDate;
   late TimeOfDay _entryTime;
   ParkingDurationUnit _durationUnit = ParkingDurationUnit.minutes;
@@ -61,20 +54,12 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
   String? _existingPhotoPath;
   ParkingSessionSaveFailure? _saveFailure;
   ParkingSessionUpdateFailure? _updateFailure;
-  ParkingOcrCancellationToken? _ocrCancellationToken;
-  ParkingOcrProgress? _ocrProgress;
-  String? _ocrCandidate;
-  String? _ocrMessage;
   String? _photoError;
   String? _saveError;
   bool _continueWithoutPhoto = false;
-  bool _isApplyingOcrCandidate = false;
-  bool _isProcessingOcr = false;
   bool _isPickingPhoto = false;
   bool _isSaving = false;
   bool _isCleaningUp = false;
-  bool _ocrNeedsReview = false;
-  bool _plateWasEditedDuringOcr = false;
 
   bool get _isEditing => widget.initialSession != null;
 
@@ -102,7 +87,6 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
 
   @override
   void dispose() {
-    _ocrCancellationToken?.cancel();
     _plateController.dispose();
     _durationController.dispose();
     super.dispose();
@@ -251,12 +235,8 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
   }
 
   void _removePhoto() {
-    _cancelOcr();
     setState(() {
       _selectedPhoto = null;
-      _ocrCandidate = null;
-      _ocrMessage = null;
-      _ocrNeedsReview = false;
       _photoError = null;
       if (_existingPhotoPath == null) {
         _continueWithoutPhoto = false;
@@ -266,208 +246,20 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
 
   void _setContinueWithoutPhoto(bool? value) {
     final continueWithoutPhoto = value ?? false;
-    if (continueWithoutPhoto) {
-      _cancelOcr();
-    }
     setState(() {
       _continueWithoutPhoto = continueWithoutPhoto;
       if (continueWithoutPhoto) {
         _selectedPhoto = null;
-        _ocrCandidate = null;
-        _ocrMessage = null;
-        _ocrNeedsReview = false;
         _photoError = null;
       }
     });
   }
 
   void _setSelectedPhoto(ParkingPhoto photo) {
-    _cancelOcr();
     setState(() {
       _selectedPhoto = photo;
       _continueWithoutPhoto = false;
-      _ocrCandidate = null;
-      _ocrMessage = null;
-      _ocrNeedsReview = false;
-      _plateWasEditedDuringOcr = false;
     });
-    unawaited(_runOcr(photo));
-  }
-
-  Future<void> _runOcr(ParkingPhoto photo) async {
-    _ocrCancellationToken?.cancel();
-    final cancellationToken = ParkingOcrCancellationToken();
-    if (!mounted) {
-      cancellationToken.cancel();
-      return;
-    }
-
-    setState(() {
-      _ocrCancellationToken = cancellationToken;
-      _ocrMessage = null;
-      _ocrProgress = null;
-      _isProcessingOcr = true;
-      _ocrNeedsReview = false;
-    });
-
-    late final ParkingOcrResult result;
-    try {
-      result = await _ocrService.recognize(
-        photo: photo,
-        cancellationToken: cancellationToken,
-        onProgress: (progress) {
-          if (!mounted ||
-              !identical(_ocrCancellationToken, cancellationToken)) {
-            return;
-          }
-
-          setState(() {
-            _ocrProgress = progress;
-          });
-        },
-      );
-    } on Exception catch (_) {
-      result = const ParkingOcrFailureResult(
-        message: 'The local OCR engine failed. Enter the registration manually or try again.',
-      );
-    }
-
-    if (!mounted || !identical(_ocrCancellationToken, cancellationToken)) {
-      return;
-    }
-
-    _ocrCancellationToken = null;
-    if (cancellationToken.isCancelled) {
-      setState(() {
-        _isProcessingOcr = false;
-        _ocrProgress = null;
-        _ocrMessage = 'OCR was cancelled. Enter the registration manually.';
-      });
-      return;
-    }
-
-    switch (result) {
-      case ParkingOcrTextResult(:final rawText):
-        _applyOcrText(rawText);
-      case ParkingOcrNoTextResult():
-        _setOcrResult(
-          message: 'No registration text was found. Enter it manually or try another photo.',
-        );
-      case ParkingOcrUnavailableResult(:final message):
-        _setOcrResult(message: message);
-      case ParkingOcrCancelledResult():
-        _setOcrResult(
-          message: 'OCR was cancelled. Enter the registration manually.',
-        );
-      case ParkingOcrFailureResult(:final message):
-        _setOcrResult(message: message);
-    }
-  }
-
-  void _applyOcrText(String rawText) {
-    final candidate = ParkingPlateNormalizer.candidateFromOcr(rawText);
-    if (candidate == null) {
-      _setOcrResult(
-        message: 'No usable registration text was found. Enter it manually or try another photo.',
-      );
-      return;
-    }
-
-    final shouldPrefill =
-        _plateController.text.trim().isEmpty && !_plateWasEditedDuringOcr;
-    if (shouldPrefill) {
-      _isApplyingOcrCandidate = true;
-      _plateController.text = candidate;
-      _isApplyingOcrCandidate = false;
-    }
-
-    setState(() {
-      _isProcessingOcr = false;
-      _ocrProgress = null;
-      _ocrCandidate = candidate;
-      _ocrNeedsReview = true;
-      _ocrMessage = 'Review the detected registration before saving.';
-    });
-  }
-
-  void _setOcrResult({required String message}) {
-    setState(() {
-      _isProcessingOcr = false;
-      _ocrProgress = null;
-      _ocrMessage = message;
-      _ocrNeedsReview = false;
-    });
-  }
-
-  void _cancelOcr() {
-    final cancellationToken = _ocrCancellationToken;
-    if (cancellationToken == null) {
-      return;
-    }
-
-    cancellationToken.cancel();
-    _ocrCancellationToken = null;
-    if (mounted) {
-      setState(() {
-        _isProcessingOcr = false;
-        _ocrProgress = null;
-        _ocrMessage = 'OCR was cancelled. Enter the registration manually.';
-        _ocrNeedsReview = false;
-      });
-    }
-  }
-
-  void _retryOcr() {
-    final photo = _selectedPhoto;
-    if (photo == null || _isProcessingOcr || _isSaving) {
-      return;
-    }
-
-    unawaited(_runOcr(photo));
-  }
-
-  void _confirmOcrCandidate() {
-    if (_ocrCandidate == null) {
-      return;
-    }
-
-    setState(() {
-      _ocrNeedsReview = false;
-      _ocrMessage =
-          'Detected registration confirmed. Check it once more before saving.';
-    });
-  }
-
-  void _useOcrCandidate() {
-    final candidate = _ocrCandidate;
-    if (candidate == null) {
-      return;
-    }
-
-    _isApplyingOcrCandidate = true;
-    _plateController.text = candidate;
-    _isApplyingOcrCandidate = false;
-    setState(() {
-      _ocrNeedsReview = false;
-      _ocrMessage = 'Detected registration applied. Check it before saving.';
-    });
-  }
-
-  void _keepManualPlate() {
-    setState(() {
-      _ocrNeedsReview = false;
-      _ocrMessage = 'Your manually entered registration will be used.';
-    });
-  }
-
-  void _handlePlateChanged(String value) {
-    if (_isApplyingOcrCandidate) {
-      return;
-    }
-
-    if (_isProcessingOcr) {
-      _plateWasEditedDuringOcr = true;
-    }
   }
 
   String? _validatePlate(String? value) {
@@ -534,14 +326,6 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     }
 
     if (!_validatePhotoSelection()) {
-      return;
-    }
-
-    if (_ocrNeedsReview) {
-      setState(() {
-        _ocrMessage =
-            'Review and confirm the detected registration before saving.';
-      });
       return;
     }
 
@@ -853,7 +637,6 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                 hintText: 'For example, ABC 123',
               ),
               validator: _validatePlate,
-              onChanged: _handlePlateChanged,
             ),
             const SizedBox(height: 16),
             _buildDateTimeButtons(context),
@@ -1011,7 +794,6 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
               ),
               const SizedBox(height: 12),
             ],
-            _buildOcrStatus(context),
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -1070,101 +852,6 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                 style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOcrStatus(BuildContext context) {
-    final candidate = _ocrCandidate;
-    final message = _ocrMessage;
-    if (!_isProcessingOcr && candidate == null && message == null) {
-      return const SizedBox.shrink();
-    }
-
-    final colorScheme = Theme.of(context).colorScheme;
-    final currentPlate = ParkingPlateNormalizer.normalize(
-      _plateController.text,
-    );
-    final candidateMatchesPlate =
-        candidate != null &&
-        currentPlate == ParkingPlateNormalizer.normalize(candidate);
-
-    return Card(
-      color: _ocrNeedsReview
-          ? colorScheme.tertiaryContainer
-          : colorScheme.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_isProcessingOcr) ...[
-              const Text('Reading registration from the photo...'),
-              const SizedBox(height: 8),
-              LinearProgressIndicator(value: _ocrProgress?.fraction),
-              const SizedBox(height: 8),
-              Text(_ocrProgress?.status ?? 'Starting local OCR'),
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: _cancelOcr,
-                  child: const Text('Cancel OCR'),
-                ),
-              ),
-            ],
-            if (!_isProcessingOcr && message != null)
-              Text(
-                message,
-                style: TextStyle(
-                  color: _ocrNeedsReview
-                      ? colorScheme.onTertiaryContainer
-                      : null,
-                ),
-              ),
-            if (candidate != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Detected candidate: $candidate',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ],
-            if (!_isProcessingOcr && candidate != null && _ocrNeedsReview) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                children: [
-                  FilledButton(
-                    onPressed: candidateMatchesPlate
-                        ? _confirmOcrCandidate
-                        : _useOcrCandidate,
-                    child: Text(
-                      candidateMatchesPlate
-                          ? 'Confirm detected plate'
-                          : 'Use detected plate',
-                    ),
-                  ),
-                  if (!candidateMatchesPlate)
-                    TextButton(
-                      onPressed: _keepManualPlate,
-                      child: const Text('Keep current entry'),
-                    ),
-                ],
-              ),
-            ],
-            if (!_isProcessingOcr &&
-                candidate == null &&
-                _selectedPhoto != null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: OutlinedButton(
-                  onPressed: _isSaving ? null : _retryOcr,
-                  child: const Text('Retry OCR'),
-                ),
-              ),
           ],
         ),
       ),
