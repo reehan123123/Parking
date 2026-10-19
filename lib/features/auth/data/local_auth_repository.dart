@@ -21,7 +21,13 @@ class LocalAuthRepository implements AuthRepository {
   bool get requiresTemporaryPasswordChange => _requiresPasswordChange;
 
   @override
+  bool get supportsPasswordRecovery => false;
+
+  @override
   Stream<bool> get signedInChanges => _signedInChanges.stream;
+
+  @override
+  Stream<void> get passwordRecoveryEvents => const Stream<void>.empty();
 
   @override
   Future<void> signIn({required String email, required String password}) async {
@@ -91,6 +97,21 @@ class LocalAuthRepository implements AuthRepository {
             : 'The password could not be changed. Check the local API and retry.',
       );
     }
+  }
+
+  @override
+  Future<void> requestPasswordReset({required String email}) async {
+    throw const AuthRepositoryException(
+      'Password reset email is not available in local development mode. '
+      'Use the Supabase-backed build to test this feature.',
+    );
+  }
+
+  @override
+  Future<void> completePasswordRecovery({required String newPassword}) async {
+    throw const AuthRepositoryException(
+      'Password recovery is not available in local development mode.',
+    );
   }
 
   @override

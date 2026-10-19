@@ -137,12 +137,16 @@ Before live testing:
    operations.
 7. Use separate accounts to verify that one tenant cannot read or modify
    another tenant's records/photos and the Super Admin can access both.
-8. In Supabase Auth URL Configuration, set the Site URL to the actual
-   `https://<actual-project>.pages.dev/` URL after it exists. Add the exact
-   production origin and any intentionally supported local URL to the allowed
-   redirect list. This app currently uses password sign-in rather than an
-   OAuth callback, but the URL configuration still matters for Auth email
-   links and future password-reset behavior.
+8. In **Authentication -> URL Configuration**, set **Site URL** to the
+   production origin `https://parking-85u.pages.dev/`. Add that same exact
+   origin to **Redirect URLs**. The self-service "Forgot password" flow
+   (`docs/security.md`) calls `resetPasswordForEmail(email, redirectTo:
+   '${Uri.base.origin}/')`, so the recovery link always redirects to the
+   current page's own root rather than a fixed path; no Cloudflare
+   `_redirects`/SPA-fallback rule is required. If local development also needs
+   to receive recovery emails, add that exact local origin (for example
+   `http://localhost:PORT/`) as a second entry in Redirect URLs. Do not add a
+   broad wildcard URL.
 9. Do not use the privileged SQL Editor as proof of browser RLS.
 
 The frontend deployment alone does not prove hosted RLS or Storage isolation.

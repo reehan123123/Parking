@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../shared/widgets/error_state_view.dart';
 import '../data/auth_repository.dart';
+import 'password_recovery_page.dart';
 import 'sign_in_page.dart';
 import 'temporary_password_reset_page.dart';
 
@@ -29,7 +30,9 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   late bool _isSignedIn;
   late bool _requiresTemporaryPasswordChange;
+  bool _isRecoveringPassword = false;
   StreamSubscription<bool>? _authSubscription;
+  StreamSubscription<void>? _recoverySubscription;
   String? _errorMessage;
 
   @override
@@ -42,11 +45,15 @@ class _AuthGateState extends State<AuthGate> {
       _handleAuthState,
       onError: _handleAuthError,
     );
+    _recoverySubscription = widget.authRepository.passwordRecoveryEvents.listen(
+      (_) => _handlePasswordRecoveryEvent(),
+    );
   }
 
   @override
   void dispose() {
     _authSubscription?.cancel();
+    _recoverySubscription?.cancel();
     super.dispose();
   }
 
@@ -61,6 +68,31 @@ class _AuthGateState extends State<AuthGate> {
       _requiresTemporaryPasswordChange =
           widget.authRepository.requiresTemporaryPasswordChange;
     });
+  }
+
+  void _handlePasswordRecoveryEvent() {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isRecoveringPassword = true;
+    });
+  }
+
+  Future<void> _completePasswordRecovery() async {
+    try {
+      await widget.authRepository.signOut();
+    } on Exception {
+      // Ignore sign-out failures here; the recovery screen already applied
+      // the new password, and the user can sign in again directly.
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRecoveringPassword = false;
+        });
+      }
+    }
   }
 
   void _handleAuthError(Object error, StackTrace stackTrace) {
@@ -97,6 +129,18 @@ class _AuthGateState extends State<AuthGate> {
             ),
           ),
         ),
+      );
+    }
+
+    if (_isRecoveringPassword) {
+      // A recovery link must only ever be used to set a new password. Show
+      // this screen even if the temporary recovery session also satisfies
+      // the normal signed-in checks below, so it can never grant silent
+      // standing access to parking data.
+      return PasswordRecoveryPage(
+        authRepository: widget.authRepository,
+        onRecoveryComplete: _completePasswordRecovery,
+        onCancel: _completePasswordRecovery,
       );
     }
 

@@ -6,6 +6,7 @@ class FakeAuthRepository implements AuthRepository {
   FakeAuthRepository({
     this.isSignedIn = false,
     this.requiresTemporaryPasswordChange = false,
+    this.supportsPasswordRecovery = true,
     this.signInCompleter,
   });
 
@@ -15,15 +16,28 @@ class FakeAuthRepository implements AuthRepository {
   @override
   bool requiresTemporaryPasswordChange;
 
+  @override
+  bool supportsPasswordRecovery;
+
   final StreamController<bool> _signedInChanges =
       StreamController<bool>.broadcast();
+  final StreamController<void> _passwordRecoveryEvents =
+      StreamController<void>.broadcast();
   Object? signInError;
   Object? passwordChangeError;
+  Object? passwordResetRequestError;
+  Object? passwordRecoveryCompletionError;
   Completer<void>? signInCompleter;
+  Completer<void>? passwordResetCompleter;
   String? lastNewPassword;
+  String? lastResetEmail;
+  String? lastRecoveryPassword;
 
   @override
   Stream<bool> get signedInChanges => _signedInChanges.stream;
+
+  @override
+  Stream<void> get passwordRecoveryEvents => _passwordRecoveryEvents.stream;
 
   @override
   Future<void> signIn({required String email, required String password}) async {
@@ -54,6 +68,29 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> requestPasswordReset({required String email}) async {
+    final completer = passwordResetCompleter;
+    if (completer != null) {
+      await completer.future;
+    }
+
+    lastResetEmail = email;
+    final error = passwordResetRequestError;
+    if (error != null) {
+      throw error;
+    }
+  }
+
+  @override
+  Future<void> completePasswordRecovery({required String newPassword}) async {
+    lastRecoveryPassword = newPassword;
+    final error = passwordRecoveryCompletionError;
+    if (error != null) {
+      throw error;
+    }
+  }
+
+  @override
   Future<void> signOut() async {
     isSignedIn = false;
     _signedInChanges.add(false);
@@ -64,5 +101,12 @@ class FakeAuthRepository implements AuthRepository {
     _signedInChanges.add(value);
   }
 
-  Future<void> dispose() => _signedInChanges.close();
+  void emitPasswordRecoveryEvent() {
+    _passwordRecoveryEvents.add(null);
+  }
+
+  Future<void> dispose() async {
+    await _signedInChanges.close();
+    await _passwordRecoveryEvents.close();
+  }
 }

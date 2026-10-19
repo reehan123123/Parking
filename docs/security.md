@@ -127,7 +127,46 @@ The save sequence remains row first, Storage upload second, with cleanup on
 failure. Photo deletion precedes session deletion; cleanup failures remain
 visible and retryable. Lists do not download photo bytes.
 
-## Verification
+## Self-service "Remember me" and password recovery
+
+Distinct from the administrative temporary-password-reset flow above, the
+sign-in screen offers two self-service, free-tier Supabase Auth features:
+
+- **Remember me**: an optional checkbox that stores only the entered email
+  address locally (via `shared_preferences`) so it can be prefilled on the
+  next visit. It never stores a password, access token, or refresh token.
+  Supabase's own session persistence and refresh behavior are unchanged;
+  unchecking the box clears only the remembered email, not any active
+  session.
+- **Forgot password**: a dialog that calls Supabase's built-in
+  `resetPasswordForEmail()` using the current page origin as the redirect.
+  The confirmation message is neutral ("if an account exists...") on both
+  genuine success and an unrecognized email, so the flow never reveals
+  whether an email address has an account. Only real failures (network
+  errors, rate limiting) show a distinct, honest error.
+- **Password recovery**: when the user opens the emailed recovery link,
+  Supabase fires a `passwordRecovery` auth event rather than a distinct URL
+  path. `AuthGate` listens for this event and renders the password-reset
+  screen *before* evaluating normal signed-in/signed-out state, so the
+  temporary recovery session Supabase establishes can never fall through to
+  the authenticated application. After the user sets a new password (or
+  cancels), the app signs out of that temporary session and returns to the
+  normal sign-in screen.
+
+This flow uses only `resetPasswordForEmail()` and `updateUser()` from the
+existing `supabase_flutter` client; no Edge Function, custom SMTP, database
+table, or paid email provider was added. The `PARKING_BACKEND=local`
+development mode has no email capability, so its "Forgot password?" link is
+shown but disabled with an explanatory tooltip.
+
+**Free-tier email limit**: Supabase's built-in email sending (used by both
+this recovery flow and the existing invitation emails) is rate-limited and
+intended primarily for testing/low-volume use on the free plan. It is not a
+guaranteed, production-grade transactional email service; a custom SMTP
+provider would be required for reliable high-volume delivery, which is out
+of scope for this feature.
+
+
 
 Run the local Flutter checks:
 

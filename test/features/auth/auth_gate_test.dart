@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parking_management/features/auth/presentation/auth_gate.dart';
+import 'package:parking_management/features/auth/presentation/password_recovery_page.dart';
 import 'package:parking_management/features/auth/presentation/sign_in_page.dart';
 import 'package:parking_management/features/auth/presentation/temporary_password_reset_page.dart';
 
@@ -124,4 +125,94 @@ void main() {
     expect(repository.lastNewPassword, isNull);
     expect(find.text('Authenticated content'), findsNothing);
   });
+
+  testWidgets(
+    'shows the password recovery page when a recovery event is emitted, even while signed out',
+    (WidgetTester tester) async {
+      final repository = FakeAuthRepository();
+      addTearDown(repository.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthGate(
+            authRepository: repository,
+            authenticatedBuilder: (context, onSignOut) =>
+                const Text('Authenticated content'),
+          ),
+        ),
+      );
+
+      expect(find.byType(SignInPage), findsOneWidget);
+
+      repository.emitPasswordRecoveryEvent();
+      await tester.pump();
+
+      expect(find.byType(PasswordRecoveryPage), findsOneWidget);
+      expect(find.byType(SignInPage), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'shows the password recovery page instead of authenticated content, even while signed in',
+    (WidgetTester tester) async {
+      final repository = FakeAuthRepository(isSignedIn: true);
+      addTearDown(repository.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthGate(
+            authRepository: repository,
+            authenticatedBuilder: (context, onSignOut) =>
+                const Text('Authenticated content'),
+          ),
+        ),
+      );
+
+      expect(find.text('Authenticated content'), findsOneWidget);
+
+      repository.emitPasswordRecoveryEvent();
+      await tester.pump();
+
+      expect(find.byType(PasswordRecoveryPage), findsOneWidget);
+      expect(find.text('Authenticated content'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'returns to sign-in after completing the password recovery flow',
+    (WidgetTester tester) async {
+      final repository = FakeAuthRepository(isSignedIn: true);
+      addTearDown(repository.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AuthGate(
+            authRepository: repository,
+            authenticatedBuilder: (context, onSignOut) =>
+                const Text('Authenticated content'),
+          ),
+        ),
+      );
+
+      repository.emitPasswordRecoveryEvent();
+      await tester.pump();
+      expect(find.byType(PasswordRecoveryPage), findsOneWidget);
+
+      await tester.enterText(
+        find.byKey(const ValueKey('recovery-new-password')),
+        'a-new-password-123',
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('recovery-confirm-password')),
+        'a-new-password-123',
+      );
+      await tester.tap(find.text('Update password'));
+      await tester.pumpAndSettle();
+
+      expect(repository.lastRecoveryPassword, 'a-new-password-123');
+      expect(repository.isSignedIn, isFalse);
+      expect(find.byType(PasswordRecoveryPage), findsNothing);
+      expect(find.byType(SignInPage), findsOneWidget);
+    },
+  );
 }

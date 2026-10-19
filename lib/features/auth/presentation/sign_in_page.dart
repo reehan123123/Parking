@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/auth_repository.dart';
+import '../data/remembered_email_store.dart';
+import 'email_validation.dart';
+import 'forgot_password_dialog.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({required this.authRepository, super.key});
@@ -16,8 +19,27 @@ class _SignInPageState extends State<SignInPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _rememberedEmailStore = const RememberedEmailStore();
   bool _isSubmitting = false;
+  bool _rememberMe = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberedEmail();
+  }
+
+  Future<void> _loadRememberedEmail() async {
+    final rememberedEmail = await _rememberedEmailStore.read();
+    if (!mounted || rememberedEmail == null) {
+      return;
+    }
+    setState(() {
+      _emailController.text = rememberedEmail;
+      _rememberMe = true;
+    });
+  }
 
   @override
   void dispose() {
@@ -38,11 +60,17 @@ class _SignInPageState extends State<SignInPage> {
       _isSubmitting = true;
     });
 
+    final email = _emailController.text.trim();
     try {
       await widget.authRepository.signIn(
-        email: _emailController.text.trim(),
+        email: email,
         password: _passwordController.text,
       );
+      if (_rememberMe) {
+        await _rememberedEmailStore.save(email);
+      } else {
+        await _rememberedEmailStore.clear();
+      }
     } on AuthRepositoryException catch (error) {
       if (mounted) {
         setState(() {
@@ -71,17 +99,16 @@ class _SignInPageState extends State<SignInPage> {
     }
   }
 
-  String? _validateEmail(String? value) {
-    final email = value?.trim() ?? '';
-    if (email.isEmpty) {
-      return 'Enter your email address.';
-    }
-
-    if (!email.contains('@')) {
-      return 'Enter a valid email address.';
-    }
-
-    return null;
+  Future<void> _showForgotPasswordDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => ForgotPasswordDialog(
+        authRepository: widget.authRepository,
+        initialEmail: _emailController.text.trim().isEmpty
+            ? null
+            : _emailController.text.trim(),
+      ),
+    );
   }
 
   String? _validatePassword(String? value) {
@@ -126,7 +153,7 @@ class _SignInPageState extends State<SignInPage> {
                         decoration: const InputDecoration(
                           labelText: 'Email address',
                         ),
-                        validator: _validateEmail,
+                        validator: validateEmailAddress,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
@@ -141,6 +168,42 @@ class _SignInPageState extends State<SignInPage> {
                         onFieldSubmitted: _isSubmitting
                             ? null
                             : (_) => _signIn(),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: CheckboxListTile(
+                              value: _rememberMe,
+                              onChanged: _isSubmitting
+                                  ? null
+                                  : (value) {
+                                      setState(() {
+                                        _rememberMe = value ?? false;
+                                      });
+                                    },
+                              contentPadding: EdgeInsets.zero,
+                              controlAffinity: ListTileControlAffinity.leading,
+                              title: const Text('Remember me'),
+                            ),
+                          ),
+                          Tooltip(
+                            message:
+                                widget.authRepository.supportsPasswordRecovery
+                                ? ''
+                                : 'Password reset email is not available in '
+                                      'local development mode.',
+                            child: TextButton(
+                              onPressed:
+                                  _isSubmitting ||
+                                      !widget
+                                          .authRepository
+                                          .supportsPasswordRecovery
+                                  ? null
+                                  : _showForgotPasswordDialog,
+                              child: const Text('Forgot password?'),
+                            ),
+                          ),
+                        ],
                       ),
                       if (_errorMessage != null) ...[
                         const SizedBox(height: 16),
