@@ -148,6 +148,18 @@ Before live testing:
    `http://localhost:PORT/`) as a second entry in Redirect URLs. Do not add a
    broad wildcard URL.
 9. Do not use the privileged SQL Editor as proof of browser RLS.
+10. The `send-email` Edge Function (Supabase Auth "Send Email" hook) and its
+    migration (`20261021110000_password_reset_rate_limit.sql`) have been
+    deployed/applied to the hosted project via the Supabase CLI:
+    `supabase functions deploy send-email --no-verify-jwt`,
+    `supabase secrets set BREVO_API_KEY=... EMAIL_SENDER_ADDRESS=...
+    EMAIL_SENDER_NAME=... SEND_EMAIL_HOOK_SECRET=...`, and
+    `supabase config push` (with `SEND_EMAIL_HOOK_SECRET` set in the same
+    shell so the `env(SEND_EMAIL_HOOK_SECRET)` reference in
+    `supabase/config.toml` resolves). No Dashboard interaction was required
+    or used; none of these secret values are committed, logged, or present
+    in Dart/browser code. See `docs/security.md` for the full architecture
+    and the 6-recovery-emails-per-account-per-day application-level cap.
 
 The frontend deployment alone does not prove hosted RLS or Storage isolation.
 Tenant A members must not be able to read, update, delete, sign, or replace

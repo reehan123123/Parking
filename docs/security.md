@@ -154,17 +154,67 @@ sign-in screen offers two self-service, free-tier Supabase Auth features:
   normal sign-in screen.
 
 This flow uses only `resetPasswordForEmail()` and `updateUser()` from the
-existing `supabase_flutter` client; no Edge Function, custom SMTP, database
-table, or paid email provider was added. The `PARKING_BACKEND=local`
-development mode has no email capability, so its "Forgot password?" link is
-shown but disabled with an explanatory tooltip.
+existing `supabase_flutter` client. The `PARKING_BACKEND=local` development
+mode has no email capability, so its "Forgot password?" link is shown but
+disabled with an explanatory tooltip.
 
-**Free-tier email limit**: Supabase's built-in email sending (used by both
-this recovery flow and the existing invitation emails) is rate-limited and
-intended primarily for testing/low-volume use on the free plan. It is not a
-guaranteed, production-grade transactional email service; a custom SMTP
-provider would be required for reliable high-volume delivery, which is out
-of scope for this feature.
+### Outgoing auth email delivery: Supabase "Send Email" hook + Brevo
+
+Supabase's built-in email sender is hard-capped at **2 emails/hour,
+project-wide** on the free plan, and that cap cannot be raised by a plan
+upgrade — only by configuring a custom SMTP provider or a Send Email hook.
+This project uses the **Send Email hook** (`supabase/functions/send-email`),
+a Supabase Edge Function that Supabase Auth calls for every outgoing auth
+email (signup, invite, magic link, recovery, email change, reauthentication,
+and account-activity notifications) in place of its own built-in sender. The
+function:
+
+- Verifies the request is genuinely from Supabase using the Standard
+  Webhooks signature scheme (`standardwebhooks`) and a secret known only to
+  Supabase and this function (`SEND_EMAIL_HOOK_SECRET`, an Edge Function
+  secret — never committed, never logged).
+- Builds the appropriate subject/body per `email_action_type`, reusing
+  Supabase's own `/auth/v1/verify?token=...&type=...&redirect_to=...` link
+  format so existing redirect/route handling (see `AuthGate` above) is
+  unchanged.
+- Sends the message through **Brevo**'s transactional email API
+  (`https://api.brevo.com/v3/smtp/email`), a free-tier provider (300
+  emails/day) configured with its own sender address/API key as Edge
+  Function secrets (`BREVO_API_KEY`, `EMAIL_SENDER_ADDRESS`,
+  `EMAIL_SENDER_NAME`) — never committed, never logged, never exposed to the
+  Flutter client.
+
+The hook is wired in `supabase/config.toml` under `[auth.hook.send_email]`
+and activated on the remote project via `supabase config push` (no Supabase
+Dashboard interaction required). No service-role key or other privileged
+credential is present in Dart/browser code; the function only ever runs
+server-side.
+
+**Per-account recovery email cap**: independent of Supabase's own limits,
+the hook enforces an application-level cap of **6 password-recovery emails
+per account per UTC day**. Each "recovery"-type request first calls the
+`record_password_reset_attempt(email)` SQL function (migration
+`20261021110000_password_reset_rate_limit.sql`), which atomically increments
+a per-email, per-day counter in `public.password_reset_request_log` using
+`SECURITY DEFINER`, with `EXECUTE` granted only to `service_role` and RLS
+enabled denying all other access. Once the 6th email for that account/day
+has been sent, further attempts that same day are rejected with the same
+HTTP 429 the app already displays for Supabase's native per-address cooldown
+("Too many reset requests. Wait a few minutes and try again."), so no new
+client-visible behavior or account-existence signal is introduced.
+
+**Free-tier email limits (current)**:
+- Brevo: 300 emails/day (project-wide), used for every auth email once the
+  hook is enabled — well above Supabase's built-in 2/hour cap.
+- Application-level: 6 recovery emails per account per UTC day (see above).
+- Supabase's own built-in `auth.email.max_frequency` (60s per address) and
+  2/hour built-in cap no longer apply to outgoing mail once the hook is
+  active, since the hook fully replaces Supabase's SMTP-based sending.
+
+This is still a free-tier-only architecture — Brevo's free transactional
+tier, no paid SMTP, no paid Supabase add-on — but it is not Supabase's
+*built-in* email service; it is an Edge Function plus a third-party free
+provider, which the user explicitly requested to bypass the built-in cap.
 
 
 
