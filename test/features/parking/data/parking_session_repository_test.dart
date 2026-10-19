@@ -57,6 +57,7 @@ void main() {
         'created_by': 'user-1',
         'total_charge': 0.0,
         'paid_amount': 0.0,
+        'contact_number': '+919876543210',
       });
       expect(store.events, ['insert']);
     });
@@ -443,6 +444,7 @@ ParkingSession _session({String plateNumber = 'AB 123'}) {
       unit: ParkingDurationUnit.hours,
     ),
     expiresAt: DateTime.utc(2026, 10, 14, 12, 30),
+    contactNumber: '+919876543210',
   );
 }
 
@@ -461,6 +463,7 @@ ParkingSession _sessionWithId({
       unit: ParkingDurationUnit.hours,
     ),
     expiresAt: DateTime.utc(2026, 10, 14, 12, 30),
+    contactNumber: '+919876543210',
   );
 }
 

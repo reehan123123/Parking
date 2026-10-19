@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../core/validation/indian_mobile_normalizer.dart';
 import '../../../shared/widgets/error_state_view.dart';
 import '../data/parking_camera_source.dart';
 import '../data/parking_photo.dart';
@@ -45,6 +46,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
   final _durationController = TextEditingController();
   final _totalChargeController = TextEditingController();
   final _paidAmountController = TextEditingController();
+  final _contactController = TextEditingController();
   final _calculator = const ParkingDurationCalculator();
 
   late final ParkingPhotoSource _photoSource =
@@ -84,6 +86,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       _continueWithoutPhoto = initialSession.photoPath == null;
       _totalChargeController.text = _formatAmount(initialSession.totalCharge);
       _paidAmountController.text = _formatAmount(initialSession.paidAmount);
+      _contactController.text = initialSession.contactNumber ?? '';
       _isFullyPaid =
           initialSession.totalCharge > 0 &&
           initialSession.paidAmount >= initialSession.totalCharge;
@@ -105,6 +108,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     _durationController.dispose();
     _totalChargeController.dispose();
     _paidAmountController.dispose();
+    _contactController.dispose();
     super.dispose();
   }
 
@@ -291,6 +295,19 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     return null;
   }
 
+  String? _validateContact(String? value) {
+    final contact = value?.trim() ?? '';
+    if (contact.isEmpty) {
+      return 'Enter a contact mobile number.';
+    }
+
+    if (IndianMobileNormalizer.tryNormalize(contact) == null) {
+      return 'Enter a valid 10-digit mobile number, with or without +91.';
+    }
+
+    return null;
+  }
+
   String? _validateDuration(String? value) {
     final durationValue = value?.trim() ?? '';
     if (durationValue.isEmpty) {
@@ -437,6 +454,9 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       expiresAt: calculation.expiresAt,
       totalCharge: totalCharge,
       paidAmount: paidAmount,
+      contactNumber: IndianMobileNormalizer.tryNormalize(
+        _contactController.text,
+      ),
     );
 
     setState(() {
@@ -731,6 +751,21 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                 hintText: 'For example, ABC 123',
               ),
               validator: _validatePlate,
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _contactController,
+              enabled: !_isSaving,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^[0-9+ ]*$')),
+              ],
+              decoration: const InputDecoration(
+                labelText: 'Contact number',
+                hintText: 'For example, 9876543210 or +919876543210',
+              ),
+              validator: _validateContact,
             ),
             const SizedBox(height: 16),
             _buildDateTimeButtons(context),

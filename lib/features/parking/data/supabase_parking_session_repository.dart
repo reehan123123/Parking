@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/validation/indian_mobile_normalizer.dart';
 import '../domain/parking_duration.dart';
 import '../domain/parking_duration_unit.dart';
 import '../domain/parking_session.dart';
@@ -10,7 +11,7 @@ import '../../tenants/domain/parking_tenant_scope.dart';
 const _parkingSessionColumns =
     'id,tenant_id,plate_number,photo_path,entry_time,allowed_duration_value,'
     'allowed_duration_unit,expires_at,created_by,created_at,updated_at,'
-    'total_charge,paid_amount';
+    'total_charge,paid_amount,contact_number';
 const _maximumParkingSessionPageSize = 100;
 
 class SupabaseParkingSessionRepository implements ParkingSessionRepository {
@@ -527,6 +528,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       'created_by': userId,
       'total_charge': session.totalCharge,
       'paid_amount': session.paidAmount,
+      'contact_number': session.contactNumber,
     };
   }
 
@@ -542,6 +544,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       'expires_at': session.expiresAt.toUtc().toIso8601String(),
       'total_charge': session.totalCharge,
       'paid_amount': session.paidAmount,
+      'contact_number': session.contactNumber,
     };
   }
 
@@ -562,6 +565,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
     );
     final totalCharge = _parseOptionalDouble(row['total_charge']) ?? 0;
     final paidAmount = _parseOptionalDouble(row['paid_amount']) ?? 0;
+    final contactNumber = _optionalString(row['contact_number']);
 
     return ParkingSession(
       id: id,
@@ -577,6 +581,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       expiresAt: expiresAt,
       totalCharge: totalCharge,
       paidAmount: paidAmount,
+      contactNumber: contactNumber,
     );
   }
 
@@ -599,6 +604,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       expiresAt: session.expiresAt,
       totalCharge: session.totalCharge,
       paidAmount: session.paidAmount,
+      contactNumber: session.contactNumber,
     );
   }
 
@@ -687,6 +693,15 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
 
     if (session.paidAmount > session.totalCharge) {
       return 'The amount paid cannot exceed the total parking charge.';
+    }
+
+    final contactNumber = session.contactNumber;
+    if (contactNumber == null || contactNumber.trim().isEmpty) {
+      return 'Enter a contact mobile number.';
+    }
+    if (!IndianMobileNormalizer.isNormalized(contactNumber)) {
+      return 'Enter a valid Indian mobile number, with or without the '
+          '+91 prefix.';
     }
 
     return null;

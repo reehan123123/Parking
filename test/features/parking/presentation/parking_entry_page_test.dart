@@ -22,7 +22,8 @@ void main() {
     await _pumpEntryPage(tester, repository: repository);
 
     await tester.enterText(find.byType(TextFormField).at(0), 'AB 123');
-    await tester.enterText(find.byType(TextFormField).at(1), '2');
+    await tester.enterText(find.byType(TextFormField).at(1), '9876543210');
+    await tester.enterText(find.byType(TextFormField).at(2), '2');
     await tester.pump();
 
     expect(find.text('Calculated expiry'), findsOneWidget);
@@ -35,7 +36,8 @@ void main() {
     await _pumpEntryPage(tester, repository: repository);
 
     await tester.enterText(find.byType(TextFormField).at(0), 'AB 123');
-    await tester.enterText(find.byType(TextFormField).at(1), '2');
+    await tester.enterText(find.byType(TextFormField).at(1), '9876543210');
+    await tester.enterText(find.byType(TextFormField).at(2), '2');
     await _tapVisible(tester, 'Save parking entry');
     await tester.pump();
 
@@ -55,13 +57,15 @@ void main() {
     await _pumpEntryPage(tester, repository: repository);
 
     await tester.enterText(find.byType(TextFormField).at(0), ' ab 123 ');
-    await tester.enterText(find.byType(TextFormField).at(1), '2');
+    await tester.enterText(find.byType(TextFormField).at(1), '9876543210');
+    await tester.enterText(find.byType(TextFormField).at(2), '2');
     await _tapVisible(tester, 'Continue without photo');
     await _tapVisible(tester, 'Save parking entry');
     await tester.pump();
 
     expect(repository.savedSession?.plateNumber, 'AB 123');
     expect(repository.savedSession?.allowedDuration.value, 2);
+    expect(repository.savedSession?.contactNumber, '+919876543210');
     expect(repository.savedPhoto, isNull);
     expect(find.text('Save failed for testing.'), findsOneWidget);
   });
@@ -90,7 +94,8 @@ void main() {
     expect(find.text('car.jpg (0.1 KB)'), findsOneWidget);
 
     await tester.enterText(find.byType(TextFormField).at(0), 'AB 123');
-    await tester.enterText(find.byType(TextFormField).at(1), '2');
+    await tester.enterText(find.byType(TextFormField).at(1), '9876543210');
+    await tester.enterText(find.byType(TextFormField).at(2), '2');
     await _tapVisible(tester, 'Save parking entry');
     await tester.pump();
 
@@ -131,7 +136,8 @@ void main() {
     expect(find.text('camera.jpg (0.1 KB)'), findsOneWidget);
 
     await tester.enterText(find.byType(TextFormField).at(0), 'AB 123');
-    await tester.enterText(find.byType(TextFormField).at(1), '2');
+    await tester.enterText(find.byType(TextFormField).at(1), '9876543210');
+    await tester.enterText(find.byType(TextFormField).at(2), '2');
     await _tapVisible(tester, 'Save parking entry');
     await tester.pump();
 
@@ -151,6 +157,7 @@ void main() {
         unit: ParkingDurationUnit.hours,
       ),
       expiresAt: DateTime(2026, 10, 14, 12, 30),
+      contactNumber: '+919876543210',
     );
     final repository = FakeParkingSessionRepository(
       updateResult: ParkingSessionUpdateSuccess(session: session),

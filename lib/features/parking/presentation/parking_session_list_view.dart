@@ -50,6 +50,13 @@ class ParkingSessionListView extends StatelessWidget {
                           'Entry: ${ParkingSessionFormatters.dateTime(context, session.entryTime)}\n'
                           'Expiry: ${ParkingSessionFormatters.dateTime(context, session.expiresAt)}',
                         ),
+                        if (session.contactNumber != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Contact: ${session.contactNumber}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
                         if (session.totalCharge > 0) ...[
                           const SizedBox(height: 8),
                           ParkingPaymentStatusChip(session: session),

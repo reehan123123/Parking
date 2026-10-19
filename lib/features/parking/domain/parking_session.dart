@@ -17,6 +17,7 @@ class ParkingSession {
     required this.expiresAt,
     this.totalCharge = 0,
     this.paidAmount = 0,
+    this.contactNumber,
   });
 
   final String? id;
@@ -27,6 +28,10 @@ class ParkingSession {
   final DateTime entryTime;
   final ParkingDuration allowedDuration;
   final DateTime expiresAt;
+
+  /// Normalized `+91XXXXXXXXXX` mobile number for the vehicle owner or
+  /// customer, or `null` when not recorded.
+  final String? contactNumber;
 
   /// The total parking charge for this session. Zero means no charge is
   /// recorded.

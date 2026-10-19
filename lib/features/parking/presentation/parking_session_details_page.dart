@@ -287,6 +287,11 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
             ),
             const Divider(height: 24),
             _DetailRow(
+              label: 'Contact number',
+              value: _session.contactNumber ?? 'Not provided',
+            ),
+            const Divider(height: 24),
+            _DetailRow(
               label: 'Allowed duration',
               value:
                   '${_session.allowedDuration.value} '
