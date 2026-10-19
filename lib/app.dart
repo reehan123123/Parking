@@ -13,6 +13,8 @@ import 'shared/widgets/loading_view.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'features/auth/presentation/auth_gate.dart';
 import 'features/dashboard/presentation/dashboard_page.dart';
+import 'features/device_sessions/data/device_session_repository.dart';
+import 'features/device_sessions/presentation/device_session_limit_page.dart';
 import 'features/history/presentation/history_page.dart';
 import 'features/parking/data/parking_session_repository.dart';
 import 'features/parking/domain/parking_session.dart';
@@ -29,6 +31,7 @@ class ParkingManagementApp extends StatefulWidget {
     this.authRepository,
     this.parkingSessionRepository,
     this.tenantRepository,
+    this.deviceSessionRepository,
     this.configurationError,
     this.supabaseClient,
     super.key,
@@ -37,6 +40,7 @@ class ParkingManagementApp extends StatefulWidget {
   final AuthRepository? authRepository;
   final ParkingSessionRepository? parkingSessionRepository;
   final TenantRepository? tenantRepository;
+  final DeviceSessionRepository? deviceSessionRepository;
   final String? configurationError;
   final SupabaseClient? supabaseClient;
 
@@ -198,10 +202,17 @@ class _ParkingManagementAppState extends State<ParkingManagementApp> {
             widget.supabaseClient?.auth.currentUser?.userMetadata,
           ),
         );
+
+        Future<void> releaseDeviceSessionAndSignOut() async {
+          await widget.deviceSessionRepository?.releaseCurrentSession();
+          await onSignOut();
+        }
+
         return AppShell(
-          onSignOut: onSignOut,
+          onSignOut: releaseDeviceSessionAndSignOut,
           parkingSessionRepository: widget.parkingSessionRepository,
           tenantRepository: widget.tenantRepository,
+          deviceSessionRepository: widget.deviceSessionRepository,
         );
       },
     );
@@ -214,6 +225,7 @@ class AppShell extends StatefulWidget {
     this.onSignOut,
     this.parkingSessionRepository,
     this.tenantRepository,
+    this.deviceSessionRepository,
     this.initialTenantAccess,
     super.key,
   });
@@ -222,6 +234,7 @@ class AppShell extends StatefulWidget {
   final Future<void> Function()? onSignOut;
   final ParkingSessionRepository? parkingSessionRepository;
   final TenantRepository? tenantRepository;
+  final DeviceSessionRepository? deviceSessionRepository;
   final ParkingTenantAccess? initialTenantAccess;
 
   @override
@@ -237,6 +250,8 @@ class _AppShellState extends State<AppShell> {
   bool _tenantAccessErrorIsMigrationMissing = false;
   bool _tenantAccessErrorIsGeneric = false;
   bool _isLoadingTenantAccess = false;
+  DeviceLimitReachedException? _deviceLimitError;
+  String? _deviceLimitTenantId;
 
   static const _allTenantsValue = '__all_tenants__';
 
@@ -269,10 +284,14 @@ class _AppShellState extends State<AppShell> {
       _tenantAccessError = null;
       _tenantAccessErrorIsMigrationMissing = false;
       _tenantAccessErrorIsGeneric = false;
+      _deviceLimitError = null;
     });
 
+    String? attemptedTenantId;
+    ParkingTenantAccess? loadedAccess;
     try {
       final access = await repository.loadAccess();
+      loadedAccess = access;
       if (!mounted) {
         return;
       }
@@ -296,16 +315,42 @@ class _AppShellState extends State<AppShell> {
           : currentTenantId != null && tenantIds.contains(currentTenantId)
           ? currentTenantId
           : fallbackTenantId;
+      attemptedTenantId = selectedTenantId;
+      if (!access.isSuperAdmin &&
+          selectedTenantId != null &&
+          widget.deviceSessionRepository != null) {
+        await widget.deviceSessionRepository!.registerCurrentSession(
+          tenantId: selectedTenantId,
+        );
+      }
       final showAdmin = access.isSuperAdmin && widget.tenantRepository != null;
       final destinationCount = showAdmin ? 4 : 3;
 
       setState(() {
         _tenantAccess = access;
         _selectedTenantId = selectedTenantId;
+        _deviceLimitTenantId = selectedTenantId;
         _selectedIndex = _selectedIndex < destinationCount ? _selectedIndex : 0;
         _isLoadingTenantAccess = false;
         _dataVersion++;
       });
+    } on DeviceLimitReachedException catch (error) {
+      if (mounted) {
+        setState(() {
+          _tenantAccess = loadedAccess;
+          _deviceLimitError = error;
+          _deviceLimitTenantId = attemptedTenantId;
+          _isLoadingTenantAccess = false;
+        });
+      }
+    } on DeviceSessionRepositoryException catch (error) {
+      if (mounted) {
+        setState(() {
+          _tenantAccess = null;
+          _tenantAccessError = error.message;
+          _isLoadingTenantAccess = false;
+        });
+      }
     } on TenantRepositoryException catch (error) {
       if (mounted) {
         setState(() {
@@ -329,11 +374,55 @@ class _AppShellState extends State<AppShell> {
     return _loadTenantAccess(preferredTenantId: tenant?.id);
   }
 
-  void _selectTenant(String? tenantId) {
+  Future<void> _selectTenant(String? tenantId) async {
     if (tenantId == _selectedTenantId) {
       return;
     }
 
+    final ParkingTenantAccess? access = _tenantAccess;
+    final DeviceSessionRepository? deviceSessions =
+        widget.deviceSessionRepository;
+    if (tenantId != null &&
+        access != null &&
+        !access.isSuperAdmin &&
+        deviceSessions != null) {
+      try {
+        await deviceSessions.registerCurrentSession(tenantId: tenantId);
+      } on DeviceLimitReachedException catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(context)
+                    .deviceLimitReachedMessage(error.deviceLimit),
+              ),
+            ),
+          );
+        }
+        return;
+      } on DeviceSessionRepositoryException catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context)
+              .showSnackBar(SnackBar(content: Text(error.message)));
+        }
+        return;
+      } on Exception {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(context).deviceSessionRegistrationError,
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _selectedTenantId = tenantId;
       _dataVersion++;
@@ -434,6 +523,23 @@ class _AppShellState extends State<AppShell> {
         body: LoadingView(message: l10n.workspaceAccessLoadingMessage),
       );
     }
+    final DeviceLimitReachedException? deviceLimitError = _deviceLimitError;
+    if (deviceLimitError != null && widget.deviceSessionRepository != null) {
+      return DeviceSessionLimitPage(
+        deviceLimit: deviceLimitError.deviceLimit,
+        activeDeviceCount: deviceLimitError.activeDeviceCount,
+        tenants:
+            _tenantAccess?.tenants
+                .where((tenant) => !tenant.isArchived)
+                .toList(growable: false) ??
+            const [],
+        selectedTenantId: _deviceLimitTenantId,
+        repository: widget.deviceSessionRepository!,
+        onRetry: (String tenantId) =>
+            _loadTenantAccess(preferredTenantId: tenantId),
+        onSignOut: widget.onSignOut,
+      );
+    }
     if (_tenantAccessError != null ||
         _tenantAccessErrorIsMigrationMissing ||
         _tenantAccessErrorIsGeneric) {
@@ -520,9 +626,18 @@ class _AppShellState extends State<AppShell> {
               TenantAdminPage(
                 access: access,
                 repository: widget.tenantRepository!,
+                deviceSessionAdminRepository:
+                    widget.deviceSessionRepository
+                        is DeviceSessionAdminRepository
+                    ? widget.deviceSessionRepository!
+                          as DeviceSessionAdminRepository
+                    : null,
                 onTenantChanged: _handleTenantChanged,
               ),
-            SettingsPage(onSignOut: widget.onSignOut),
+            SettingsPage(
+              onSignOut: widget.onSignOut,
+              deviceSessionRepository: widget.deviceSessionRepository,
+            ),
           ],
         );
 
@@ -634,7 +749,7 @@ class _AppShellState extends State<AppShell> {
       tooltip: l10n.tenantSelectorTooltip,
       initialValue: _selectedTenantId ?? _allTenantsValue,
       onSelected: (value) =>
-          _selectTenant(value == _allTenantsValue ? null : value),
+          unawaited(_selectTenant(value == _allTenantsValue ? null : value)),
       itemBuilder: (context) => [
         if (access.isSuperAdmin)
           PopupMenuItem(

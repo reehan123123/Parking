@@ -8,6 +8,8 @@ import '../../../core/validation/indian_mobile_normalizer.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/empty_state_view.dart';
 import '../../../shared/widgets/error_state_view.dart';
+import '../../device_sessions/data/device_session_repository.dart';
+import '../../device_sessions/presentation/device_session_admin_page.dart';
 import '../data/supabase_tenant_repository.dart';
 import '../data/tenant_repository.dart';
 import '../domain/parking_tenant.dart';
@@ -17,12 +19,14 @@ class TenantAdminPage extends StatefulWidget {
     required this.access,
     required this.repository,
     required this.onTenantChanged,
+    this.deviceSessionAdminRepository,
     super.key,
   });
 
   final ParkingTenantAccess access;
   final TenantRepository repository;
   final Future<void> Function(ParkingTenant? tenant) onTenantChanged;
+  final DeviceSessionAdminRepository? deviceSessionAdminRepository;
 
   @override
   State<TenantAdminPage> createState() => _TenantAdminPageState();
@@ -157,6 +161,23 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
     );
   }
 
+  Future<void> _manageDevicePolicies() {
+    final DeviceSessionAdminRepository? repository =
+        widget.deviceSessionAdminRepository;
+    if (repository == null) {
+      return Future<void>.value();
+    }
+
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => DeviceSessionAdminPage(
+          tenants: widget.access.tenants,
+          repository: repository,
+        ),
+      ),
+    );
+  }
+
   /// Informational-only expiry check for the listing UI. The database (via
   /// `is_tenant_member`) is the authoritative enforcement point.
   static bool _isExpired(DateTime? validUntil) {
@@ -246,6 +267,23 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
           padding: const EdgeInsets.all(28),
           children: [
             _buildHeader(theme, l10n),
+            if (widget.deviceSessionAdminRepository != null) ...[
+              const SizedBox(height: 20),
+              Card(
+                child: ListTile(
+                  leading: Icon(
+                    Icons.devices_other_outlined,
+                    color: theme.colorScheme.primary,
+                  ),
+                  title: Text(l10n.devicePolicyAdminTitle),
+                  subtitle: Text(l10n.devicePolicyAdminDescription),
+                  trailing: FilledButton.tonal(
+                    onPressed: _manageDevicePolicies,
+                    child: Text(l10n.devicePolicyManageButton),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             Card(
               child: Padding(

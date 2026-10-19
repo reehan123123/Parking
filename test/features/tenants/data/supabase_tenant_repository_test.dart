@@ -37,6 +37,33 @@ void main() {
       expect(store.lastTenantIds, ['tenant-a']);
     });
 
+    test('loads bootstrap tenant choices before device registration', () async {
+      final store = _FakeDeviceSessionTenantStore()
+        ..choiceRows = [
+          {
+            'tenant_id': 'tenant-a',
+            'tenant_name': 'North lot',
+            'tenant_slug': 'north-lot',
+            'role': 'owner',
+            'archived_at': null,
+            'valid_until': '2027-01-01',
+          },
+        ];
+
+      final ParkingTenantAccess access = await SupabaseTenantRepository(
+        null,
+        tenantStore: store,
+      ).loadAccess();
+
+      expect(access.isSuperAdmin, isFalse);
+      expect(access.tenants, hasLength(1));
+      expect(access.tenants.single.id, 'tenant-a');
+      expect(access.tenants.single.role, ParkingTenantRole.owner);
+      expect(store.tenantChoiceCalls, 1);
+      expect(store.membershipCalls, 0);
+      expect(store.lastTenantIds, isNull);
+    });
+
     test(
       'loads all tenants for the database-backed Super Admin role',
       () async {
@@ -517,5 +544,17 @@ class _FakeTenantStore implements TenantStore {
     if (error != null) {
       throw error;
     }
+  }
+}
+
+class _FakeDeviceSessionTenantStore extends _FakeTenantStore
+    implements DeviceSessionTenantChoiceStore {
+  List<Map<String, dynamic>> choiceRows = [];
+  int tenantChoiceCalls = 0;
+
+  @override
+  Future<List<Map<String, dynamic>>> currentTenantChoices() async {
+    tenantChoiceCalls++;
+    return choiceRows;
   }
 }

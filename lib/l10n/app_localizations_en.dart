@@ -271,6 +271,264 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose the language used throughout the app.';
 
   @override
+  String get deviceSessionTitle => 'Your devices';
+
+  @override
+  String get deviceSessionDescription =>
+      'Review and remove active device sessions for your account.';
+
+  @override
+  String get deviceSessionLoading => 'Loading your devices…';
+
+  @override
+  String get deviceSessionLoadError =>
+      'Your device sessions could not be loaded. Check your connection and retry.';
+
+  @override
+  String get deviceSessionEmpty => 'No active devices';
+
+  @override
+  String get deviceSessionThisDevice => 'This device';
+
+  @override
+  String get deviceSessionOtherDevice => 'Other device';
+
+  @override
+  String get deviceSessionLastActivity => 'Last active';
+
+  @override
+  String deviceSessionActiveAuthSessions(int count) {
+    return '$count active sign-in sessions on this device';
+  }
+
+  @override
+  String get deviceSessionRemoveTitle => 'Remove this device?';
+
+  @override
+  String deviceSessionRemoveMessage(String tenant) {
+    return 'This will sign out active sessions for this device in $tenant.';
+  }
+
+  @override
+  String get deviceSessionRemove => 'Remove device';
+
+  @override
+  String get deviceSessionRemoved => 'The device session was removed.';
+
+  @override
+  String get deviceSessionRemoveError =>
+      'The device session could not be removed. Retry.';
+
+  @override
+  String get deviceSessionRegistrationError =>
+      'This device could not be verified. Check your connection and retry.';
+
+  @override
+  String get deviceLimitReachedTitle => 'Device limit reached';
+
+  @override
+  String deviceLimitReachedMessage(int limit) {
+    return 'You\'ve reached the maximum of $limit active devices for this account.';
+  }
+
+  @override
+  String get deviceLimitReachedInstructions =>
+      'Sign out from another device or remove an existing session below, then try again.';
+
+  @override
+  String get deviceLimitTenantChoiceDescription =>
+      'Each tenant has its own device limit. You can choose another tenant without using its allowance on this tenant.';
+
+  @override
+  String get deviceLimitTenantChoiceLabel => 'Tenant';
+
+  @override
+  String deviceLimitActiveCount(int count) {
+    return 'Active devices currently using this account: $count.';
+  }
+
+  @override
+  String get deviceLimitTryAgain => 'Try again';
+
+  @override
+  String get deviceLimitSignOut => 'Sign out';
+
+  @override
+  String get devicePolicyAdminTitle => 'Device-session policies';
+
+  @override
+  String get devicePolicyAdminDescription =>
+      'Configure inherited device limits, account overrides, active sessions, and revocations.';
+
+  @override
+  String get devicePolicyManageButton => 'Manage policies';
+
+  @override
+  String get devicePolicyLoading => 'Loading device policies…';
+
+  @override
+  String get devicePolicyLoadError =>
+      'Device policies could not be loaded. Check your connection and retry.';
+
+  @override
+  String get devicePolicyValidationError =>
+      'Enter a device limit from 1 to 50 and a stale expiry from 7 to 365 days.';
+
+  @override
+  String get devicePolicySavedMessage => 'Device-session policy saved.';
+
+  @override
+  String get devicePolicySaveError =>
+      'The device-session policy could not be saved. Retry.';
+
+  @override
+  String get devicePolicyTenantsTitle => 'Tenant policies and sessions';
+
+  @override
+  String get devicePolicyPlatformTitle => 'Platform default';
+
+  @override
+  String get devicePolicyPlatformDescription =>
+      'New tenants inherit this limit unless a tenant or account override is set. Existing overrides are not changed.';
+
+  @override
+  String get devicePolicyPlatformLimitLabel => 'Default devices per account';
+
+  @override
+  String get devicePolicyStaleDaysLabel => 'Stale-session expiry (days)';
+
+  @override
+  String get devicePolicyRangeLabel => 'Allowed range';
+
+  @override
+  String get devicePolicyAuditTitle => 'Recent audit events';
+
+  @override
+  String get devicePolicyAuditEmpty =>
+      'No device-session policy changes or revocations have been recorded.';
+
+  @override
+  String get deviceAuditPlatformPolicy => 'Platform policy updated';
+
+  @override
+  String get deviceAuditTenantPolicy => 'Tenant policy updated';
+
+  @override
+  String get deviceAuditMemberOverride => 'Account override updated';
+
+  @override
+  String get deviceAuditUserRevoked => 'User removed a device';
+
+  @override
+  String get deviceAuditAdminRevoked => 'Super Admin revoked a device';
+
+  @override
+  String get deviceAuditSignedOut => 'Device session signed out';
+
+  @override
+  String get deviceAuditExpired => 'Stale device session expired';
+
+  @override
+  String get deviceAuditMembershipRemoved =>
+      'Member sessions revoked after membership removal';
+
+  @override
+  String get deviceAuditSessionRegistered => 'Device session registered';
+
+  @override
+  String get deviceAuditLimitRejected =>
+      'Device registration rejected at the limit';
+
+  @override
+  String devicePolicyEffectiveLimit(int count) {
+    return 'Effective limit: $count devices';
+  }
+
+  @override
+  String get devicePolicyTenantTitle => 'Tenant limit';
+
+  @override
+  String get devicePolicySourceLabel => 'Policy source';
+
+  @override
+  String get devicePolicyPlatformDefault => 'Platform default';
+
+  @override
+  String get devicePolicyTenantOverride => 'Tenant policy';
+
+  @override
+  String get devicePolicyAccountOverride => 'Account override';
+
+  @override
+  String devicePolicyUsage(int devices, int sessions) {
+    return '$devices active devices across $sessions sign-in sessions';
+  }
+
+  @override
+  String get devicePolicyTenantLimitLabel =>
+      'Tenant device limit (blank inherits)';
+
+  @override
+  String devicePolicyInheritHint(int count) {
+    return 'Blank uses the platform default of $count.';
+  }
+
+  @override
+  String get devicePolicyMembersTitle => 'Member account limits';
+
+  @override
+  String get devicePolicyNoMembers => 'No tenant members were found.';
+
+  @override
+  String get devicePolicySetOverride => 'Set override';
+
+  @override
+  String devicePolicyActiveDevices(int count) {
+    return '$count active devices';
+  }
+
+  @override
+  String get devicePolicySessionsTitle => 'Active device sessions';
+
+  @override
+  String get devicePolicyNoSessions => 'No active device sessions.';
+
+  @override
+  String devicePolicyInstallationLabel(String id) {
+    return 'Device …$id';
+  }
+
+  @override
+  String devicePolicyActiveSessions(int count) {
+    return '$count active sign-in sessions';
+  }
+
+  @override
+  String get devicePolicyRevokeTitle => 'Revoke this device?';
+
+  @override
+  String devicePolicyRevokeMessage(String email) {
+    return 'Revoke this active device session for $email? The account will need to sign in again on that device.';
+  }
+
+  @override
+  String get devicePolicyRevokeButton => 'Revoke device';
+
+  @override
+  String get devicePolicyRevokeError =>
+      'The device session could not be revoked. Retry.';
+
+  @override
+  String get devicePolicyMemberOverrideTitle => 'Account device override';
+
+  @override
+  String get devicePolicyOverrideLimitLabel =>
+      'Devices allowed for this account';
+
+  @override
+  String get devicePolicyInheritButton => 'Use inherited limit';
+
+  @override
   String get dashboardOverviewTitle => 'Parking overview';
 
   @override

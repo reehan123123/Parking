@@ -572,6 +572,444 @@ abstract class AppLocalizations {
   /// **'Choose the language used throughout the app.'**
   String get settingsLanguageDescription;
 
+  /// No description provided for @deviceSessionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your devices'**
+  String get deviceSessionTitle;
+
+  /// No description provided for @deviceSessionDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Review and remove active device sessions for your account.'**
+  String get deviceSessionDescription;
+
+  /// No description provided for @deviceSessionLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading your devices…'**
+  String get deviceSessionLoading;
+
+  /// No description provided for @deviceSessionLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Your device sessions could not be loaded. Check your connection and retry.'**
+  String get deviceSessionLoadError;
+
+  /// No description provided for @deviceSessionEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No active devices'**
+  String get deviceSessionEmpty;
+
+  /// No description provided for @deviceSessionThisDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get deviceSessionThisDevice;
+
+  /// No description provided for @deviceSessionOtherDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Other device'**
+  String get deviceSessionOtherDevice;
+
+  /// No description provided for @deviceSessionLastActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Last active'**
+  String get deviceSessionLastActivity;
+
+  /// No description provided for @deviceSessionActiveAuthSessions.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} active sign-in sessions on this device'**
+  String deviceSessionActiveAuthSessions(int count);
+
+  /// No description provided for @deviceSessionRemoveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this device?'**
+  String get deviceSessionRemoveTitle;
+
+  /// No description provided for @deviceSessionRemoveMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This will sign out active sessions for this device in {tenant}.'**
+  String deviceSessionRemoveMessage(String tenant);
+
+  /// No description provided for @deviceSessionRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove device'**
+  String get deviceSessionRemove;
+
+  /// No description provided for @deviceSessionRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'The device session was removed.'**
+  String get deviceSessionRemoved;
+
+  /// No description provided for @deviceSessionRemoveError.
+  ///
+  /// In en, this message translates to:
+  /// **'The device session could not be removed. Retry.'**
+  String get deviceSessionRemoveError;
+
+  /// No description provided for @deviceSessionRegistrationError.
+  ///
+  /// In en, this message translates to:
+  /// **'This device could not be verified. Check your connection and retry.'**
+  String get deviceSessionRegistrationError;
+
+  /// No description provided for @deviceLimitReachedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Device limit reached'**
+  String get deviceLimitReachedTitle;
+
+  /// No description provided for @deviceLimitReachedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ve reached the maximum of {limit} active devices for this account.'**
+  String deviceLimitReachedMessage(int limit);
+
+  /// No description provided for @deviceLimitReachedInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out from another device or remove an existing session below, then try again.'**
+  String get deviceLimitReachedInstructions;
+
+  /// No description provided for @deviceLimitTenantChoiceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Each tenant has its own device limit. You can choose another tenant without using its allowance on this tenant.'**
+  String get deviceLimitTenantChoiceDescription;
+
+  /// No description provided for @deviceLimitTenantChoiceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Tenant'**
+  String get deviceLimitTenantChoiceLabel;
+
+  /// No description provided for @deviceLimitActiveCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Active devices currently using this account: {count}.'**
+  String deviceLimitActiveCount(int count);
+
+  /// No description provided for @deviceLimitTryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get deviceLimitTryAgain;
+
+  /// No description provided for @deviceLimitSignOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get deviceLimitSignOut;
+
+  /// No description provided for @devicePolicyAdminTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Device-session policies'**
+  String get devicePolicyAdminTitle;
+
+  /// No description provided for @devicePolicyAdminDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Configure inherited device limits, account overrides, active sessions, and revocations.'**
+  String get devicePolicyAdminDescription;
+
+  /// No description provided for @devicePolicyManageButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage policies'**
+  String get devicePolicyManageButton;
+
+  /// No description provided for @devicePolicyLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading device policies…'**
+  String get devicePolicyLoading;
+
+  /// No description provided for @devicePolicyLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Device policies could not be loaded. Check your connection and retry.'**
+  String get devicePolicyLoadError;
+
+  /// No description provided for @devicePolicyValidationError.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a device limit from 1 to 50 and a stale expiry from 7 to 365 days.'**
+  String get devicePolicyValidationError;
+
+  /// No description provided for @devicePolicySavedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Device-session policy saved.'**
+  String get devicePolicySavedMessage;
+
+  /// No description provided for @devicePolicySaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'The device-session policy could not be saved. Retry.'**
+  String get devicePolicySaveError;
+
+  /// No description provided for @devicePolicyTenantsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tenant policies and sessions'**
+  String get devicePolicyTenantsTitle;
+
+  /// No description provided for @devicePolicyPlatformTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Platform default'**
+  String get devicePolicyPlatformTitle;
+
+  /// No description provided for @devicePolicyPlatformDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'New tenants inherit this limit unless a tenant or account override is set. Existing overrides are not changed.'**
+  String get devicePolicyPlatformDescription;
+
+  /// No description provided for @devicePolicyPlatformLimitLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Default devices per account'**
+  String get devicePolicyPlatformLimitLabel;
+
+  /// No description provided for @devicePolicyStaleDaysLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Stale-session expiry (days)'**
+  String get devicePolicyStaleDaysLabel;
+
+  /// No description provided for @devicePolicyRangeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed range'**
+  String get devicePolicyRangeLabel;
+
+  /// No description provided for @devicePolicyAuditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent audit events'**
+  String get devicePolicyAuditTitle;
+
+  /// No description provided for @devicePolicyAuditEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No device-session policy changes or revocations have been recorded.'**
+  String get devicePolicyAuditEmpty;
+
+  /// No description provided for @deviceAuditPlatformPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Platform policy updated'**
+  String get deviceAuditPlatformPolicy;
+
+  /// No description provided for @deviceAuditTenantPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Tenant policy updated'**
+  String get deviceAuditTenantPolicy;
+
+  /// No description provided for @deviceAuditMemberOverride.
+  ///
+  /// In en, this message translates to:
+  /// **'Account override updated'**
+  String get deviceAuditMemberOverride;
+
+  /// No description provided for @deviceAuditUserRevoked.
+  ///
+  /// In en, this message translates to:
+  /// **'User removed a device'**
+  String get deviceAuditUserRevoked;
+
+  /// No description provided for @deviceAuditAdminRevoked.
+  ///
+  /// In en, this message translates to:
+  /// **'Super Admin revoked a device'**
+  String get deviceAuditAdminRevoked;
+
+  /// No description provided for @deviceAuditSignedOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Device session signed out'**
+  String get deviceAuditSignedOut;
+
+  /// No description provided for @deviceAuditExpired.
+  ///
+  /// In en, this message translates to:
+  /// **'Stale device session expired'**
+  String get deviceAuditExpired;
+
+  /// No description provided for @deviceAuditMembershipRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Member sessions revoked after membership removal'**
+  String get deviceAuditMembershipRemoved;
+
+  /// No description provided for @deviceAuditSessionRegistered.
+  ///
+  /// In en, this message translates to:
+  /// **'Device session registered'**
+  String get deviceAuditSessionRegistered;
+
+  /// No description provided for @deviceAuditLimitRejected.
+  ///
+  /// In en, this message translates to:
+  /// **'Device registration rejected at the limit'**
+  String get deviceAuditLimitRejected;
+
+  /// No description provided for @devicePolicyEffectiveLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Effective limit: {count} devices'**
+  String devicePolicyEffectiveLimit(int count);
+
+  /// No description provided for @devicePolicyTenantTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tenant limit'**
+  String get devicePolicyTenantTitle;
+
+  /// No description provided for @devicePolicySourceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Policy source'**
+  String get devicePolicySourceLabel;
+
+  /// No description provided for @devicePolicyPlatformDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Platform default'**
+  String get devicePolicyPlatformDefault;
+
+  /// No description provided for @devicePolicyTenantOverride.
+  ///
+  /// In en, this message translates to:
+  /// **'Tenant policy'**
+  String get devicePolicyTenantOverride;
+
+  /// No description provided for @devicePolicyAccountOverride.
+  ///
+  /// In en, this message translates to:
+  /// **'Account override'**
+  String get devicePolicyAccountOverride;
+
+  /// No description provided for @devicePolicyUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'{devices} active devices across {sessions} sign-in sessions'**
+  String devicePolicyUsage(int devices, int sessions);
+
+  /// No description provided for @devicePolicyTenantLimitLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Tenant device limit (blank inherits)'**
+  String get devicePolicyTenantLimitLabel;
+
+  /// No description provided for @devicePolicyInheritHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Blank uses the platform default of {count}.'**
+  String devicePolicyInheritHint(int count);
+
+  /// No description provided for @devicePolicyMembersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Member account limits'**
+  String get devicePolicyMembersTitle;
+
+  /// No description provided for @devicePolicyNoMembers.
+  ///
+  /// In en, this message translates to:
+  /// **'No tenant members were found.'**
+  String get devicePolicyNoMembers;
+
+  /// No description provided for @devicePolicySetOverride.
+  ///
+  /// In en, this message translates to:
+  /// **'Set override'**
+  String get devicePolicySetOverride;
+
+  /// No description provided for @devicePolicyActiveDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} active devices'**
+  String devicePolicyActiveDevices(int count);
+
+  /// No description provided for @devicePolicySessionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Active device sessions'**
+  String get devicePolicySessionsTitle;
+
+  /// No description provided for @devicePolicyNoSessions.
+  ///
+  /// In en, this message translates to:
+  /// **'No active device sessions.'**
+  String get devicePolicyNoSessions;
+
+  /// No description provided for @devicePolicyInstallationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Device …{id}'**
+  String devicePolicyInstallationLabel(String id);
+
+  /// No description provided for @devicePolicyActiveSessions.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} active sign-in sessions'**
+  String devicePolicyActiveSessions(int count);
+
+  /// No description provided for @devicePolicyRevokeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke this device?'**
+  String get devicePolicyRevokeTitle;
+
+  /// No description provided for @devicePolicyRevokeMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke this active device session for {email}? The account will need to sign in again on that device.'**
+  String devicePolicyRevokeMessage(String email);
+
+  /// No description provided for @devicePolicyRevokeButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Revoke device'**
+  String get devicePolicyRevokeButton;
+
+  /// No description provided for @devicePolicyRevokeError.
+  ///
+  /// In en, this message translates to:
+  /// **'The device session could not be revoked. Retry.'**
+  String get devicePolicyRevokeError;
+
+  /// No description provided for @devicePolicyMemberOverrideTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Account device override'**
+  String get devicePolicyMemberOverrideTitle;
+
+  /// No description provided for @devicePolicyOverrideLimitLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Devices allowed for this account'**
+  String get devicePolicyOverrideLimitLabel;
+
+  /// No description provided for @devicePolicyInheritButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Use inherited limit'**
+  String get devicePolicyInheritButton;
+
   /// No description provided for @dashboardOverviewTitle.
   ///
   /// In en, this message translates to:

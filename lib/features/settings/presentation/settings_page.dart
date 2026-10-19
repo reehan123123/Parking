@@ -4,11 +4,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/locale/language_switch.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/empty_state_view.dart';
+import '../../device_sessions/data/device_session_repository.dart';
+import '../../device_sessions/presentation/device_sessions_panel.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({this.onSignOut, super.key});
+  const SettingsPage({this.onSignOut, this.deviceSessionRepository, super.key});
 
   final Future<void> Function()? onSignOut;
+  final DeviceSessionRepository? deviceSessionRepository;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -95,6 +98,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 16),
+              if (widget.deviceSessionRepository != null) ...[
+                DeviceSessionsPanel(
+                  repository: widget.deviceSessionRepository!,
+                ),
+                const SizedBox(height: 16),
+              ],
               SizedBox(
                 width: double.infinity,
                 child: EmptyStateView(

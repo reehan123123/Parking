@@ -20,6 +20,13 @@ The tenant authorization model is enforced by PostgreSQL RLS. Apply the
 tenant migrations, deploy the two onboarding Edge Functions, and provision
 the initial Super Admin before using these features.
 
+Configurable tenant-scoped device-session limits are implemented in source.
+The initial policy is one device, with tenant and per-account overrides,
+server-side registration, and a Supabase Auth refresh hook. The feature has
+not been migrated or activated on the hosted project; see
+[docs/device-session-limits.md](docs/device-session-limits.md) before testing
+or planning a rollout.
+
 ## Local development
 
 The project requires the stable Flutter SDK with web support. From the
@@ -78,7 +85,8 @@ rollback handover.
 The source-controlled SQL is under `supabase/migrations/`. It creates the
 parking-session and tenant tables, indexes, triggers, tenant-membership and
 Super Admin RLS policies, private photo policies, tenant lifecycle and
-membership-management operations, and the temporary-password access gate.
+membership-management operations, the temporary-password access gate, and
+the versioned device-session policy and enforcement work.
 Migration files are reviewable source; applying them to a hosted project is a
 separate operation.
 

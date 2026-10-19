@@ -108,6 +108,32 @@ summary queries. A global Super Admin view omits that filter; RLS still
 enforces the caller's real role in both cases. Direct-ID lookups and mutations
 also rely on RLS rather than trusting client-side ownership filters.
 
+## Concurrent device-session limits
+
+Tenant owners and members are gated by a PostgreSQL device-session registry.
+The platform default is one device; tenant policy and per-account overrides
+are resolved server-side in the order account > tenant > platform. Each
+account override is tenant scoped. Super Admins are exempt, and one
+installation may have multiple Auth sessions while consuming one slot.
+
+The Auth Hook cannot receive the browser installation ID, so the initial
+password sign-in can issue a token before registration. That token cannot
+read tenant rows or private photos: `is_tenant_member()` requires the current
+JWT `session_id` to have an active device registration, and the client
+registers before loading the workspace. The Custom Access Token Hook denies
+refresh for a missing, stale, signed-out, or revoked registration. Revocation
+therefore blocks RLS immediately and prevents an old refresh token from
+reopening the session.
+
+The browser installation ID is a random UUID stored locally. It can be
+cleared, copied, or spoofed and is not a physical-device credential. No
+browser fingerprint, IP address, or user-agent is used. The default stale
+expiry is 30 days, not a short inactivity timeout; existing installations
+are not forcibly revoked when an administrator lowers a limit. See
+[device-session limits](device-session-limits.md) for the enforcement flow,
+recovery, validation, and rollout commands. Hosted migration and Auth Hook
+activation remain separate and require explicit approval.
+
 ## Private vehicle-photo authorization
 
 The `vehicle-photos` bucket remains private. The object path remains:

@@ -8,6 +8,7 @@ import 'core/config/supabase_initializer.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'features/auth/data/local_auth_repository.dart';
 import 'core/network/local_api_client.dart';
+import 'features/device_sessions/data/device_session_repository.dart';
 import 'features/parking/data/parking_session_repository.dart';
 import 'features/parking/data/local_api_parking_session_store.dart';
 import 'features/parking/data/supabase_parking_session_repository.dart';
@@ -22,6 +23,7 @@ Future<void> main() async {
   AuthRepository? authRepository;
   ParkingSessionRepository? parkingSessionRepository;
   TenantRepository? tenantRepository;
+  DeviceSessionRepository? deviceSessionRepository;
   SupabaseClient? supabaseClient;
 
   String? configurationError = backendConfig.validationError;
@@ -50,6 +52,7 @@ Future<void> main() async {
         authRepository = SupabaseAuthRepository(client);
         parkingSessionRepository = SupabaseParkingSessionRepository(client);
         tenantRepository = SupabaseTenantRepository(client);
+        deviceSessionRepository = SupabaseDeviceSessionRepository(client);
         supabaseClient = client;
       } on Exception {
         configurationError =
@@ -63,6 +66,7 @@ Future<void> main() async {
     authRepository = null;
     parkingSessionRepository = null;
     tenantRepository = null;
+    deviceSessionRepository = null;
   }
 
   runApp(
@@ -70,6 +74,7 @@ Future<void> main() async {
       authRepository: authRepository,
       parkingSessionRepository: parkingSessionRepository,
       tenantRepository: tenantRepository,
+      deviceSessionRepository: deviceSessionRepository,
       configurationError: configurationError,
       supabaseClient: supabaseClient,
     ),

@@ -115,9 +115,9 @@ Before live testing:
 
 1. Review all source-controlled migrations:
    `supabase/migrations/20261014160000_create_parking_sessions_security.sql`
-   `supabase/migrations/20261018185121_tenant_administration.sql`, and
-   `supabase/migrations/20261019090000_tenant_management.sql`, and
-   `supabase/migrations/20261020090000_tenant_owner_onboarding.sql`.
+   `supabase/migrations/20261018185121_tenant_administration.sql`, and all
+   subsequent timestamped migrations through
+   `supabase/migrations/20261024090000_device_session_limits.sql`.
 2. Apply any pending migrations to the intended Supabase project through the
    approved Supabase workflow. Do not reset the project or run an unreviewed
    migration.
@@ -160,6 +160,13 @@ Before live testing:
     or used; none of these secret values are committed, logged, or present
     in Dart/browser code. See `docs/security.md` for the full architecture
     and the 6-recovery-emails-per-account-per-day application-level cap.
+11. Device-session limits are not part of the current production rollout.
+    The migration `20261024090000_device_session_limits.sql` and local
+    `[auth.hook.custom_access_token]` configuration are source-only. Review
+    and test them in a local/non-production Supabase environment first.
+    Migration application, `supabase config push`, and any production
+    frontend deployment require separate explicit approval. See
+    `docs/device-session-limits.md` for the dry-run and staged rollout.
 
 The frontend deployment alone does not prove hosted RLS or Storage isolation.
 Tenant A members must not be able to read, update, delete, sign, or replace

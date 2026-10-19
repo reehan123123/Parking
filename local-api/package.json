@@ -6,6 +6,7 @@
     "start": "node --env-file=.env.local-api src/server.js",
     "seed:local-admin": "node --env-file=.env.local-api scripts/seed-local-admin.js",
     "test": "node --test test/security.test.js",
+    "test:device-session-concurrency": "node --test test/device_session_concurrency.test.js",
     "test:local-api": "node --env-file=.env.local-api --test test/local_api.integration.test.js"
   },
   "dependencies": {

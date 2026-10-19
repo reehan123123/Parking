@@ -272,6 +272,262 @@ class AppLocalizationsHi extends AppLocalizations {
       'ऐप में उपयोग की जाने वाली भाषा चुनें।';
 
   @override
+  String get deviceSessionTitle => 'आपके डिवाइस';
+
+  @override
+  String get deviceSessionDescription =>
+      'अपने खाते के सक्रिय डिवाइस सत्र देखें और हटाएँ।';
+
+  @override
+  String get deviceSessionLoading => 'आपके डिवाइस लोड हो रहे हैं…';
+
+  @override
+  String get deviceSessionLoadError =>
+      'डिवाइस सत्र लोड नहीं हो सके। अपना कनेक्शन जाँचें और फिर से प्रयास करें।';
+
+  @override
+  String get deviceSessionEmpty => 'कोई सक्रिय डिवाइस नहीं';
+
+  @override
+  String get deviceSessionThisDevice => 'यह डिवाइस';
+
+  @override
+  String get deviceSessionOtherDevice => 'अन्य डिवाइस';
+
+  @override
+  String get deviceSessionLastActivity => 'अंतिम सक्रियता';
+
+  @override
+  String deviceSessionActiveAuthSessions(int count) {
+    return 'इस डिवाइस पर $count सक्रिय साइन-इन सत्र';
+  }
+
+  @override
+  String get deviceSessionRemoveTitle => 'यह डिवाइस हटाएँ?';
+
+  @override
+  String deviceSessionRemoveMessage(String tenant) {
+    return 'इससे $tenant में इस डिवाइस के सक्रिय सत्र साइन आउट हो जाएँगे।';
+  }
+
+  @override
+  String get deviceSessionRemove => 'डिवाइस हटाएँ';
+
+  @override
+  String get deviceSessionRemoved => 'डिवाइस सत्र हटा दिया गया।';
+
+  @override
+  String get deviceSessionRemoveError =>
+      'डिवाइस सत्र नहीं हटाया जा सका। फिर से प्रयास करें।';
+
+  @override
+  String get deviceSessionRegistrationError =>
+      'इस डिवाइस की पुष्टि नहीं हो सकी। अपना कनेक्शन जाँचें और फिर से प्रयास करें।';
+
+  @override
+  String get deviceLimitReachedTitle => 'डिवाइस सीमा पूरी हो गई';
+
+  @override
+  String deviceLimitReachedMessage(int limit) {
+    return 'आप इस खाते के लिए अधिकतम $limit सक्रिय डिवाइस तक पहुँच गए हैं।';
+  }
+
+  @override
+  String get deviceLimitReachedInstructions =>
+      'किसी अन्य डिवाइस से साइन आउट करें या नीचे मौजूदा सत्र हटाएँ, फिर दोबारा प्रयास करें।';
+
+  @override
+  String get deviceLimitTenantChoiceDescription =>
+      'हर टेनेंट की अपनी डिवाइस सीमा है। किसी दूसरे टेनेंट को चुनने से इस टेनेंट की सीमा प्रभावित नहीं होगी।';
+
+  @override
+  String get deviceLimitTenantChoiceLabel => 'टेनेंट';
+
+  @override
+  String deviceLimitActiveCount(int count) {
+    return 'इस खाते का उपयोग कर रहे सक्रिय डिवाइस: $count।';
+  }
+
+  @override
+  String get deviceLimitTryAgain => 'फिर से प्रयास करें';
+
+  @override
+  String get deviceLimitSignOut => 'साइन आउट';
+
+  @override
+  String get devicePolicyAdminTitle => 'डिवाइस-सत्र नीतियाँ';
+
+  @override
+  String get devicePolicyAdminDescription =>
+      'डिवाइस सीमाएँ, खाते के ओवरराइड, सक्रिय सत्र और निरस्तीकरण प्रबंधित करें।';
+
+  @override
+  String get devicePolicyManageButton => 'नीतियाँ प्रबंधित करें';
+
+  @override
+  String get devicePolicyLoading => 'डिवाइस नीतियाँ लोड हो रही हैं…';
+
+  @override
+  String get devicePolicyLoadError =>
+      'डिवाइस नीतियाँ लोड नहीं हो सकीं। अपना कनेक्शन जाँचें और फिर से प्रयास करें।';
+
+  @override
+  String get devicePolicyValidationError =>
+      'डिवाइस सीमा 1 से 50 और निष्क्रिय सत्र अवधि 7 से 365 दिनों के बीच दर्ज करें।';
+
+  @override
+  String get devicePolicySavedMessage => 'डिवाइस-सत्र नीति सहेजी गई।';
+
+  @override
+  String get devicePolicySaveError =>
+      'डिवाइस-सत्र नीति सहेजी नहीं जा सकी। फिर से प्रयास करें।';
+
+  @override
+  String get devicePolicyTenantsTitle => 'टेनेंट नीतियाँ और सत्र';
+
+  @override
+  String get devicePolicyPlatformTitle => 'प्लेटफ़ॉर्म डिफ़ॉल्ट';
+
+  @override
+  String get devicePolicyPlatformDescription =>
+      'टेनेंट या खाता ओवरराइड न होने पर नए टेनेंट यह सीमा अपनाते हैं। मौजूदा ओवरराइड नहीं बदलेंगे।';
+
+  @override
+  String get devicePolicyPlatformLimitLabel => 'प्रति खाते डिफ़ॉल्ट डिवाइस';
+
+  @override
+  String get devicePolicyStaleDaysLabel => 'निष्क्रिय सत्र समाप्ति (दिन)';
+
+  @override
+  String get devicePolicyRangeLabel => 'अनुमत सीमा';
+
+  @override
+  String get devicePolicyAuditTitle => 'हाल की ऑडिट घटनाएँ';
+
+  @override
+  String get devicePolicyAuditEmpty =>
+      'डिवाइस-सत्र नीति में कोई बदलाव या निरस्तीकरण दर्ज नहीं है।';
+
+  @override
+  String get deviceAuditPlatformPolicy => 'प्लेटफ़ॉर्म नीति अपडेट हुई';
+
+  @override
+  String get deviceAuditTenantPolicy => 'टेनेंट नीति अपडेट हुई';
+
+  @override
+  String get deviceAuditMemberOverride => 'खाता ओवरराइड अपडेट हुआ';
+
+  @override
+  String get deviceAuditUserRevoked => 'उपयोगकर्ता ने डिवाइस हटाया';
+
+  @override
+  String get deviceAuditAdminRevoked => 'सुपर एडमिन ने डिवाइस निरस्त किया';
+
+  @override
+  String get deviceAuditSignedOut => 'डिवाइस सत्र से साइन आउट हुआ';
+
+  @override
+  String get deviceAuditExpired => 'निष्क्रिय डिवाइस सत्र समाप्त हुआ';
+
+  @override
+  String get deviceAuditMembershipRemoved => 'सदस्यता हटने पर सत्र निरस्त हुए';
+
+  @override
+  String get deviceAuditSessionRegistered => 'डिवाइस सत्र पंजीकृत हुआ';
+
+  @override
+  String get deviceAuditLimitRejected =>
+      'डिवाइस पंजीकरण सीमा के कारण अस्वीकार हुआ';
+
+  @override
+  String devicePolicyEffectiveLimit(int count) {
+    return 'प्रभावी सीमा: $count डिवाइस';
+  }
+
+  @override
+  String get devicePolicyTenantTitle => 'टेनेंट सीमा';
+
+  @override
+  String get devicePolicySourceLabel => 'नीति स्रोत';
+
+  @override
+  String get devicePolicyPlatformDefault => 'प्लेटफ़ॉर्म डिफ़ॉल्ट';
+
+  @override
+  String get devicePolicyTenantOverride => 'टेनेंट नीति';
+
+  @override
+  String get devicePolicyAccountOverride => 'खाता ओवरराइड';
+
+  @override
+  String devicePolicyUsage(int devices, int sessions) {
+    return '$devices सक्रिय डिवाइस और $sessions साइन-इन सत्र';
+  }
+
+  @override
+  String get devicePolicyTenantLimitLabel =>
+      'टेनेंट डिवाइस सीमा (खाली रखने पर डिफ़ॉल्ट)';
+
+  @override
+  String devicePolicyInheritHint(int count) {
+    return 'खाली रखने पर प्लेटफ़ॉर्म डिफ़ॉल्ट $count लागू होगा।';
+  }
+
+  @override
+  String get devicePolicyMembersTitle => 'सदस्य खाता सीमाएँ';
+
+  @override
+  String get devicePolicyNoMembers => 'कोई टेनेंट सदस्य नहीं मिला।';
+
+  @override
+  String get devicePolicySetOverride => 'ओवरराइड सेट करें';
+
+  @override
+  String devicePolicyActiveDevices(int count) {
+    return '$count सक्रिय डिवाइस';
+  }
+
+  @override
+  String get devicePolicySessionsTitle => 'सक्रिय डिवाइस सत्र';
+
+  @override
+  String get devicePolicyNoSessions => 'कोई सक्रिय डिवाइस सत्र नहीं।';
+
+  @override
+  String devicePolicyInstallationLabel(String id) {
+    return 'डिवाइस …$id';
+  }
+
+  @override
+  String devicePolicyActiveSessions(int count) {
+    return '$count सक्रिय साइन-इन सत्र';
+  }
+
+  @override
+  String get devicePolicyRevokeTitle => 'यह डिवाइस निरस्त करें?';
+
+  @override
+  String devicePolicyRevokeMessage(String email) {
+    return '$email के इस सक्रिय डिवाइस सत्र को निरस्त करें? इस डिवाइस पर खाते को फिर से साइन इन करना होगा।';
+  }
+
+  @override
+  String get devicePolicyRevokeButton => 'डिवाइस निरस्त करें';
+
+  @override
+  String get devicePolicyRevokeError =>
+      'डिवाइस सत्र निरस्त नहीं हो सका। फिर से प्रयास करें।';
+
+  @override
+  String get devicePolicyMemberOverrideTitle => 'खाता डिवाइस ओवरराइड';
+
+  @override
+  String get devicePolicyOverrideLimitLabel => 'इस खाते के लिए अनुमत डिवाइस';
+
+  @override
+  String get devicePolicyInheritButton => 'विरासत में मिली सीमा उपयोग करें';
+
+  @override
   String get dashboardOverviewTitle => 'पार्किंग का अवलोकन';
 
   @override

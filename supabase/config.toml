@@ -15,3 +15,7 @@ additional_redirect_urls = ["https://parking-85u.pages.dev/", "http://localhost:
 enabled = true
 uri = "https://spqeeksdzhggijwlsrzo.supabase.co/functions/v1/send-email"
 secrets = "env(SEND_EMAIL_HOOK_SECRET)"
+
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/public/custom_access_token_hook"

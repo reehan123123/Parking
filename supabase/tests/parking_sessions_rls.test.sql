@@ -36,6 +36,19 @@ values
     'owner'
   );
 
+insert into public.device_sessions (
+  tenant_id,
+  user_id,
+  auth_session_id,
+  installation_id
+)
+values (
+  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+  '11111111-1111-1111-1111-111111111111',
+  '99999999-9999-9999-9999-999999999991',
+  '99999999-9999-9999-9999-999999999992'
+);
+
 insert into public.super_admins (user_id)
 values ('33333333-3333-3333-3333-333333333333');
 
@@ -108,6 +121,16 @@ set local role authenticated;
 select set_config(
   'request.jwt.claim.sub',
   '11111111-1111-1111-1111-111111111111',
+  true
+);
+select set_config(
+  'request.jwt.claims',
+  '{
+    "sub": "11111111-1111-1111-1111-111111111111",
+    "role": "authenticated",
+    "session_id": "99999999-9999-9999-9999-999999999991",
+    "app_metadata": {}
+  }',
   true
 );
 
@@ -247,6 +270,16 @@ select is(
 select set_config(
   'request.jwt.claim.sub',
   '33333333-3333-3333-3333-333333333333',
+  true
+);
+select set_config(
+  'request.jwt.claims',
+  '{
+    "sub": "33333333-3333-3333-3333-333333333333",
+    "role": "authenticated",
+    "session_id": "99999999-9999-9999-9999-999999999993",
+    "app_metadata": {}
+  }',
   true
 );
 

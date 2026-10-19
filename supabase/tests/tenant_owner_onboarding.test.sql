@@ -53,6 +53,19 @@ values
     'owner'
   );
 
+insert into public.device_sessions (
+  tenant_id,
+  user_id,
+  auth_session_id,
+  installation_id
+)
+values (
+  'ffffffff-ffff-ffff-ffff-ffffffffffff',
+  '55555555-5555-5555-5555-555555555555',
+  '99999999-9999-9999-9999-999999999991',
+  '99999999-9999-9999-9999-999999999992'
+);
+
 insert into public.super_admins (user_id)
 values
   ('44444444-4444-4444-4444-444444444444'),
@@ -146,6 +159,7 @@ select set_config(
   '{
     "sub": "55555555-5555-5555-5555-555555555555",
     "role": "authenticated",
+    "session_id": "99999999-9999-9999-9999-999999999991",
     "app_metadata": {}
   }',
   true

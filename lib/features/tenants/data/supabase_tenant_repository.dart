@@ -74,6 +74,12 @@ abstract interface class TenantStore {
   });
 }
 
+/// Loads a member's tenant choices before tenant RLS access is established.
+abstract interface class DeviceSessionTenantChoiceStore {
+  /// Returns only the signed-in user's active tenant choices.
+  Future<List<Map<String, dynamic>>> currentTenantChoices();
+}
+
 class SupabaseTenantRepository implements TenantRepository {
   SupabaseTenantRepository(SupabaseClient? client, {TenantStore? tenantStore})
     : _tenantStore =
@@ -83,20 +89,39 @@ class SupabaseTenantRepository implements TenantRepository {
 
   @override
   Future<ParkingTenantAccess> loadAccess() async {
+    final TenantStore store = _tenantStore;
     try {
-      final isSuperAdmin = await _tenantStore.isSuperAdmin();
+      final isSuperAdmin = await store.isSuperAdmin();
       final membershipRoles = <String, ParkingTenantRole>{};
-      if (!isSuperAdmin) {
-        for (final row in await _tenantStore.memberships()) {
+      late final List<Map<String, dynamic>> rows;
+      if (isSuperAdmin) {
+        rows = await store.tenants();
+      } else if (store case DeviceSessionTenantChoiceStore choiceStore) {
+        final choices = await choiceStore.currentTenantChoices();
+        for (final row in choices) {
           final tenantId = _requiredString(row['tenant_id'], 'tenant_id');
           final roleName = _requiredString(row['role'], 'role');
           membershipRoles[tenantId] = ParkingTenantRole.values.byName(roleName);
         }
+        rows = choices
+            .map(
+              (row) => {
+                'id': row['tenant_id'],
+                'name': row['tenant_name'],
+                'slug': row['tenant_slug'],
+                'archived_at': row['archived_at'],
+                'valid_until': row['valid_until'],
+              },
+            )
+            .toList(growable: false);
+      } else {
+        for (final row in await store.memberships()) {
+          final tenantId = _requiredString(row['tenant_id'], 'tenant_id');
+          final roleName = _requiredString(row['role'], 'role');
+          membershipRoles[tenantId] = ParkingTenantRole.values.byName(roleName);
+        }
+        rows = await store.tenants(tenantIds: membershipRoles.keys.toList());
       }
-
-      final rows = await _tenantStore.tenants(
-        tenantIds: isSuperAdmin ? null : membershipRoles.keys.toList(),
-      );
       final tenants = rows
           .map(
             (row) => ParkingTenant(
@@ -127,9 +152,17 @@ class SupabaseTenantRepository implements TenantRepository {
       throw const TenantRepositoryException(
         'Tenant access could not be loaded. Check your connection and retry.',
       );
-    } on Exception {
+    } on FormatException {
       throw const TenantRepositoryException(
         'Tenant access data is invalid. Contact the system administrator.',
+      );
+    } on ArgumentError {
+      throw const TenantRepositoryException(
+        'Tenant access data is invalid. Contact the system administrator.',
+      );
+    } on Exception {
+      throw const TenantRepositoryException(
+        'Tenant access could not be loaded. Check your connection and retry.',
       );
     }
   }
@@ -522,7 +555,8 @@ class SupabaseTenantRepository implements TenantRepository {
   }
 }
 
-class _SupabaseTenantStore implements TenantStore {
+class _SupabaseTenantStore
+    implements TenantStore, DeviceSessionTenantChoiceStore {
   const _SupabaseTenantStore(this._client);
 
   final SupabaseClient _client;
@@ -540,6 +574,29 @@ class _SupabaseTenantStore implements TenantStore {
   @override
   Future<List<Map<String, dynamic>>> memberships() {
     return _client.from('tenant_memberships').select('tenant_id,role');
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> currentTenantChoices() async {
+    final result = await _client.rpc('list_my_device_session_tenant_choices');
+    if (result is! Iterable) {
+      throw const FormatException(
+        'The device-session tenant-choice response is invalid.',
+      );
+    }
+    return result
+        .map((row) {
+          if (row is Map<String, dynamic>) {
+            return row;
+          }
+          if (row is Map) {
+            return Map<String, dynamic>.from(row);
+          }
+          throw const FormatException(
+            'The device-session tenant-choice row is invalid.',
+          );
+        })
+        .toList(growable: false);
   }
 
   @override

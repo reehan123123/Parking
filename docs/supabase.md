@@ -44,6 +44,11 @@ supabase/migrations/20261014160000_create_parking_sessions_security.sql
 supabase/migrations/20261018185121_tenant_administration.sql
 supabase/migrations/20261019090000_tenant_management.sql
 supabase/migrations/20261020090000_tenant_owner_onboarding.sql
+supabase/migrations/20261021090000_parking_session_charges.sql
+supabase/migrations/20261021110000_password_reset_rate_limit.sql
+supabase/migrations/20261022090000_tenant_activation_expiry_contact.sql
+supabase/migrations/20261023090000_fix_list_tenant_members_email_type.sql
+supabase/migrations/20261024090000_device_session_limits.sql
 ```
 
 The first migration creates the initial `parking_sessions` table, private
@@ -67,6 +72,15 @@ migration:
 - The tenant-owner-onboarding migration adds an idempotent tenant-creation
   wrapper, a service-role-only Auth account lookup, and a database access gate
   for accounts that must change a temporary password.
+- The parking-charge migration adds tenant-scoped charge fields and database
+  validation; the password-reset migration adds a service-role-only email
+  attempt counter.
+- The tenant lifecycle migration adds validity dates and contact fields. The
+  later member-email fix preserves member listing compatibility.
+- The device-session migration adds inherited platform/tenant/account limits,
+  an atomic session registry, tenant RLS gating, a refresh hook, revocation
+  RPCs, and audit events. It does not create session records for existing
+  Auth sessions.
 
 The tenant-administration and tenant-management migrations must be reviewed
 and applied in order. They preserve existing parking rows but change their
@@ -84,9 +98,10 @@ supabase link --project-ref your-project-ref
 supabase db push
 ```
 
-The CLI and Docker were unavailable in the development environment, so these
-commands have not been executed here. Do not treat a successful Flutter build
-as proof that the migration reached Supabase.
+The Supabase CLI is available in this development environment, but Docker and
+a local Supabase database are unavailable. No migration was applied here.
+Do not treat a successful Flutter build as proof that a migration reached
+Supabase.
 
 After applying all migrations, deploy the authenticated Edge Functions:
 
@@ -173,6 +188,7 @@ supabase/tests/parking_sessions_rls.test.sql
 supabase/tests/vehicle_photos_rls.test.sql
 supabase/tests/tenant_management.test.sql
 supabase/tests/tenant_owner_onboarding.test.sql
+supabase/tests/device_session_limits.test.sql
 ```
 
 With the Supabase CLI and Docker available, run them against a local or
@@ -189,6 +205,10 @@ owner retention, temporary-password RLS denial, request idempotency, and
 private Storage policy definitions. They have not been executed in this
 environment. Hosted RLS and photo access still require a safe project and
 separate test accounts.
+
+The device-session feature also has a two-connection PostgreSQL race test.
+See [device-session limits](device-session-limits.md) for the loopback-only
+test command, migration dry-run, hook configuration, and deployment boundary.
 
 ## 6. Authentication URLs and troubleshooting
 

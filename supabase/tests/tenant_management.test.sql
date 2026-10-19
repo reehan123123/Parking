@@ -38,6 +38,19 @@ values
     'owner'
   );
 
+insert into public.device_sessions (
+  tenant_id,
+  user_id,
+  auth_session_id,
+  installation_id
+)
+values (
+  'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+  '44444444-4444-4444-4444-444444444444',
+  '99999999-9999-9999-9999-999999999991',
+  '99999999-9999-9999-9999-999999999992'
+);
+
 insert into public.parking_sessions (
   id,
   tenant_id,
@@ -68,6 +81,16 @@ select set_config(
   '44444444-4444-4444-4444-444444444444',
   true
 );
+select set_config(
+  'request.jwt.claims',
+  '{
+    "sub": "44444444-4444-4444-4444-444444444444",
+    "role": "authenticated",
+    "session_id": "99999999-9999-9999-9999-999999999991",
+    "app_metadata": {}
+  }',
+  true
+);
 
 select ok(
   public.is_tenant_member('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'),
@@ -90,6 +113,16 @@ select throws_ok(
 select set_config(
   'request.jwt.claim.sub',
   '66666666-6666-6666-6666-666666666666',
+  true
+);
+select set_config(
+  'request.jwt.claims',
+  '{
+    "sub": "66666666-6666-6666-6666-666666666666",
+    "role": "authenticated",
+    "session_id": "99999999-9999-9999-9999-999999999993",
+    "app_metadata": {}
+  }',
   true
 );
 
