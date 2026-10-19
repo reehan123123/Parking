@@ -127,6 +127,8 @@ void main() {
           name: 'New tenant',
           ownerEmail: 'owner@example.test',
           requestId: 'e6e5b36d-1890-4fc5-9a0c-47eeacb44119',
+          isActive: true,
+          validUntil: DateTime(2027, 1, 1),
         );
         expect(creation.tenant.id, 'created-tenant-id');
         expect(creation.temporaryPassword, 'temporary-password-for-test');

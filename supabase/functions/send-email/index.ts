@@ -32,6 +32,12 @@ const senderEmail = Deno.env.get("EMAIL_SENDER_ADDRESS") ?? "";
 const senderName = Deno.env.get("EMAIL_SENDER_NAME") ?? "Parking Management";
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+// Auto-injected by Supabase for every Edge Function. Required as the
+// `apikey` query param on hand-built /auth/v1/verify links: Supabase's API
+// gateway rejects any request to *.supabase.co (including user-clicked
+// email links) that lacks an apikey, even though GoTrue's own default
+// email templates handle this transparently.
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
 interface EmailData {
   token: string;
@@ -81,10 +87,19 @@ function verifyLink(
   actionType: string,
   redirectTo: string,
 ): string {
-  const url = new URL(`${base}/auth/v1/verify`);
+  // Defensive: the hook payload's `site_url` field has been observed to
+  // already be GoTrue's internal API base (ending in `/auth/v1`) rather than
+  // the dashboard "Site URL". Strip any such suffix so we never build a
+  // doubled `/auth/v1/auth/v1/verify` path regardless of which base is
+  // passed in.
+  const normalizedBase = base.replace(/\/+$/, "").replace(/\/auth\/v1$/, "");
+  const url = new URL(`${normalizedBase}/auth/v1/verify`);
   url.searchParams.set("token", tokenHash);
   url.searchParams.set("type", actionType);
   url.searchParams.set("redirect_to", redirectTo);
+  if (supabaseAnonKey.length > 0) {
+    url.searchParams.set("apikey", supabaseAnonKey);
+  }
   return url.toString();
 }
 
@@ -276,7 +291,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
   let message: ComposedMessage;
   try {
-    message = buildEmailMessage(user, emailData, emailData.site_url || supabaseUrl);
+    // Always build the verify link from the project's API base (SUPABASE_URL),
+    // not emailData.site_url: that hook field has been observed to already
+    // contain GoTrue's internal "/auth/v1" base rather than the dashboard
+    // Site URL, which produced a doubled "/auth/v1/auth/v1/verify" path.
+    message = buildEmailMessage(user, emailData, supabaseUrl);
   } catch (error) {
     return jsonError(400, "unsupported_email_action_type", error);
   }

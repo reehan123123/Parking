@@ -7,6 +7,10 @@ class ParkingTenant {
     required this.slug,
     this.role,
     this.isArchived = false,
+    this.validUntil,
+    this.contactName,
+    this.contactMobile,
+    this.contactEmail,
   });
 
   final String id;
@@ -14,6 +18,34 @@ class ParkingTenant {
   final String slug;
   final ParkingTenantRole? role;
   final bool isArchived;
+
+  /// Inclusive validity end date in the application's business timezone
+  /// (Asia/Kolkata). A tenant is expired once this date has fully elapsed.
+  final DateTime? validUntil;
+  final String? contactName;
+  final String? contactMobile;
+  final String? contactEmail;
+
+  /// Whether this tenant is currently active (not archived) and unexpired,
+  /// evaluated using the business timezone's current calendar day. This is
+  /// informational for the UI only; the database enforces the real
+  /// authorization rule independently.
+  bool isActiveAndValid(DateTime businessToday) {
+    if (isArchived || validUntil == null) {
+      return false;
+    }
+    final today = DateTime(
+      businessToday.year,
+      businessToday.month,
+      businessToday.day,
+    );
+    final until = DateTime(
+      validUntil!.year,
+      validUntil!.month,
+      validUntil!.day,
+    );
+    return !today.isAfter(until);
+  }
 }
 
 class ParkingTenantMember {

@@ -46,12 +46,26 @@ class LocalApiTenantStore implements TenantStore {
     required String name,
     required String ownerEmail,
     required String requestId,
+    required bool isActive,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   }) async {
     try {
       final response = await _api.requestJson(
         'POST',
         '/api/tenants',
-        body: {'name': name, 'ownerEmail': ownerEmail, 'requestId': requestId},
+        body: {
+          'name': name,
+          'ownerEmail': ownerEmail,
+          'requestId': requestId,
+          'isActive': isActive,
+          'validUntil': _isoDate(validUntil),
+          if (contactName != null) 'contactName': contactName,
+          if (contactMobile != null) 'contactMobile': contactMobile,
+          if (contactEmail != null) 'contactEmail': contactEmail,
+        },
       );
       _access = null;
       return response;
@@ -64,18 +78,35 @@ class LocalApiTenantStore implements TenantStore {
   Future<Map<String, dynamic>> updateTenant({
     required String tenantId,
     required String name,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   }) async {
     try {
       final response = await _api.requestJson(
         'PATCH',
         '/api/tenants/${Uri.encodeComponent(tenantId)}',
-        body: {'name': name},
+        body: {
+          'name': name,
+          'validUntil': _isoDate(validUntil),
+          if (contactName != null) 'contactName': contactName,
+          if (contactMobile != null) 'contactMobile': contactMobile,
+          if (contactEmail != null) 'contactEmail': contactEmail,
+        },
       );
       _access = null;
       return response;
     } on LocalApiException catch (error) {
       throw _tenantStoreError(error);
     }
+  }
+
+  static String _isoDate(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
   }
 
   @override

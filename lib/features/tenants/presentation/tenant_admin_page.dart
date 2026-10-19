@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/validation/indian_mobile_normalizer.dart';
 import '../../../shared/widgets/empty_state_view.dart';
 import '../../../shared/widgets/error_state_view.dart';
 import '../data/supabase_tenant_repository.dart';
@@ -82,18 +83,25 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
   }
 
   Future<void> _editTenant(ParkingTenant tenant) async {
-    final name = await showDialog<String>(
+    final result = await showDialog<_TenantEditResult>(
       context: context,
       builder: (context) => _EditTenantDialog(tenant: tenant),
     );
-    if (name == null || !mounted) {
+    if (result == null || !mounted) {
       return;
     }
 
     await _runTenantAction(
       successMessage: '${tenant.name} was updated.',
       action: () async {
-        await widget.repository.updateTenant(tenantId: tenant.id, name: name);
+        await widget.repository.updateTenant(
+          tenantId: tenant.id,
+          name: result.name,
+          validUntil: result.validUntil,
+          contactName: result.contactName,
+          contactMobile: result.contactMobile,
+          contactEmail: result.contactEmail,
+        );
       },
     );
   }
@@ -147,6 +155,28 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
       builder: (context) =>
           _TenantMembersDialog(tenant: tenant, repository: widget.repository),
     );
+  }
+
+  /// Informational-only expiry check for the listing UI. The database (via
+  /// `is_tenant_member`) is the authoritative enforcement point.
+  static bool _isExpired(DateTime? validUntil) {
+    if (validUntil == null) {
+      return true;
+    }
+    final today = DateTime.now();
+    final endOfValidDay = DateTime(
+      validUntil.year,
+      validUntil.month,
+      validUntil.day,
+    ).add(const Duration(days: 1));
+    return !today.isBefore(endOfValidDay);
+  }
+
+  static String _formatDate(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
   }
 
   Future<void> _runTenantAction({
@@ -297,12 +327,24 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
                         ),
                       ),
                       title: Text(tenant.name),
-                      subtitle: Text(tenant.slug),
+                      subtitle: Text(
+                        [
+                          tenant.slug,
+                          if (tenant.validUntil != null)
+                            'Valid until ${_formatDate(tenant.validUntil!)}',
+                          if (tenant.contactMobile != null)
+                            'Contact: ${tenant.contactMobile}',
+                        ].join(' • '),
+                      ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (tenant.isArchived)
-                            const Chip(label: Text('Archived')),
+                            const Chip(label: Text('Inactive'))
+                          else if (_isExpired(tenant.validUntil))
+                            const Chip(label: Text('Expired'))
+                          else
+                            const Chip(label: Text('Active')),
                           PopupMenuButton<_TenantAction>(
                             tooltip: 'Manage ${tenant.name}',
                             onSelected: (action) =>
@@ -429,7 +471,12 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _ownerEmailController = TextEditingController();
+  final _contactNameController = TextEditingController();
+  final _contactMobileController = TextEditingController();
+  final _contactEmailController = TextEditingController();
   bool _isCreating = false;
+  bool _isActive = true;
+  DateTime _validUntil = DateTime.now().add(const Duration(days: 365));
   bool _allowCredentialDismiss = false;
   String? _errorMessage;
   String? _temporaryPassword;
@@ -442,7 +489,24 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
   void dispose() {
     _nameController.dispose();
     _ownerEmailController.dispose();
+    _contactNameController.dispose();
+    _contactMobileController.dispose();
+    _contactEmailController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickValidUntil() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _validUntil,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _validUntil = picked;
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -466,6 +530,17 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
         name: name,
         ownerEmail: ownerEmail,
         requestId: requestId,
+        isActive: _isActive,
+        validUntil: _validUntil,
+        contactName: _contactNameController.text.trim().isEmpty
+            ? null
+            : _contactNameController.text.trim(),
+        contactMobile: _contactMobileController.text.trim().isEmpty
+            ? null
+            : _contactMobileController.text.trim(),
+        contactEmail: _contactEmailController.text.trim().isEmpty
+            ? null
+            : _contactEmailController.text.trim(),
       );
       if (!mounted) {
         return;
@@ -638,6 +713,67 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
               onFieldSubmitted: (_) => unawaited(_submit()),
             ),
             const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Active'),
+              subtitle: const Text(
+                'Inactive tenants cannot sign in until reactivated.',
+              ),
+              value: _isActive,
+              onChanged: (value) => setState(() => _isActive = value),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Valid until'),
+              subtitle: Text(_TenantAdminPageState._formatDate(_validUntil)),
+              trailing: const Icon(Icons.calendar_today),
+              onTap: _pickValidUntil,
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _contactNameController,
+              decoration: const InputDecoration(
+                labelText: 'Contact person name (optional)',
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _contactMobileController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Contact mobile (optional)',
+                hintText: '9876543210 or +919876543210',
+              ),
+              validator: (value) {
+                final mobile = value?.trim() ?? '';
+                if (mobile.isEmpty) {
+                  return null;
+                }
+                if (IndianMobileNormalizer.tryNormalize(mobile) == null) {
+                  return 'Enter a valid 10-digit Indian mobile number.';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _contactEmailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(
+                labelText: 'Contact email (optional)',
+              ),
+              validator: (value) {
+                final email = value?.trim() ?? '';
+                if (email.isEmpty) {
+                  return null;
+                }
+                if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+                  return 'Enter a valid email address.';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 12),
             Text(
               'An existing account keeps its current password. A new account '
               'receives a temporary password that must be changed before it '
@@ -793,6 +929,22 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
   }
 }
 
+class _TenantEditResult {
+  const _TenantEditResult({
+    required this.name,
+    required this.validUntil,
+    this.contactName,
+    this.contactMobile,
+    this.contactEmail,
+  });
+
+  final String name;
+  final DateTime validUntil;
+  final String? contactName;
+  final String? contactMobile;
+  final String? contactEmail;
+}
+
 class _EditTenantDialog extends StatefulWidget {
   const _EditTenantDialog({required this.tenant});
 
@@ -805,17 +957,50 @@ class _EditTenantDialog extends StatefulWidget {
 class _EditTenantDialogState extends State<_EditTenantDialog> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
+  late final TextEditingController _contactNameController;
+  late final TextEditingController _contactMobileController;
+  late final TextEditingController _contactEmailController;
+  late DateTime _validUntil;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.tenant.name);
+    _contactNameController = TextEditingController(
+      text: widget.tenant.contactName ?? '',
+    );
+    _contactMobileController = TextEditingController(
+      text: widget.tenant.contactMobile ?? '',
+    );
+    _contactEmailController = TextEditingController(
+      text: widget.tenant.contactEmail ?? '',
+    );
+    _validUntil =
+        widget.tenant.validUntil ??
+        DateTime.now().add(const Duration(days: 365));
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _contactNameController.dispose();
+    _contactMobileController.dispose();
+    _contactEmailController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickValidUntil() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _validUntil,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 3650)),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _validUntil = picked;
+      });
+    }
   }
 
   void _submit() {
@@ -823,7 +1008,21 @@ class _EditTenantDialogState extends State<_EditTenantDialog> {
       return;
     }
 
-    Navigator.of(context).pop(_nameController.text.trim());
+    Navigator.of(context).pop(
+      _TenantEditResult(
+        name: _nameController.text.trim(),
+        validUntil: _validUntil,
+        contactName: _contactNameController.text.trim().isEmpty
+            ? null
+            : _contactNameController.text.trim(),
+        contactMobile: _contactMobileController.text.trim().isEmpty
+            ? null
+            : _contactMobileController.text.trim(),
+        contactEmail: _contactEmailController.text.trim().isEmpty
+            ? null
+            : _contactEmailController.text.trim(),
+      ),
+    );
   }
 
   @override
@@ -832,24 +1031,85 @@ class _EditTenantDialogState extends State<_EditTenantDialog> {
       title: const Text('Edit tenant'),
       content: SizedBox(
         width: 440,
-        child: Form(
-          key: _formKey,
-          child: TextFormField(
-            controller: _nameController,
-            autofocus: true,
-            maxLength: 120,
-            decoration: const InputDecoration(labelText: 'Tenant name'),
-            validator: (value) {
-              final name = value?.trim() ?? '';
-              if (name.isEmpty) {
-                return 'Enter a tenant name.';
-              }
-              if (name.length > 120) {
-                return 'Use 120 characters or fewer.';
-              }
-              return null;
-            },
-            onFieldSubmitted: (_) => _submit(),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _nameController,
+                  autofocus: true,
+                  maxLength: 120,
+                  decoration: const InputDecoration(labelText: 'Tenant name'),
+                  validator: (value) {
+                    final name = value?.trim() ?? '';
+                    if (name.isEmpty) {
+                      return 'Enter a tenant name.';
+                    }
+                    if (name.length > 120) {
+                      return 'Use 120 characters or fewer.';
+                    }
+                    return null;
+                  },
+                  onFieldSubmitted: (_) => _submit(),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Valid until'),
+                  subtitle: Text(
+                    _TenantAdminPageState._formatDate(_validUntil),
+                  ),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: _pickValidUntil,
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _contactNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Contact person name (optional)',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _contactMobileController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(
+                    labelText: 'Contact mobile (optional)',
+                    hintText: '9876543210 or +919876543210',
+                  ),
+                  validator: (value) {
+                    final mobile = value?.trim() ?? '';
+                    if (mobile.isEmpty) {
+                      return null;
+                    }
+                    if (IndianMobileNormalizer.tryNormalize(mobile) == null) {
+                      return 'Enter a valid 10-digit Indian mobile number.';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _contactEmailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Contact email (optional)',
+                  ),
+                  validator: (value) {
+                    final email = value?.trim() ?? '';
+                    if (email.isEmpty) {
+                      return null;
+                    }
+                    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                        .hasMatch(email)) {
+                      return 'Enter a valid email address.';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),

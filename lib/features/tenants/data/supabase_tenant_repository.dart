@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/validation/indian_mobile_normalizer.dart';
 import '../domain/parking_tenant.dart';
 import 'tenant_repository.dart';
 
@@ -31,11 +32,20 @@ abstract interface class TenantStore {
     required String name,
     required String ownerEmail,
     required String requestId,
+    required bool isActive,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   });
 
   Future<Map<String, dynamic>> updateTenant({
     required String tenantId,
     required String name,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   });
 
   Future<void> archiveTenant({required String tenantId});
@@ -95,6 +105,10 @@ class SupabaseTenantRepository implements TenantRepository {
               slug: _requiredString(row['slug'], 'slug'),
               role: membershipRoles[_requiredString(row['id'], 'id')],
               isArchived: row['archived_at'] != null,
+              validUntil: _optionalDate(row['valid_until']),
+              contactName: row['contact_name'] as String?,
+              contactMobile: row['contact_mobile'] as String?,
+              contactEmail: row['contact_email'] as String?,
             ),
           )
           .toList(growable: false);
@@ -125,6 +139,11 @@ class SupabaseTenantRepository implements TenantRepository {
     required String name,
     required String ownerEmail,
     required String requestId,
+    required bool isActive,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   }) async {
     final normalizedName = name.trim();
     final normalizedEmail = ownerEmail.trim().toLowerCase();
@@ -138,12 +157,20 @@ class SupabaseTenantRepository implements TenantRepository {
         'Enter a valid owner email address.',
       );
     }
+    final normalizedContactMobile = _normalizeContactMobile(contactMobile);
+    final normalizedContactEmail = _normalizeContactEmail(contactEmail);
+    final normalizedContactName = _normalizeContactName(contactName);
 
     try {
       final row = await _tenantStore.createTenant(
         name: normalizedName,
         ownerEmail: normalizedEmail,
         requestId: requestId,
+        isActive: isActive,
+        validUntil: validUntil,
+        contactName: normalizedContactName,
+        contactMobile: normalizedContactMobile,
+        contactEmail: normalizedContactEmail,
       );
       if (row['success'] != true) {
         throw const FormatException('The tenant creation response is invalid.');
@@ -165,6 +192,10 @@ class SupabaseTenantRepository implements TenantRepository {
           name: _requiredString(tenantRow['name'], 'name'),
           slug: _requiredString(tenantRow['slug'], 'slug'),
           role: ParkingTenantRole.owner,
+          validUntil: validUntil,
+          contactName: normalizedContactName,
+          contactMobile: normalizedContactMobile,
+          contactEmail: normalizedContactEmail,
         ),
         temporaryPassword: temporaryPassword as String?,
       );
@@ -186,7 +217,8 @@ class SupabaseTenantRepository implements TenantRepository {
           );
         case '22023':
           throw const TenantRepositoryException(
-            'Check the tenant name and owner email, then try again.',
+            'Check the tenant name, owner email, validity date, and contact '
+            'details, then try again.',
           );
         default:
           throw const TenantRepositoryException(
@@ -204,6 +236,10 @@ class SupabaseTenantRepository implements TenantRepository {
   Future<ParkingTenant> updateTenant({
     required String tenantId,
     required String name,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   }) async {
     final normalizedName = name.trim();
     if (tenantId.trim().isEmpty ||
@@ -213,11 +249,18 @@ class SupabaseTenantRepository implements TenantRepository {
         'Enter a tenant name between 1 and 120 characters.',
       );
     }
+    final normalizedContactMobile = _normalizeContactMobile(contactMobile);
+    final normalizedContactEmail = _normalizeContactEmail(contactEmail);
+    final normalizedContactName = _normalizeContactName(contactName);
 
     try {
       final row = await _tenantStore.updateTenant(
         tenantId: tenantId,
         name: normalizedName,
+        validUntil: validUntil,
+        contactName: normalizedContactName,
+        contactMobile: normalizedContactMobile,
+        contactEmail: normalizedContactEmail,
       );
       return _tenantFromRow(row);
     } on TenantStoreException catch (error) {
@@ -371,7 +414,51 @@ class SupabaseTenantRepository implements TenantRepository {
       name: _requiredString(row['name'], 'name'),
       slug: _requiredString(row['slug'], 'slug'),
       isArchived: row['archived_at'] != null,
+      validUntil: _optionalDate(row['valid_until']),
+      contactName: row['contact_name'] as String?,
+      contactMobile: row['contact_mobile'] as String?,
+      contactEmail: row['contact_email'] as String?,
     );
+  }
+
+  static DateTime? _optionalDate(Object? value) {
+    if (value is! String || value.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(value);
+  }
+
+  static String? _normalizeContactName(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
+  }
+
+  static String? _normalizeContactMobile(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+    final normalized = IndianMobileNormalizer.tryNormalize(trimmed);
+    if (normalized == null) {
+      throw const TenantRepositoryException(
+        'Enter a valid 10-digit Indian mobile number, optionally with a '
+        '+91 prefix.',
+      );
+    }
+    return normalized;
+  }
+
+  static String? _normalizeContactEmail(String? value) {
+    final trimmed = value?.trim().toLowerCase();
+    if (trimmed == null || trimmed.isEmpty) {
+      return null;
+    }
+    if (!_looksLikeEmail(trimmed)) {
+      throw const TenantRepositoryException(
+        'Enter a valid contact email address.',
+      );
+    }
+    return trimmed;
   }
 
   static Map<String, dynamic> _mapRow(Object? value, String errorMessage) {
@@ -461,7 +548,12 @@ class _SupabaseTenantStore implements TenantStore {
       return Future.value(const []);
     }
 
-    var query = _client.from('tenants').select('id,name,slug,archived_at');
+    var query = _client
+        .from('tenants')
+        .select(
+          'id,name,slug,archived_at,valid_until,contact_name,'
+          'contact_mobile,contact_email',
+        );
     if (tenantIds != null) {
       query = query.inFilter('id', tenantIds);
     }
@@ -474,11 +566,25 @@ class _SupabaseTenantStore implements TenantStore {
     required String name,
     required String ownerEmail,
     required String requestId,
+    required bool isActive,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   }) async {
     try {
       final response = await _client.functions.invoke(
         'create-tenant-owner',
-        body: {'name': name, 'ownerEmail': ownerEmail, 'requestId': requestId},
+        body: {
+          'name': name,
+          'ownerEmail': ownerEmail,
+          'requestId': requestId,
+          'isActive': isActive,
+          'validUntil': _isoDate(validUntil),
+          if (contactName != null) 'contactName': contactName,
+          if (contactMobile != null) 'contactMobile': contactMobile,
+          if (contactEmail != null) 'contactEmail': contactEmail,
+        },
       );
       return _mapResult(
         response.data,
@@ -520,11 +626,22 @@ class _SupabaseTenantStore implements TenantStore {
   Future<Map<String, dynamic>> updateTenant({
     required String tenantId,
     required String name,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   }) async {
     return _mapResult(
       await _client.rpc(
         'update_tenant',
-        params: {'p_tenant_id': tenantId, 'p_name': name},
+        params: {
+          'p_tenant_id': tenantId,
+          'p_name': name,
+          'p_valid_until': _isoDate(validUntil),
+          'p_contact_name': contactName,
+          'p_contact_mobile': contactMobile,
+          'p_contact_email': contactEmail,
+        },
       ),
       'The updated tenant response is invalid.',
     );
@@ -623,5 +740,12 @@ class _SupabaseTenantStore implements TenantStore {
     }
 
     return null;
+  }
+
+  static String _isoDate(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
   }
 }

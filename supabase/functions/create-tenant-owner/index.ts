@@ -47,13 +47,32 @@ Deno.serve(async (req: Request): Promise<Response> => {
       : "";
   const requestId =
     typeof request.requestId === "string" ? request.requestId : "";
+  const validUntil =
+    typeof request.validUntil === "string" ? request.validUntil : "";
+  const isActive =
+    typeof request.isActive === "boolean" ? request.isActive : true;
+  const contactName =
+    typeof request.contactName === "string"
+      ? request.contactName.trim()
+      : "";
+  const contactMobile =
+    typeof request.contactMobile === "string"
+      ? request.contactMobile.trim()
+      : "";
+  const contactEmail =
+    typeof request.contactEmail === "string"
+      ? request.contactEmail.trim().toLowerCase()
+      : "";
 
   if (
     name.length < 1 ||
     name.length > 120 ||
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-      .test(requestId)
+      .test(requestId) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(validUntil) ||
+    (contactMobile.length > 0 && !/^\+91[6-9]\d{9}$/.test(contactMobile)) ||
+    (contactEmail.length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail))
   ) {
     return jsonResponse({ code: "invalid_request" }, 400);
   }
@@ -122,6 +141,11 @@ Deno.serve(async (req: Request): Promise<Response> => {
         p_name: name,
         p_owner_email: email,
         p_request_id: effectiveRequestId,
+        p_valid_until: validUntil,
+        p_is_active: isActive,
+        p_contact_name: contactName.length > 0 ? contactName : null,
+        p_contact_mobile: contactMobile.length > 0 ? contactMobile : null,
+        p_contact_email: contactEmail.length > 0 ? contactEmail : null,
       },
     );
     if (tenantError !== null) {

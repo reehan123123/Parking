@@ -14,6 +14,16 @@ class SupabaseInitializer {
     await Supabase.initialize(
       url: config.url.trim(),
       publishableKey: config.publishableKey.trim(),
+      // Implicit flow puts the session tokens directly in the email link's
+      // URL fragment, so recovery/signup/invite/magic-link emails work when
+      // opened in any browser or device, not only the one that originated
+      // the request. PKCE (the package default) instead requires a
+      // code_verifier stored in the *same* browser's local storage, which
+      // breaks whenever a user opens the link in a different browser/
+      // profile, or requests multiple resets before clicking the link.
+      authOptions: const FlutterAuthClientOptions(
+        authFlowType: AuthFlowType.implicit,
+      ),
     );
 
     return Supabase.instance.client;

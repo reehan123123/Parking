@@ -223,7 +223,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Edit name'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField), 'North parking');
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'North parking',
+    );
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 

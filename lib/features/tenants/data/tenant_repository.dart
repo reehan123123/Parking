@@ -7,11 +7,20 @@ abstract interface class TenantRepository {
     required String name,
     required String ownerEmail,
     required String requestId,
+    required bool isActive,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   });
 
   Future<ParkingTenant> updateTenant({
     required String tenantId,
     required String name,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   });
 
   Future<void> archiveTenant({required String tenantId});

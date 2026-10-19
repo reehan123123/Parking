@@ -30,6 +30,11 @@ class TestTenantRepository implements TenantRepository {
   String? lastName;
   String? lastOwnerEmail;
   String? lastRequestId;
+  bool? lastIsActive;
+  DateTime? lastValidUntil;
+  String? lastContactName;
+  String? lastContactMobile;
+  String? lastContactEmail;
   ParkingTenant? updatedTenant;
   List<ParkingTenantMember> members = const [];
   String? lastMemberEmail;
@@ -46,11 +51,21 @@ class TestTenantRepository implements TenantRepository {
     required String name,
     required String ownerEmail,
     required String requestId,
+    required bool isActive,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   }) async {
     createTenantCalls++;
     lastName = name;
     lastOwnerEmail = ownerEmail;
     lastRequestId = requestId;
+    lastIsActive = isActive;
+    lastValidUntil = validUntil;
+    lastContactName = contactName;
+    lastContactMobile = contactMobile;
+    lastContactEmail = contactEmail;
     final error = createError;
     if (error != null) {
       throw error;
@@ -66,9 +81,17 @@ class TestTenantRepository implements TenantRepository {
   Future<ParkingTenant> updateTenant({
     required String tenantId,
     required String name,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   }) async {
     updateTenantCalls++;
     lastName = name;
+    lastValidUntil = validUntil;
+    lastContactName = contactName;
+    lastContactMobile = contactMobile;
+    lastContactEmail = contactEmail;
     final error = managementError;
     if (error != null) {
       throw error;
@@ -78,6 +101,10 @@ class TestTenantRepository implements TenantRepository {
           id: tenantId,
           name: name,
           slug: name.toLowerCase().replaceAll(' ', '-'),
+          validUntil: validUntil,
+          contactName: contactName,
+          contactMobile: contactMobile,
+          contactEmail: contactEmail,
         );
   }
 

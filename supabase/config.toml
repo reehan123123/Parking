@@ -7,6 +7,10 @@ verify_jwt = true
 [functions.send-email]
 verify_jwt = false
 
+[auth]
+site_url = "https://parking-85u.pages.dev"
+additional_redirect_urls = ["https://parking-85u.pages.dev/", "http://localhost:3000"]
+
 [auth.hook.send_email]
 enabled = true
 uri = "https://spqeeksdzhggijwlsrzo.supabase.co/functions/v1/send-email"

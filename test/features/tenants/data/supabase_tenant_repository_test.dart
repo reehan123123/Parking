@@ -124,6 +124,8 @@ void main() {
               name: ' Airport Parking ',
               ownerEmail: ' Owner@Example.com ',
               requestId: 'e6e5b36d-1890-4fc5-9a0c-47eeacb44119',
+              isActive: true,
+              validUntil: DateTime(2027, 1, 1),
             );
 
         expect(store.lastName, 'Airport Parking');
@@ -152,6 +154,8 @@ void main() {
             name: 'Airport Parking',
             ownerEmail: 'owner@example.com',
             requestId: 'e6e5b36d-1890-4fc5-9a0c-47eeacb44119',
+            isActive: true,
+            validUntil: DateTime(2027, 1, 1),
           );
 
       expect(result.temporaryPassword, 'temporary-value-for-test');
@@ -166,6 +170,8 @@ void main() {
           name: ' ',
           ownerEmail: 'owner@example.com',
           requestId: 'e6e5b36d-1890-4fc5-9a0c-47eeacb44119',
+          isActive: true,
+          validUntil: DateTime(2027, 1, 1),
         ),
         throwsA(
           isA<TenantRepositoryException>().having(
@@ -180,6 +186,8 @@ void main() {
           name: 'Workspace',
           ownerEmail: 'not-an-email',
           requestId: 'e6e5b36d-1890-4fc5-9a0c-47eeacb44119',
+          isActive: true,
+          validUntil: DateTime(2027, 1, 1),
         ),
         throwsA(isA<TenantRepositoryException>()),
       );
@@ -201,6 +209,8 @@ void main() {
             name: 'Workspace',
             ownerEmail: 'owner@example.com',
             requestId: 'e6e5b36d-1890-4fc5-9a0c-47eeacb44119',
+            isActive: true,
+            validUntil: DateTime(2027, 1, 1),
           ),
           throwsA(
             isA<TenantRepositoryException>().having(
@@ -225,7 +235,11 @@ void main() {
       final tenant = await SupabaseTenantRepository(
         null,
         tenantStore: store,
-      ).updateTenant(tenantId: 'tenant-a', name: ' North Lot ');
+      ).updateTenant(
+        tenantId: 'tenant-a',
+        name: ' North Lot ',
+        validUntil: DateTime(2027, 1, 1),
+      );
 
       expect(store.lastTenantId, 'tenant-a');
       expect(store.lastName, 'North Lot');
@@ -238,7 +252,11 @@ void main() {
       final repository = SupabaseTenantRepository(null, tenantStore: store);
 
       await expectLater(
-        repository.updateTenant(tenantId: 'tenant-a', name: ' '),
+        repository.updateTenant(
+          tenantId: 'tenant-a',
+          name: ' ',
+          validUntil: DateTime(2027, 1, 1),
+        ),
         throwsA(isA<TenantRepositoryException>()),
       );
       expect(store.updateTenantCalls, 0);
@@ -337,6 +355,11 @@ class _FakeTenantStore implements TenantStore {
   String? lastRequestId;
   String? lastEmail;
   String? lastRole;
+  bool? lastIsActive;
+  DateTime? lastValidUntil;
+  String? lastContactName;
+  String? lastContactMobile;
+  String? lastContactEmail;
   int membershipCalls = 0;
   int createTenantCalls = 0;
   int updateTenantCalls = 0;
@@ -375,11 +398,21 @@ class _FakeTenantStore implements TenantStore {
     required String name,
     required String ownerEmail,
     required String requestId,
+    required bool isActive,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   }) async {
     createTenantCalls++;
     lastName = name;
     lastOwnerEmail = ownerEmail;
     lastRequestId = requestId;
+    lastIsActive = isActive;
+    lastValidUntil = validUntil;
+    lastContactName = contactName;
+    lastContactMobile = contactMobile;
+    lastContactEmail = contactEmail;
     final error = createError;
     if (error != null) {
       throw error;
@@ -391,10 +424,18 @@ class _FakeTenantStore implements TenantStore {
   Future<Map<String, dynamic>> updateTenant({
     required String tenantId,
     required String name,
+    required DateTime validUntil,
+    String? contactName,
+    String? contactMobile,
+    String? contactEmail,
   }) async {
     updateTenantCalls++;
     lastTenantId = tenantId;
     lastName = name;
+    lastValidUntil = validUntil;
+    lastContactName = contactName;
+    lastContactMobile = contactMobile;
+    lastContactEmail = contactEmail;
     final error = managementError;
     if (error != null) {
       throw error;
