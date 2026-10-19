@@ -301,11 +301,13 @@ void main() {
               userId: 'owner-id',
               email: 'owner@example.com',
               role: ParkingTenantRole.owner,
+              permissions: TenantEntryPermissions.all(),
             ),
             ParkingTenantMember(
               userId: 'member-id',
               email: 'member@example.com',
               role: ParkingTenantRole.member,
+              permissions: TenantEntryPermissions.viewOnly(),
             ),
           ];
 
@@ -334,6 +336,7 @@ void main() {
       find.byType(TextFormField).last,
       'new-member@example.com',
     );
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Add'));
     await tester.tap(find.widgetWithText(FilledButton, 'Add'));
     await tester.pumpAndSettle();
 
@@ -354,6 +357,146 @@ void main() {
         'Remove member@example.com from North lot? Their Auth account and parking records will not be deleted.',
       ),
       findsNothing,
+    );
+  });
+
+  testWidgets(
+    'hides Add Member at capacity and allows a Super Admin to raise the limit',
+    (WidgetTester tester) async {
+      const ParkingTenant tenant = ParkingTenant(
+        id: 'north-tenant',
+        name: 'North lot',
+        slug: 'north-lot',
+      );
+      final TestTenantRepository repository =
+          TestTenantRepository(
+              access: const ParkingTenantAccess(
+                isSuperAdmin: true,
+                tenants: [tenant],
+              ),
+            )
+            ..memberCapacity = const TenantMemberCapacity(
+              tenantId: 'north-tenant',
+              memberLimit: 1,
+              activeMemberCount: 1,
+              remainingMemberCount: 0,
+            )
+            ..members = const [
+              ParkingTenantMember(
+                userId: 'owner-id',
+                email: 'owner@example.com',
+                role: ParkingTenantRole.owner,
+                permissions: TenantEntryPermissions.all(),
+              ),
+              ParkingTenantMember(
+                userId: 'member-id',
+                email: 'member@example.com',
+                role: ParkingTenantRole.member,
+                permissions: TenantEntryPermissions.viewOnly(),
+              ),
+            ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: TenantAdminPage(
+              access: repository.access,
+              repository: repository,
+              onTenantChanged: (_) async {},
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byTooltip('Manage North lot'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Manage members'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Member limit reached'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Add'), findsNothing);
+
+      await tester.ensureVisible(find.text('Increase member limit'));
+      await tester.tap(find.text('Increase member limit'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextFormField).last, '2');
+      await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(repository.lastMemberLimit, 2);
+      expect(find.widgetWithText(FilledButton, 'Add'), findsOneWidget);
+    },
+  );
+
+  testWidgets('saves independent entry permissions for a member', (
+    WidgetTester tester,
+  ) async {
+    const ParkingTenant tenant = ParkingTenant(
+      id: 'north-tenant',
+      name: 'North lot',
+      slug: 'north-lot',
+    );
+    final TestTenantRepository repository =
+        TestTenantRepository(
+            access: const ParkingTenantAccess(
+              isSuperAdmin: true,
+              tenants: [tenant],
+            ),
+          )
+          ..members = const [
+            ParkingTenantMember(
+              userId: 'owner-id',
+              email: 'owner@example.com',
+              role: ParkingTenantRole.owner,
+              permissions: TenantEntryPermissions.all(),
+            ),
+            ParkingTenantMember(
+              userId: 'member-id',
+              email: 'member@example.com',
+              role: ParkingTenantRole.member,
+              permissions: TenantEntryPermissions.viewOnly(),
+            ),
+          ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TenantAdminPage(
+            access: repository.access,
+            repository: repository,
+            onTenantChanged: (_) async {},
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('Manage North lot'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Manage members'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('Manage member@example.com'));
+    await tester.tap(find.byTooltip('Manage member@example.com'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit entry permissions'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'Add'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.pumpAndSettle();
+
+    expect(repository.updateMemberPermissionsCalls, 1);
+    expect(
+      repository.lastMemberPermissions,
+      const TenantEntryPermissions(
+        canView: true,
+        canAdd: true,
+        canEdit: false,
+        canDelete: false,
+      ),
     );
   });
 }

@@ -58,6 +58,7 @@ void main() {
         'total_charge': 0.0,
         'paid_amount': 0.0,
         'contact_number': '+919876543210',
+        'has_photo': false,
       });
       expect(store.events, ['insert']);
     });
@@ -75,7 +76,7 @@ void main() {
         );
 
         expect(result, isA<ParkingSessionSaveSuccess>());
-        expect(store.events, ['insert', 'setPhotoPath']);
+        expect(store.events, ['insert', 'setPhotoPath', 'completePhotoUpload']);
         expect(storage.events, ['upload']);
         expect(storage.uploadedPath, 'user-1/session-2/car_photo.jpg');
         final success = result as ParkingSessionSaveSuccess;
@@ -578,6 +579,11 @@ class FakeParkingSessionStore implements ParkingSessionStore {
     required String photoPath,
   }) async {
     events.add('setPhotoPath');
+  }
+
+  @override
+  Future<void> completePhotoUpload({required String sessionId}) async {
+    events.add('completePhotoUpload');
   }
 
   @override

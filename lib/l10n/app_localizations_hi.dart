@@ -1213,4 +1213,180 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get memberActionGenericError =>
       'सदस्य में बदलाव नहीं हो सका। अपना कनेक्शन जाँचें और फिर से प्रयास करें।';
+
+  @override
+  String get addOnlyAccessTitle => 'आप पार्किंग एंट्री जोड़ सकते हैं';
+
+  @override
+  String get addOnlyAccessMessage =>
+      'आप पार्किंग एंट्री बना सकते हैं, लेकिन मौजूदा रिकॉर्ड नहीं देख सकते। रिकॉर्ड देखने के लिए टेनेंट मालिक से View अनुमति चालू करने को कहें।';
+
+  @override
+  String get limitedEntryPermissionsTitle => 'View अनुमति बंद है';
+
+  @override
+  String get limitedEntryPermissionsMessage =>
+      'आपके खाते में एंट्री प्रबंधन की अनुमति है, लेकिन View के बिना रिकॉर्ड दिखाई नहीं देंगे। टेनेंट मालिक से View चालू करने को कहें।';
+
+  @override
+  String get noEntryPermissionsTitle => 'पार्किंग एंट्री की अनुमति नहीं';
+
+  @override
+  String get noEntryPermissionsMessage =>
+      'टेनेंट मालिक ने आपके खाते के लिए पार्किंग एंट्री की कोई अनुमति चालू नहीं की है।';
+
+  @override
+  String get navAddEntry => 'एंट्री जोड़ें';
+
+  @override
+  String get navEntryAccess => 'एंट्री पहुँच';
+
+  @override
+  String get settingsManageMembersTitle => 'टेनेंट सदस्य';
+
+  @override
+  String get settingsManageMembersDescription =>
+      'इस टेनेंट के मौजूदा खाते, उनकी पार्किंग एंट्री अनुमतियाँ और सदस्य उपयोग प्रबंधित करें।';
+
+  @override
+  String memberUsageTemplate(int active, int limit) {
+    return '$active में से $limit सदस्य उपयोग में (मालिक शामिल नहीं)';
+  }
+
+  @override
+  String get memberUsageLoading => 'सदस्य उपयोग लोड हो रहा है…';
+
+  @override
+  String get memberUsageUnavailable => 'सदस्य उपयोग उपलब्ध नहीं है';
+
+  @override
+  String get memberCapacityLoadError => 'टेनेंट सदस्य उपयोग लोड नहीं हो सका।';
+
+  @override
+  String memberRemainingTemplate(int count) {
+    return '$count सदस्य स्लॉट शेष';
+  }
+
+  @override
+  String get memberLimitOwnerHint =>
+      'यह सीमा केवल सुपर एडमिन बदल सकता है। टेनेंट मालिक की गणना नहीं होती।';
+
+  @override
+  String get memberLimitAdminHint =>
+      'केवल सदस्य खातों की गणना होती है; टेनेंट मालिक शामिल नहीं है। सीमा: 1–50।';
+
+  @override
+  String get memberLimitEditButton => 'सीमा बदलें';
+
+  @override
+  String get memberLimitIncreaseButton => 'सदस्य सीमा बढ़ाएँ';
+
+  @override
+  String get memberLimitReachedTitle => 'सदस्य सीमा पूरी हो गई';
+
+  @override
+  String memberLimitReachedMessage(int active, int limit) {
+    return 'इस टेनेंट में $limit में से $active सदस्य उपयोग में हैं। सदस्य हटाएँ या सुपर एडमिन से सीमा बढ़ाने को कहें।';
+  }
+
+  @override
+  String get memberLimitDialogTitle => 'टेनेंट सदस्य सीमा सेट करें';
+
+  @override
+  String get memberLimitFieldLabel => 'अनुमत सदस्य';
+
+  @override
+  String get memberLimitRangeHint =>
+      '1 से 50 तक पूर्ण संख्या दर्ज करें। मालिक शामिल नहीं है।';
+
+  @override
+  String get memberLimitValidation => '1 से 50 तक की पूर्ण संख्या दर्ज करें।';
+
+  @override
+  String get memberLimitSavedMessage => 'टेनेंट सदस्य सीमा सहेजी गई।';
+
+  @override
+  String get memberNewMemberPermissionNote =>
+      'नए सदस्य के लिए View चालू रहता है। Add, Edit और Delete अनुमति देने तक बंद रहते हैं।';
+
+  @override
+  String memberAddedMessage(String email) {
+    return '$email को टेनेंट में जोड़ा गया।';
+  }
+
+  @override
+  String get memberPermissionsEditButton => 'एंट्री अनुमतियाँ संपादित करें';
+
+  @override
+  String memberPermissionsDialogTitle(String email) {
+    return 'एंट्री अनुमतियाँ: $email';
+  }
+
+  @override
+  String get memberPermissionsDialogDescription =>
+      'अनुमतियाँ इस टेनेंट की सभी पार्किंग एंट्री पर लागू होती हैं और सर्वर द्वारा लागू की जाती हैं। Edit या Delete से View नहीं मिलता; View के बिना सदस्य मौजूदा एंट्री नहीं देख सकते।';
+
+  @override
+  String get memberPermissionView => 'देखें';
+
+  @override
+  String get memberPermissionAdd => 'जोड़ें';
+
+  @override
+  String get memberPermissionEdit => 'संपादित करें';
+
+  @override
+  String get memberPermissionDelete => 'हटाएँ';
+
+  @override
+  String get memberPermissionNone => 'एंट्री की अनुमति नहीं';
+
+  @override
+  String get memberPermissionViewDescription =>
+      'इस टेनेंट की पार्किंग एंट्री पढ़ें।';
+
+  @override
+  String get memberPermissionAddDescription => 'नई पार्किंग एंट्री बनाएँ।';
+
+  @override
+  String get memberPermissionEditDescription => 'मौजूदा पार्किंग एंट्री बदलें।';
+
+  @override
+  String get memberPermissionDeleteDescription =>
+      'ऐप की नीति के अनुसार एंट्री हटाएँ या संग्रहित करें।';
+
+  @override
+  String get memberPermissionsSavedMessage => 'एंट्री अनुमतियाँ सहेजी गईं।';
+
+  @override
+  String memberCreatedAt(String date) {
+    return '$date को जोड़ा गया';
+  }
+
+  @override
+  String get memberAuditTitle => 'सदस्य और सीमा में हाल के बदलाव';
+
+  @override
+  String get memberAuditEmpty => 'सदस्य प्रबंधन का कोई बदलाव दर्ज नहीं है।';
+
+  @override
+  String get memberAuditLoadError => 'सदस्य बदलाव इतिहास लोड नहीं हो सका।';
+
+  @override
+  String get memberAuditAdded => 'सदस्य जोड़ा गया';
+
+  @override
+  String get memberAuditRemoved => 'सदस्य हटाया गया';
+
+  @override
+  String get memberAuditRoleChanged => 'सदस्य की भूमिका बदली गई';
+
+  @override
+  String get memberAuditPermissionsChanged => 'एंट्री अनुमतियाँ बदली गईं';
+
+  @override
+  String get memberAuditLimitChanged => 'सदस्य सीमा बदली गई';
+
+  @override
+  String get memberManageDevicePolicies => 'डिवाइस नीतियाँ प्रबंधित करें';
 }

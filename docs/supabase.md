@@ -49,6 +49,7 @@ supabase/migrations/20261021110000_password_reset_rate_limit.sql
 supabase/migrations/20261022090000_tenant_activation_expiry_contact.sql
 supabase/migrations/20261023090000_fix_list_tenant_members_email_type.sql
 supabase/migrations/20261024090000_device_session_limits.sql
+supabase/migrations/20261024100000_tenant_member_limits_permissions.sql
 ```
 
 The first migration creates the initial `parking_sessions` table, private
@@ -81,6 +82,11 @@ migration:
   an atomic session registry, tenant RLS gating, a refresh hook, revocation
   RPCs, and audit events. It does not create session records for existing
   Auth sessions.
+- The tenant-member migration adds a stored member cap, safe permission
+  defaults/backfill, tenant-scoped member and policy audit records,
+  transactional capacity checks, owner-scoped management RPCs, and
+  action-specific parking and photo authorization. The default is one member
+  per tenant, excluding owners; the configurable maximum is 50.
 
 The tenant-administration and tenant-management migrations must be reviewed
 and applied in order. They preserve existing parking rows but change their
@@ -165,19 +171,25 @@ Authenticated users cannot read or write `public.super_admins` directly.
 ## 4. Create tenant workspaces
 
 Only a Super Admin can use the Admin screen to create, rename, archive, and
-restore tenants, or manage tenant membership. An email already registered in
-Supabase Auth is assigned as owner without changing its password. If the
-email is new, `create-tenant-owner` creates the Auth account server-side and
+restore tenants, manage member limits, or manage memberships across tenants.
+Tenant owners can manage existing member-role accounts only in their own
+tenant. New members default to View-only, while existing memberships retain
+their prior access. An email already registered in Supabase Auth is assigned
+as owner without changing its password. If the email is new,
+`create-tenant-owner` creates the Auth account server-side and
 shows a cryptographically random temporary password once. The administrator
 must forward it securely; the owner must change it at first sign-in before
 any tenant or parking data is accessible. A retry reuses the original
 request ID and returns the same tenant rather than creating a duplicate.
 
-The Flutter app never creates Auth users or receives the privileged API key.
-Archiving preserves parking records and photos and can be reversed; removing
-a membership does not delete the Auth account or parking data. A tenant must
-always retain at least one owner. Tenant `owner` and `member` roles share the
-same parking-session permissions.
+The Flutter app never creates member Auth users or receives the privileged
+API key. Archiving preserves parking records and photos and can be reversed;
+removing a membership does not delete the Auth account or parking data and
+revokes the member's device sessions for that tenant. A tenant must always
+retain at least one owner. Member capacity counts member-role membership rows
+only, excluding owners. See
+[tenant member management](tenant-member-management.md) for the limits,
+permissions, and local-only validation procedure.
 
 ## 5. Test the policies
 
@@ -189,26 +201,32 @@ supabase/tests/vehicle_photos_rls.test.sql
 supabase/tests/tenant_management.test.sql
 supabase/tests/tenant_owner_onboarding.test.sql
 supabase/tests/device_session_limits.test.sql
+supabase/tests/tenant_member_limits_permissions.test.sql
 ```
 
-With the Supabase CLI and Docker available, run them against a local or
-non-production project:
+With Docker available, run them only against the local Supabase database:
 
 ```powershell
-supabase test db
+supabase test db --local
 ```
 
 The tests cover anonymous denial, tenant-scoped reads and writes,
 cross-tenant transfer denial, prevention of client-side Super Admin grants,
 Super Admin access, tenant creation and management, archive/restore behavior,
 owner retention, temporary-password RLS denial, request idempotency, and
-private Storage policy definitions. They have not been executed in this
-environment. Hosted RLS and photo access still require a safe project and
-separate test accounts.
+private Storage policy definitions. The tenant-member test also covers
+capacity, role transitions, member permissions, tenant isolation, audit
+visibility, and the pending-photo lifecycle. They have not been executed in
+this environment. Hosted RLS and photo access still require a safe project
+and separate test accounts.
 
 The device-session feature also has a two-connection PostgreSQL race test.
 See [device-session limits](device-session-limits.md) for the loopback-only
 test command, migration dry-run, hook configuration, and deployment boundary.
+The tenant-member migration includes a separate loopback-only two-connection
+capacity race test documented in
+[tenant member management](tenant-member-management.md). Both database tests
+are skipped unless explicitly configured with a local Supabase database URL.
 
 ## 6. Authentication URLs and troubleshooting
 

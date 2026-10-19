@@ -1215,4 +1215,184 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get memberActionGenericError =>
       'The member change failed. Check your connection and retry.';
+
+  @override
+  String get addOnlyAccessTitle => 'You can add parking entries';
+
+  @override
+  String get addOnlyAccessMessage =>
+      'You can create parking entries but cannot view existing records. Ask the tenant owner to enable View if you need to see them.';
+
+  @override
+  String get limitedEntryPermissionsTitle => 'View permission is disabled';
+
+  @override
+  String get limitedEntryPermissionsMessage =>
+      'Your account has entry-management permissions, but records are not visible without View. Ask the tenant owner to enable View.';
+
+  @override
+  String get noEntryPermissionsTitle => 'No parking-entry access';
+
+  @override
+  String get noEntryPermissionsMessage =>
+      'Your tenant owner has not enabled any parking-entry permissions for your account.';
+
+  @override
+  String get navAddEntry => 'Add entry';
+
+  @override
+  String get navEntryAccess => 'Entry access';
+
+  @override
+  String get settingsManageMembersTitle => 'Tenant members';
+
+  @override
+  String get settingsManageMembersDescription =>
+      'Manage existing accounts in this tenant, their parking-entry permissions, and member usage.';
+
+  @override
+  String memberUsageTemplate(int active, int limit) {
+    return '$active of $limit members used (owner excluded)';
+  }
+
+  @override
+  String get memberUsageLoading => 'Member usage loading…';
+
+  @override
+  String get memberUsageUnavailable => 'Member usage unavailable';
+
+  @override
+  String get memberCapacityLoadError =>
+      'Tenant member usage could not be loaded.';
+
+  @override
+  String memberRemainingTemplate(int count) {
+    return '$count member slots remaining';
+  }
+
+  @override
+  String get memberLimitOwnerHint =>
+      'Only a Super Admin can change this limit. The tenant owner is not counted.';
+
+  @override
+  String get memberLimitAdminHint =>
+      'Counts member accounts only; the tenant owner is excluded. Allowed range: 1–50.';
+
+  @override
+  String get memberLimitEditButton => 'Change limit';
+
+  @override
+  String get memberLimitIncreaseButton => 'Increase member limit';
+
+  @override
+  String get memberLimitReachedTitle => 'Member limit reached';
+
+  @override
+  String memberLimitReachedMessage(int active, int limit) {
+    return 'This tenant uses $active of $limit allowed members. Remove a member or ask a Super Admin to increase the limit.';
+  }
+
+  @override
+  String get memberLimitDialogTitle => 'Set tenant member limit';
+
+  @override
+  String get memberLimitFieldLabel => 'Allowed members';
+
+  @override
+  String get memberLimitRangeHint =>
+      'Enter a whole number from 1 to 50. The owner is excluded.';
+
+  @override
+  String get memberLimitValidation => 'Enter a whole number from 1 to 50.';
+
+  @override
+  String get memberLimitSavedMessage => 'The tenant member limit was saved.';
+
+  @override
+  String get memberNewMemberPermissionNote =>
+      'New members start with View enabled. Add, Edit, and Delete are disabled until granted.';
+
+  @override
+  String memberAddedMessage(String email) {
+    return '$email was added to the tenant.';
+  }
+
+  @override
+  String get memberPermissionsEditButton => 'Edit entry permissions';
+
+  @override
+  String memberPermissionsDialogTitle(String email) {
+    return 'Entry permissions: $email';
+  }
+
+  @override
+  String get memberPermissionsDialogDescription =>
+      'Permissions apply to all parking entries in this tenant and are enforced by the server. Edit or Delete does not grant View; members without View cannot browse existing entries.';
+
+  @override
+  String get memberPermissionView => 'View';
+
+  @override
+  String get memberPermissionAdd => 'Add';
+
+  @override
+  String get memberPermissionEdit => 'Edit';
+
+  @override
+  String get memberPermissionDelete => 'Delete';
+
+  @override
+  String get memberPermissionNone => 'No entry access';
+
+  @override
+  String get memberPermissionViewDescription =>
+      'Read parking entries in this tenant.';
+
+  @override
+  String get memberPermissionAddDescription => 'Create new parking entries.';
+
+  @override
+  String get memberPermissionEditDescription =>
+      'Modify existing parking entries.';
+
+  @override
+  String get memberPermissionDeleteDescription =>
+      'Delete or archive entries according to the application\'s policy.';
+
+  @override
+  String get memberPermissionsSavedMessage => 'Entry permissions were saved.';
+
+  @override
+  String memberCreatedAt(String date) {
+    return 'Added $date';
+  }
+
+  @override
+  String get memberAuditTitle => 'Recent member and limit changes';
+
+  @override
+  String get memberAuditEmpty =>
+      'No member-management changes have been recorded.';
+
+  @override
+  String get memberAuditLoadError =>
+      'Member change history could not be loaded.';
+
+  @override
+  String get memberAuditAdded => 'Member added';
+
+  @override
+  String get memberAuditRemoved => 'Member removed';
+
+  @override
+  String get memberAuditRoleChanged => 'Member role changed';
+
+  @override
+  String get memberAuditPermissionsChanged => 'Entry permissions changed';
+
+  @override
+  String get memberAuditLimitChanged => 'Member limit changed';
+
+  @override
+  String get memberManageDevicePolicies => 'Manage device policies';
 }

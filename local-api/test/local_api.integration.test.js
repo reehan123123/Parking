@@ -19,14 +19,21 @@ test('local API supports isolated auth, tenant, parking, and photo flows', async
   const server = createLocalApiServer({ pool, config });
   const adminEmail = `api-admin-${randomUUID()}@parking.test`;
   const ownerEmail = `api-owner-${randomUUID()}@parking.test`;
+  const memberEmail = `api-member-${randomUUID()}@parking.test`;
+  const secondMemberEmail = `api-member-${randomUUID()}@parking.test`;
   const adminPassword = generateTemporaryPassword();
   const ownerNewPassword = generateTemporaryPassword();
+  const memberPassword = generateTemporaryPassword();
+  const secondMemberPassword = generateTemporaryPassword();
   const tenantIds = [];
   const requestIds = [];
+  const memberIds = [];
   let adminId;
   let ownerId;
   let tenantId;
   let sessionId;
+  let memberSessionId;
+  let memberId;
   let requestId;
   let photoPath;
 
@@ -45,6 +52,23 @@ test('local API supports isolated auth, tenant, parking, and photo flows', async
       'insert into core.super_admins (user_id) values ($1)',
       [adminId],
     );
+    const memberHashes = await Promise.all([
+      hashPassword(memberPassword),
+      hashPassword(secondMemberPassword),
+    ]);
+    const membersResult = await pool.query(
+      `insert into core.users (
+         email, password_hash, requires_password_change
+       )
+       values ($1, $2, false), ($3, $4, false)
+       returning id, email`,
+      [memberEmail, memberHashes[0], secondMemberEmail, memberHashes[1]],
+    );
+    memberId = membersResult.rows.find((row) => row.email === memberEmail).id;
+    const secondMemberId = membersResult.rows.find(
+      (row) => row.email === secondMemberEmail,
+    ).id;
+    memberIds.push(memberId, secondMemberId);
 
     server.listen(0, '127.0.0.1');
     await once(server, 'listening');
@@ -120,6 +144,109 @@ test('local API supports isolated auth, tenant, parking, and photo flows', async
     assert.equal(ownerAccess.body.isSuperAdmin, false);
     assert.ok(ownerAccess.body.tenants.some((tenant) => tenant.id === tenantId));
 
+    const initialCapacity = await request(
+      baseUrl,
+      'GET',
+      `/api/tenants/${tenantId}/member-capacity`,
+      { token: ownerSignIn.body.accessToken },
+    );
+    assert.equal(initialCapacity.status, 200);
+    assert.equal(initialCapacity.body.member_limit, 1);
+    assert.equal(initialCapacity.body.active_member_count, 0);
+    assert.equal(initialCapacity.body.remaining_member_count, 1);
+
+    const firstMemberAdded = await request(
+      baseUrl,
+      'POST',
+      `/api/tenants/${tenantId}/members`,
+      {
+        token: ownerSignIn.body.accessToken,
+        body: { email: memberEmail, role: 'member' },
+      },
+    );
+    assert.equal(firstMemberAdded.status, 200);
+    assert.equal(firstMemberAdded.body.role, 'member');
+    const reachedCapacity = await request(
+      baseUrl,
+      'POST',
+      `/api/tenants/${tenantId}/members`,
+      {
+        token: ownerSignIn.body.accessToken,
+        body: { email: secondMemberEmail, role: 'member' },
+      },
+    );
+    assert.equal(reachedCapacity.status, 409);
+    assert.equal(reachedCapacity.body.error.code, 'member_limit_reached');
+    assert.equal(reachedCapacity.body.error.details.memberLimit, 1);
+    assert.equal(
+      reachedCapacity.body.error.details.activeMemberCount,
+      1,
+    );
+
+    const ownerCannotRaiseLimit = await request(
+      baseUrl,
+      'PATCH',
+      `/api/tenants/${tenantId}/member-limit`,
+      {
+        token: ownerSignIn.body.accessToken,
+        body: { memberLimit: 2 },
+      },
+    );
+    assert.equal(ownerCannotRaiseLimit.status, 403);
+    const ownerCannotAddAnotherOwner = await request(
+      baseUrl,
+      'POST',
+      `/api/tenants/${tenantId}/members`,
+      {
+        token: ownerSignIn.body.accessToken,
+        body: { email: secondMemberEmail, role: 'owner' },
+      },
+    );
+    assert.equal(ownerCannotAddAnotherOwner.status, 403);
+
+    const raisedCapacity = await request(
+      baseUrl,
+      'PATCH',
+      `/api/tenants/${tenantId}/member-limit`,
+      {
+        token: adminToken,
+        body: { memberLimit: 2 },
+      },
+    );
+    assert.equal(raisedCapacity.status, 200);
+    assert.equal(raisedCapacity.body.member_limit, 2);
+    assert.equal(raisedCapacity.body.active_member_count, 1);
+    const secondMemberAdded = await request(
+      baseUrl,
+      'POST',
+      `/api/tenants/${tenantId}/members`,
+      {
+        token: ownerSignIn.body.accessToken,
+        body: { email: secondMemberEmail, role: 'member' },
+      },
+    );
+    assert.equal(secondMemberAdded.status, 200);
+
+    const memberList = await request(
+      baseUrl,
+      'GET',
+      `/api/tenants/${tenantId}/members`,
+      { token: ownerSignIn.body.accessToken },
+    );
+    assert.equal(memberList.status, 200);
+    const newMember = memberList.body.items.find(
+      (member) => member.user_id === memberId,
+    );
+    assert.equal(newMember.can_view_entries, true);
+    assert.equal(newMember.can_add_entries, false);
+    assert.equal(newMember.can_edit_entries, false);
+    assert.equal(newMember.can_delete_entries, false);
+
+    const memberSignIn = await request(baseUrl, 'POST', '/api/auth/sign-in', {
+      body: { email: memberEmail, password: memberPassword },
+    });
+    assert.equal(memberSignIn.status, 200);
+
     const ownerCannotCreateTenant = await request(
       baseUrl,
       'POST',
@@ -184,6 +311,13 @@ test('local API supports isolated auth, tenant, parking, and photo flows', async
       existingOwnerSignIn.body.user.requiresTemporaryPasswordChange,
       false,
     );
+    const memberCannotReadAnotherTenant = await request(
+      baseUrl,
+      'GET',
+      `/api/parking-sessions?tenant_id=${existingOwnerTenant.body.tenant.id}`,
+      { token: memberSignIn.body.accessToken },
+    );
+    assert.equal(memberCannotReadAnotherTenant.status, 403);
 
     const entryTime = new Date(Date.now() - 60_000).toISOString();
     const expiresAt = new Date(Date.now() + 3_600_000).toISOString();
@@ -201,6 +335,227 @@ test('local API supports isolated auth, tenant, parking, and photo flows', async
     });
     assert.equal(inserted.status, 201);
     sessionId = inserted.body.id;
+
+    const memberCanReadTenantEntries = await request(
+      baseUrl,
+      'GET',
+      `/api/parking-sessions?tenant_id=${tenantId}&offset=0&limit=10`,
+      { token: memberSignIn.body.accessToken },
+    );
+    assert.equal(memberCanReadTenantEntries.status, 200);
+    assert.equal(memberCanReadTenantEntries.body.sessions.length, 1);
+    const memberCannotAddWithoutPermission = await request(
+      baseUrl,
+      'POST',
+      '/api/parking-sessions',
+      {
+        token: memberSignIn.body.accessToken,
+        body: {
+          tenant_id: tenantId,
+          plate_number: 'MEMBER-DENIED-1',
+          entry_time: entryTime,
+          allowed_duration_value: 60,
+          allowed_duration_unit: 'minutes',
+          expires_at: expiresAt,
+        },
+      },
+    );
+    assert.equal(memberCannotAddWithoutPermission.status, 403);
+
+    const permissionsUpdated = await request(
+      baseUrl,
+      'PATCH',
+      `/api/tenants/${tenantId}/members/${memberId}/permissions`,
+      {
+        token: ownerSignIn.body.accessToken,
+        body: {
+          canViewEntries: false,
+          canAddEntries: true,
+          canEditEntries: false,
+          canDeleteEntries: false,
+        },
+      },
+    );
+    assert.equal(permissionsUpdated.status, 204);
+    const memberCannotBrowseWithoutView = await request(
+      baseUrl,
+      'GET',
+      `/api/parking-sessions?tenant_id=${tenantId}`,
+      { token: memberSignIn.body.accessToken },
+    );
+    assert.equal(memberCannotBrowseWithoutView.status, 403);
+    const memberCannotEdit = await request(
+      baseUrl,
+      'PATCH',
+      `/api/parking-sessions/${sessionId}`,
+      {
+        token: memberSignIn.body.accessToken,
+        body: { plate_number: 'MEMBER-EDIT-DENIED' },
+      },
+    );
+    assert.equal(memberCannotEdit.status, 403);
+    const memberCannotDelete = await request(
+      baseUrl,
+      'DELETE',
+      `/api/parking-sessions/${sessionId}`,
+      { token: memberSignIn.body.accessToken },
+    );
+    assert.equal(memberCannotDelete.status, 403);
+    const memberCanAddWithPermission = await request(
+      baseUrl,
+      'POST',
+      '/api/parking-sessions',
+      {
+        token: memberSignIn.body.accessToken,
+        body: {
+          tenant_id: tenantId,
+          plate_number: 'MEMBER-ADD-1',
+          entry_time: entryTime,
+          allowed_duration_value: 60,
+          allowed_duration_unit: 'minutes',
+          expires_at: expiresAt,
+        },
+      },
+    );
+    assert.equal(memberCanAddWithPermission.status, 201);
+    memberSessionId = memberCanAddWithPermission.body.id;
+
+    const editOnlyPermissions = await request(
+      baseUrl,
+      'PATCH',
+      `/api/tenants/${tenantId}/members/${memberId}/permissions`,
+      {
+        token: ownerSignIn.body.accessToken,
+        body: {
+          canViewEntries: false,
+          canAddEntries: false,
+          canEditEntries: true,
+          canDeleteEntries: false,
+        },
+      },
+    );
+    assert.equal(editOnlyPermissions.status, 204);
+    const memberCannotViewWithEditOnly = await request(
+      baseUrl,
+      'GET',
+      `/api/parking-sessions/${memberSessionId}`,
+      { token: memberSignIn.body.accessToken },
+    );
+    assert.equal(memberCannotViewWithEditOnly.status, 403);
+    const memberCannotAddWithEditOnly = await request(
+      baseUrl,
+      'POST',
+      '/api/parking-sessions',
+      {
+        token: memberSignIn.body.accessToken,
+        body: {
+          tenant_id: tenantId,
+          plate_number: 'MEMBER-ADD-DENIED-2',
+          entry_time: entryTime,
+          allowed_duration_value: 60,
+          allowed_duration_unit: 'minutes',
+          expires_at: expiresAt,
+        },
+      },
+    );
+    assert.equal(memberCannotAddWithEditOnly.status, 403);
+    const memberCanEditWithEditOnly = await request(
+      baseUrl,
+      'PATCH',
+      `/api/parking-sessions/${memberSessionId}`,
+      {
+        token: memberSignIn.body.accessToken,
+        body: { plate_number: 'MEMBER-EDITED' },
+      },
+    );
+    assert.equal(memberCanEditWithEditOnly.status, 204);
+    const memberCannotDeleteWithEditOnly = await request(
+      baseUrl,
+      'DELETE',
+      `/api/parking-sessions/${memberSessionId}`,
+      { token: memberSignIn.body.accessToken },
+    );
+    assert.equal(memberCannotDeleteWithEditOnly.status, 403);
+
+    const deleteOnlyPermissions = await request(
+      baseUrl,
+      'PATCH',
+      `/api/tenants/${tenantId}/members/${memberId}/permissions`,
+      {
+        token: ownerSignIn.body.accessToken,
+        body: {
+          canViewEntries: false,
+          canAddEntries: false,
+          canEditEntries: false,
+          canDeleteEntries: true,
+        },
+      },
+    );
+    assert.equal(deleteOnlyPermissions.status, 204);
+    const memberCannotEditWithDeleteOnly = await request(
+      baseUrl,
+      'PATCH',
+      `/api/parking-sessions/${memberSessionId}`,
+      {
+        token: memberSignIn.body.accessToken,
+        body: { plate_number: 'MEMBER-EDIT-DENIED-2' },
+      },
+    );
+    assert.equal(memberCannotEditWithDeleteOnly.status, 403);
+    const memberCannotAddWithDeleteOnly = await request(
+      baseUrl,
+      'POST',
+      '/api/parking-sessions',
+      {
+        token: memberSignIn.body.accessToken,
+        body: {
+          tenant_id: tenantId,
+          plate_number: 'MEMBER-ADD-DENIED-3',
+          entry_time: entryTime,
+          allowed_duration_value: 60,
+          allowed_duration_unit: 'minutes',
+          expires_at: expiresAt,
+        },
+      },
+    );
+    assert.equal(memberCannotAddWithDeleteOnly.status, 403);
+    const memberCanDeleteWithDeleteOnly = await request(
+      baseUrl,
+      'DELETE',
+      `/api/parking-sessions/${memberSessionId}`,
+      { token: memberSignIn.body.accessToken },
+    );
+    assert.equal(memberCanDeleteWithDeleteOnly.status, 204);
+
+    const memberAudit = await request(
+      baseUrl,
+      'GET',
+      `/api/tenants/${tenantId}/member-audit`,
+      { token: ownerSignIn.body.accessToken },
+    );
+    assert.equal(memberAudit.status, 200);
+    assert.ok(
+      memberAudit.body.items.some(
+        (event) => event.action === 'member_permissions_changed',
+      ),
+    );
+
+    const removedSecondMember = await request(
+      baseUrl,
+      'DELETE',
+      `/api/tenants/${tenantId}/members/${secondMemberId}`,
+      { token: ownerSignIn.body.accessToken },
+    );
+    assert.equal(removedSecondMember.status, 204);
+    const freedCapacity = await request(
+      baseUrl,
+      'GET',
+      `/api/tenants/${tenantId}/member-capacity`,
+      { token: ownerSignIn.body.accessToken },
+    );
+    assert.equal(freedCapacity.status, 200);
+    assert.equal(freedCapacity.body.active_member_count, 1);
+    assert.equal(freedCapacity.body.remaining_member_count, 1);
 
     const session = await request(
       baseUrl,
@@ -352,6 +707,11 @@ test('local API supports isolated auth, tenant, parking, and photo flows', async
       );
       await pool.query('delete from core.tenants where id = any($1::uuid[])', [
         tenantIds,
+      ]);
+    }
+    if (memberIds.length > 0) {
+      await pool.query('delete from core.users where id = any($1::uuid[])', [
+        memberIds,
       ]);
     }
     if (requestIds.length > 0) {

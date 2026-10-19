@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/validation/indian_mobile_normalizer.dart';
@@ -5,20 +7,48 @@ import '../domain/parking_tenant.dart';
 import 'tenant_repository.dart';
 
 class TenantRepositoryException implements Exception {
-  const TenantRepositoryException(this.message, {this.temporaryPassword});
+  const TenantRepositoryException(
+    this.message, {
+    this.temporaryPassword,
+    this.code,
+  });
 
   final String message;
   final String? temporaryPassword;
+  final String? code;
 
   @override
   String toString() => message;
 }
 
+class TenantMemberLimitReachedException extends TenantRepositoryException {
+  const TenantMemberLimitReachedException({
+    this.memberLimit,
+    this.activeMemberCount,
+    this.remainingMemberCount,
+  }) : super(
+         'You have reached this tenant’s member limit. Remove a member or ask '
+         'your Super Admin to increase the limit.',
+         code: 'MEMBER_LIMIT_REACHED',
+       );
+
+  final int? memberLimit;
+  final int? activeMemberCount;
+  final int? remainingMemberCount;
+}
+
 class TenantStoreException implements Exception {
-  const TenantStoreException(this.message, {this.temporaryPassword});
+  const TenantStoreException(
+    this.message, {
+    this.temporaryPassword,
+    this.code,
+    this.details,
+  });
 
   final String message;
   final String? temporaryPassword;
+  final String? code;
+  final Map<String, dynamic>? details;
 }
 
 abstract interface class TenantStore {
@@ -56,10 +86,31 @@ abstract interface class TenantStore {
     required String tenantId,
   });
 
+  Future<Map<String, dynamic>> getTenantMemberCapacity({
+    required String tenantId,
+  });
+
+  Future<List<Map<String, dynamic>>> listTenantMemberCapacities();
+
+  Future<Map<String, dynamic>> setTenantMemberLimit({
+    required String tenantId,
+    required int memberLimit,
+  });
+
+  Future<List<Map<String, dynamic>>> listTenantMemberAuditEvents({
+    required String tenantId,
+  });
+
   Future<Map<String, dynamic>> addTenantMember({
     required String tenantId,
     required String email,
     required String role,
+  });
+
+  Future<void> setTenantMemberPermissions({
+    required String tenantId,
+    required String userId,
+    required TenantEntryPermissions permissions,
   });
 
   Future<void> updateTenantMemberRole({
@@ -93,6 +144,7 @@ class SupabaseTenantRepository implements TenantRepository {
     try {
       final isSuperAdmin = await store.isSuperAdmin();
       final membershipRoles = <String, ParkingTenantRole>{};
+      final membershipPermissions = <String, TenantEntryPermissions>{};
       late final List<Map<String, dynamic>> rows;
       if (isSuperAdmin) {
         rows = await store.tenants();
@@ -102,6 +154,7 @@ class SupabaseTenantRepository implements TenantRepository {
           final tenantId = _requiredString(row['tenant_id'], 'tenant_id');
           final roleName = _requiredString(row['role'], 'role');
           membershipRoles[tenantId] = ParkingTenantRole.values.byName(roleName);
+          membershipPermissions[tenantId] = _entryPermissions(row, roleName);
         }
         rows = choices
             .map(
@@ -111,6 +164,10 @@ class SupabaseTenantRepository implements TenantRepository {
                 'slug': row['tenant_slug'],
                 'archived_at': row['archived_at'],
                 'valid_until': row['valid_until'],
+                'can_view_entries': row['can_view_entries'],
+                'can_add_entries': row['can_add_entries'],
+                'can_edit_entries': row['can_edit_entries'],
+                'can_delete_entries': row['can_delete_entries'],
               },
             )
             .toList(growable: false);
@@ -119,23 +176,30 @@ class SupabaseTenantRepository implements TenantRepository {
           final tenantId = _requiredString(row['tenant_id'], 'tenant_id');
           final roleName = _requiredString(row['role'], 'role');
           membershipRoles[tenantId] = ParkingTenantRole.values.byName(roleName);
+          membershipPermissions[tenantId] = _entryPermissions(row, roleName);
         }
         rows = await store.tenants(tenantIds: membershipRoles.keys.toList());
       }
       final tenants = rows
-          .map(
-            (row) => ParkingTenant(
-              id: _requiredString(row['id'], 'id'),
+          .map((row) {
+            final String tenantId = _requiredString(row['id'], 'id');
+            return ParkingTenant(
+              id: tenantId,
               name: _requiredString(row['name'], 'name'),
               slug: _requiredString(row['slug'], 'slug'),
-              role: membershipRoles[_requiredString(row['id'], 'id')],
+              role: membershipRoles[tenantId],
+              entryPermissions:
+                  membershipPermissions[tenantId] ??
+                  (isSuperAdmin
+                      ? const TenantEntryPermissions.all()
+                      : const TenantEntryPermissions.none()),
               isArchived: row['archived_at'] != null,
               validUntil: _optionalDate(row['valid_until']),
               contactName: row['contact_name'] as String?,
               contactMobile: row['contact_mobile'] as String?,
               contactEmail: row['contact_email'] as String?,
-            ),
-          )
+            );
+          })
           .toList(growable: false);
 
       return ParkingTenantAccess(isSuperAdmin: isSuperAdmin, tenants: tenants);
@@ -345,6 +409,11 @@ class SupabaseTenantRepository implements TenantRepository {
               role: ParkingTenantRole.values.byName(
                 _requiredString(row['role'], 'role'),
               ),
+              permissions: _entryPermissions(
+                row,
+                _requiredString(row['role'], 'role'),
+              ),
+              createdAt: _requiredDate(row['created_at'], 'created_at'),
             ),
           )
           .toList(growable: false);
@@ -358,6 +427,125 @@ class SupabaseTenantRepository implements TenantRepository {
     } on Exception {
       throw const TenantRepositoryException(
         'Tenant member data is invalid. Contact the system administrator.',
+      );
+    }
+  }
+
+  @override
+  Future<TenantMemberCapacity> getMemberCapacity({
+    required String tenantId,
+  }) async {
+    if (tenantId.trim().isEmpty) {
+      throw const TenantRepositoryException(
+        'Select a tenant to view member usage.',
+      );
+    }
+
+    try {
+      final row = await _tenantStore.getTenantMemberCapacity(
+        tenantId: tenantId,
+      );
+      return _capacityFromRow(row, tenantId: tenantId);
+    } on TenantStoreException catch (error) {
+      throw TenantRepositoryException(error.message, code: error.code);
+    } on PostgrestException catch (error) {
+      throw _managementError(
+        error,
+        fallback: 'Member usage could not be loaded. Check your connection and retry.',
+      );
+    } on FormatException {
+      throw const TenantRepositoryException(
+        'Member usage data is invalid. Contact the system administrator.',
+      );
+    }
+  }
+
+  @override
+  Future<List<TenantMemberCapacity>> listMemberCapacities() async {
+    try {
+      final rows = await _tenantStore.listTenantMemberCapacities();
+      return rows.map((row) => _capacityFromRow(row)).toList(growable: false);
+    } on TenantStoreException catch (error) {
+      throw TenantRepositoryException(error.message, code: error.code);
+    } on PostgrestException catch (error) {
+      throw _managementError(
+        error,
+        fallback: 'Tenant member usage could not be loaded. Check your connection and retry.',
+      );
+    } on FormatException {
+      throw const TenantRepositoryException(
+        'Member usage data is invalid. Contact the system administrator.',
+      );
+    }
+  }
+
+  @override
+  Future<TenantMemberCapacity> setMemberLimit({
+    required String tenantId,
+    required int memberLimit,
+  }) async {
+    if (tenantId.trim().isEmpty || memberLimit < 1 || memberLimit > 50) {
+      throw const TenantRepositoryException(
+        'The member limit must be a whole number from 1 to 50.',
+      );
+    }
+
+    try {
+      final row = await _tenantStore.setTenantMemberLimit(
+        tenantId: tenantId,
+        memberLimit: memberLimit,
+      );
+      return _capacityFromRow(row, tenantId: tenantId);
+    } on TenantStoreException catch (error) {
+      throw TenantRepositoryException(error.message, code: error.code);
+    } on PostgrestException catch (error) {
+      throw _managementError(
+        error,
+        fallback: 'The member limit could not be saved. Check your connection and retry.',
+      );
+    } on FormatException {
+      throw const TenantRepositoryException(
+        'Member usage data is invalid. Contact the system administrator.',
+      );
+    }
+  }
+
+  @override
+  Future<List<TenantMemberAuditEvent>> listMemberAuditEvents({
+    required String tenantId,
+  }) async {
+    if (tenantId.trim().isEmpty) {
+      throw const TenantRepositoryException(
+        'Select a tenant to view the member audit history.',
+      );
+    }
+
+    try {
+      final rows = await _tenantStore.listTenantMemberAuditEvents(
+        tenantId: tenantId,
+      );
+      return rows
+          .map(
+            (row) => TenantMemberAuditEvent(
+              id: _requiredInteger(row['id'], 'id'),
+              action: _requiredString(row['action'], 'action'),
+              details: _mapRow(row['details'], 'audit details are invalid.'),
+              createdAt: _requiredDate(row['created_at'], 'created_at'),
+              actorEmail: row['actor_email'] as String?,
+              subjectEmail: row['subject_email'] as String?,
+            ),
+          )
+          .toList(growable: false);
+    } on TenantStoreException catch (error) {
+      throw TenantRepositoryException(error.message, code: error.code);
+    } on PostgrestException catch (error) {
+      throw _managementError(
+        error,
+        fallback: 'Member audit history could not be loaded. Check your connection and retry.',
+      );
+    } on FormatException {
+      throw const TenantRepositoryException(
+        'Member audit data is invalid. Contact the system administrator.',
       );
     }
   }
@@ -382,8 +570,15 @@ class SupabaseTenantRepository implements TenantRepository {
         role: role.name,
       );
     } on TenantStoreException catch (error) {
+      if (error.code == 'MEMBER_LIMIT_REACHED' ||
+          error.code == 'member_limit_reached') {
+        throw _memberLimitError(error.details);
+      }
       throw TenantRepositoryException(error.message);
     } on PostgrestException catch (error) {
+      if (error.message == 'MEMBER_LIMIT_REACHED') {
+        throw _memberLimitError(_decodeDetails(error.details));
+      }
       throw _managementError(
         error,
         fallback:
@@ -406,6 +601,23 @@ class SupabaseTenantRepository implements TenantRepository {
         role: role.name,
       ),
       fallback: 'The member role could not be updated. Check your connection and retry.',
+    );
+  }
+
+  @override
+  Future<void> updateMemberPermissions({
+    required String tenantId,
+    required String userId,
+    required TenantEntryPermissions permissions,
+  }) async {
+    await _runTenantAction(
+      tenantId: tenantId,
+      action: () => _tenantStore.setTenantMemberPermissions(
+        tenantId: tenantId,
+        userId: userId,
+        permissions: permissions,
+      ),
+      fallback: 'Member permissions could not be updated. Check your connection and retry.',
     );
   }
 
@@ -435,10 +647,91 @@ class SupabaseTenantRepository implements TenantRepository {
     try {
       await action();
     } on TenantStoreException catch (error) {
-      throw TenantRepositoryException(error.message);
+      if (error.code == 'MEMBER_LIMIT_REACHED' ||
+          error.code == 'member_limit_reached') {
+        throw _memberLimitError(error.details);
+      }
+      throw TenantRepositoryException(error.message, code: error.code);
     } on PostgrestException catch (error) {
       throw _managementError(error, fallback: fallback);
     }
+  }
+
+  static TenantEntryPermissions _entryPermissions(
+    Map<String, dynamic> row,
+    String role,
+  ) {
+    if (role == ParkingTenantRole.owner.name) {
+      return const TenantEntryPermissions.all();
+    }
+
+    final values = [
+      row['can_view_entries'],
+      row['can_add_entries'],
+      row['can_edit_entries'],
+      row['can_delete_entries'],
+    ];
+    if (values.any((value) => value is! bool)) {
+      throw const FormatException('Tenant entry permission data is invalid.');
+    }
+
+    return TenantEntryPermissions(
+      canView: values[0] as bool,
+      canAdd: values[1] as bool,
+      canEdit: values[2] as bool,
+      canDelete: values[3] as bool,
+    );
+  }
+
+  static TenantMemberCapacity _capacityFromRow(
+    Map<String, dynamic> row, {
+    String? tenantId,
+  }) {
+    return TenantMemberCapacity(
+      tenantId: _requiredString(row['tenant_id'] ?? tenantId, 'tenant_id'),
+      memberLimit: _requiredInteger(row['member_limit'], 'member_limit'),
+      activeMemberCount: _requiredInteger(
+        row['active_member_count'],
+        'active_member_count',
+      ),
+      remainingMemberCount: _requiredInteger(
+        row['remaining_member_count'],
+        'remaining_member_count',
+      ),
+    );
+  }
+
+  static TenantMemberLimitReachedException _memberLimitError(
+    Map<String, dynamic>? details,
+  ) {
+    return TenantMemberLimitReachedException(
+      memberLimit: _optionalInteger(details?['memberLimit']),
+      activeMemberCount: _optionalInteger(details?['activeMemberCount']),
+      remainingMemberCount: _optionalInteger(details?['remainingMemberCount']),
+    );
+  }
+
+  static Map<String, dynamic>? _decodeDetails(Object? value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    if (value is String && value.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded);
+        }
+      } on FormatException {
+        return null;
+      }
+    }
+    return null;
   }
 
   static ParkingTenant _tenantFromRow(Map<String, dynamic> row) {
@@ -509,15 +802,19 @@ class SupabaseTenantRepository implements TenantRepository {
     PostgrestException error, {
     required String fallback,
   }) {
+    if (error.message == 'MEMBER_LIMIT_REACHED') {
+      return _memberLimitError(_decodeDetails(error.details));
+    }
+
     final message = switch (error.code) {
-      '42501' => 'Only a Super Admin can manage tenants and members.',
+      '42501' => 'You are not authorized to manage this tenant setting.',
       'P0002' => 'The tenant or Supabase account could not be found.',
       '22023' => 'Check the tenant name, email, and selected role.',
       '23514' => 'Every tenant must keep at least one owner.',
       '55000' => 'Restore this tenant before adding members.',
       _ => fallback,
     };
-    return TenantRepositoryException(message);
+    return TenantRepositoryException(message, code: error.code);
   }
 
   static bool _looksLikeEmail(String value) {
@@ -541,6 +838,35 @@ class SupabaseTenantRepository implements TenantRepository {
       return value;
     }
 
+    throw FormatException('The $fieldName value is invalid.');
+  }
+
+  static int _requiredInteger(Object? value, String fieldName) {
+    final parsed = _optionalInteger(value);
+    if (parsed != null) {
+      return parsed;
+    }
+    throw FormatException('The $fieldName value is invalid.');
+  }
+
+  static int? _optionalInteger(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num && value.isFinite && value == value.roundToDouble()) {
+      return value.toInt();
+    }
+    if (value is String) {
+      return int.tryParse(value);
+    }
+    return null;
+  }
+
+  static DateTime _requiredDate(Object? value, String fieldName) {
+    final date = _optionalDate(value);
+    if (date != null) {
+      return date;
+    }
     throw FormatException('The $fieldName value is invalid.');
   }
 
@@ -573,7 +899,12 @@ class _SupabaseTenantStore
 
   @override
   Future<List<Map<String, dynamic>>> memberships() {
-    return _client.from('tenant_memberships').select('tenant_id,role');
+    return _client
+        .from('tenant_memberships')
+        .select(
+          'tenant_id,role,can_view_entries,can_add_entries,'
+          'can_edit_entries,can_delete_entries',
+        );
   }
 
   @override
@@ -597,6 +928,25 @@ class _SupabaseTenantStore
           );
         })
         .toList(growable: false);
+  }
+
+  @override
+  Future<void> setTenantMemberPermissions({
+    required String tenantId,
+    required String userId,
+    required TenantEntryPermissions permissions,
+  }) async {
+    await _client.rpc(
+      'set_tenant_member_permissions',
+      params: {
+        'p_tenant_id': tenantId,
+        'p_user_id': userId,
+        'p_can_view_entries': permissions.canView,
+        'p_can_add_entries': permissions.canAdd,
+        'p_can_edit_entries': permissions.canEdit,
+        'p_can_delete_entries': permissions.canDelete,
+      },
+    );
   }
 
   @override
@@ -740,6 +1090,80 @@ class _SupabaseTenantStore
   }
 
   @override
+  Future<Map<String, dynamic>> getTenantMemberCapacity({
+    required String tenantId,
+  }) async {
+    return _mapSingleRow(
+      await _client.rpc(
+        'get_tenant_member_capacity',
+        params: {'p_tenant_id': tenantId},
+      ),
+      'The tenant member-capacity response is invalid.',
+    );
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listTenantMemberCapacities() async {
+    final result = await _client.rpc('list_tenant_member_capacities');
+    if (result is! List) {
+      throw const FormatException(
+        'The tenant member-capacity response is invalid.',
+      );
+    }
+    return result
+        .map(
+          (row) => row is Map<String, dynamic>
+              ? row
+              : row is Map
+              ? Map<String, dynamic>.from(row)
+              : throw const FormatException(
+                  'The tenant member-capacity row is invalid.',
+                ),
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<Map<String, dynamic>> setTenantMemberLimit({
+    required String tenantId,
+    required int memberLimit,
+  }) async {
+    return _mapSingleRow(
+      await _client.rpc(
+        'set_tenant_member_limit',
+        params: {'p_tenant_id': tenantId, 'p_member_limit': memberLimit},
+      ),
+      'The updated tenant member-capacity response is invalid.',
+    );
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listTenantMemberAuditEvents({
+    required String tenantId,
+  }) async {
+    final result = await _client.rpc(
+      'list_tenant_member_audit_events',
+      params: {'p_tenant_id': tenantId, 'p_limit': 100},
+    );
+    if (result is! List) {
+      throw const FormatException(
+        'The tenant member-audit response is invalid.',
+      );
+    }
+    return result
+        .map(
+          (row) => row is Map<String, dynamic>
+              ? row
+              : row is Map
+              ? Map<String, dynamic>.from(row)
+              : throw const FormatException(
+                  'The tenant member-audit row is invalid.',
+                ),
+        )
+        .toList(growable: false);
+  }
+
+  @override
   Future<Map<String, dynamic>> addTenantMember({
     required String tenantId,
     required String email,
@@ -786,6 +1210,13 @@ class _SupabaseTenantStore
     }
 
     throw FormatException(message);
+  }
+
+  static Map<String, dynamic> _mapSingleRow(Object? value, String message) {
+    if (value is List && value.length == 1) {
+      return _mapResult(value.single, message);
+    }
+    return _mapResult(value, message);
   }
 
   static Map<String, dynamic>? _mapOptionalRow(Object? value) {

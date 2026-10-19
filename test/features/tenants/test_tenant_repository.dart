@@ -24,8 +24,13 @@ class TestTenantRepository implements TenantRepository {
   int archiveTenantCalls = 0;
   int restoreTenantCalls = 0;
   int listMembersCalls = 0;
+  int getMemberCapacityCalls = 0;
+  int listMemberCapacitiesCalls = 0;
+  int setMemberLimitCalls = 0;
+  int listMemberAuditEventsCalls = 0;
   int addMemberCalls = 0;
   int updateMemberRoleCalls = 0;
+  int updateMemberPermissionsCalls = 0;
   int removeMemberCalls = 0;
   String? lastName;
   String? lastOwnerEmail;
@@ -37,8 +42,18 @@ class TestTenantRepository implements TenantRepository {
   String? lastContactEmail;
   ParkingTenant? updatedTenant;
   List<ParkingTenantMember> members = const [];
+  TenantMemberCapacity memberCapacity = const TenantMemberCapacity(
+    tenantId: 'tenant-id',
+    memberLimit: 1,
+    activeMemberCount: 0,
+    remainingMemberCount: 1,
+  );
+  List<TenantMemberCapacity> memberCapacities = const [];
+  List<TenantMemberAuditEvent> memberAuditEvents = const [];
   String? lastMemberEmail;
   ParkingTenantRole? lastMemberRole;
+  TenantEntryPermissions? lastMemberPermissions;
+  int? lastMemberLimit;
 
   @override
   Future<ParkingTenantAccess> loadAccess() async {
@@ -139,6 +154,61 @@ class TestTenantRepository implements TenantRepository {
   }
 
   @override
+  Future<TenantMemberCapacity> getMemberCapacity({
+    required String tenantId,
+  }) async {
+    getMemberCapacityCalls++;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+    return memberCapacity;
+  }
+
+  @override
+  Future<List<TenantMemberCapacity>> listMemberCapacities() async {
+    listMemberCapacitiesCalls++;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+    return memberCapacities;
+  }
+
+  @override
+  Future<TenantMemberCapacity> setMemberLimit({
+    required String tenantId,
+    required int memberLimit,
+  }) async {
+    setMemberLimitCalls++;
+    lastMemberLimit = memberLimit;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+    return memberCapacity = TenantMemberCapacity(
+      tenantId: tenantId,
+      memberLimit: memberLimit,
+      activeMemberCount: memberCapacity.activeMemberCount,
+      remainingMemberCount: memberLimit > memberCapacity.activeMemberCount
+          ? memberLimit - memberCapacity.activeMemberCount
+          : 0,
+    );
+  }
+
+  @override
+  Future<List<TenantMemberAuditEvent>> listMemberAuditEvents({
+    required String tenantId,
+  }) async {
+    listMemberAuditEventsCalls++;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+    return memberAuditEvents;
+  }
+
+  @override
   Future<void> addMember({
     required String tenantId,
     required String email,
@@ -161,6 +231,20 @@ class TestTenantRepository implements TenantRepository {
   }) async {
     updateMemberRoleCalls++;
     lastMemberRole = role;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+  }
+
+  @override
+  Future<void> updateMemberPermissions({
+    required String tenantId,
+    required String userId,
+    required TenantEntryPermissions permissions,
+  }) async {
+    updateMemberPermissionsCalls++;
+    lastMemberPermissions = permissions;
     final error = managementError;
     if (error != null) {
       throw error;

@@ -119,3 +119,34 @@ Supabase process before end-to-end Super Admin behavior can be verified.
 - The choice adds no paid service or Flutter runtime dependency. The new
   migration and Edge Functions remain unapplied/undeployed until reviewed and
   deployed through the approved Supabase process.
+
+## Tenant member capacity and entry permissions
+
+- Reuse `public.tenants` and `public.tenant_memberships`; do not introduce a
+  second tenant, member, or device registry. Member identities must already
+  exist in Supabase Auth; this feature does not create member accounts or
+  invitations.
+- Set each tenant's stored member limit to one by default, with a maximum of
+  50. Owners are excluded from the count. Count current member-role rows;
+  preserve existing rows even if an existing tenant is over its configured
+  limit, and block new additions until capacity is available.
+- Serialize member additions and owner-to-member role transitions by locking
+  the tenant row. Return the stable `MEMBER_LIMIT_REACHED` error with limit,
+  current usage, and remaining capacity details.
+- Backfill existing memberships to retain full View/Add/Edit/Delete access;
+  new members start View-only. Keep the four permissions independent and
+  enforce them in PostgreSQL RLS and private Storage authorization.
+- Tenant owners manage member-role accounts and permissions only in their
+  own tenant. Super Admins retain cross-tenant management and are the only
+  role allowed to change a tenant's member limit. Removal revokes membership
+  access without deleting the Auth identity or parking history.
+- Extend the local API with the same limit and permission behavior. Keep its
+  `parking_api` role least-privileged; schema changes require the local
+  database owner, and the migration helper refreshes table/sequence grants.
+- Reuse the existing device-session policy and administration flow; do not
+  create a parallel device registry or change policy precedence.
+- Local Flutter and API security tests passed. SQL/RLS, PostgreSQL race, and
+  migrated local API integration tests remain unverified because the local
+  Supabase database is unavailable and the existing local API database lacks
+  migration 003. No hosted migration, production write, commit, push, or
+  deployment was performed.

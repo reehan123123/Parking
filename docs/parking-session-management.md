@@ -10,8 +10,11 @@ uses the loopback API and local PostgreSQL/photo storage; it is isolated from
 Supabase and is not evidence of hosted RLS or Storage behavior.
 
 Tenant members see their selected workspace. A database-provisioned Super
-Admin can select one tenant or all tenants. The `owner` and `member`
-membership roles currently have the same parking-session permissions.
+Admin can select one tenant or all tenants. Owners have full access within
+their tenant; member-role accounts receive independent View, Add, Edit, and
+Delete permissions enforced by database RLS and private Storage policies.
+See [tenant member management](tenant-member-management.md) for the default
+permissions and management rules.
 In the all-tenant view, creating a parking entry prompts the Super Admin to
 choose an active tenant. Archived tenant records remain visible to Super
 Admins for support; tenant members lose access until the workspace is restored.

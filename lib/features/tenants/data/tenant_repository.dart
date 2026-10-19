@@ -29,6 +29,19 @@ abstract interface class TenantRepository {
 
   Future<List<ParkingTenantMember>> listMembers({required String tenantId});
 
+  Future<TenantMemberCapacity> getMemberCapacity({required String tenantId});
+
+  Future<List<TenantMemberCapacity>> listMemberCapacities();
+
+  Future<TenantMemberCapacity> setMemberLimit({
+    required String tenantId,
+    required int memberLimit,
+  });
+
+  Future<List<TenantMemberAuditEvent>> listMemberAuditEvents({
+    required String tenantId,
+  });
+
   Future<void> addMember({
     required String tenantId,
     required String email,
@@ -39,6 +52,12 @@ abstract interface class TenantRepository {
     required String tenantId,
     required String userId,
     required ParkingTenantRole role,
+  });
+
+  Future<void> updateMemberPermissions({
+    required String tenantId,
+    required String userId,
+    required TenantEntryPermissions permissions,
   });
 
   Future<void> removeMember({required String tenantId, required String userId});

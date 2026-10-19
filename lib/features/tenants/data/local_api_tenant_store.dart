@@ -1,4 +1,5 @@
 import '../../../core/network/local_api_client.dart';
+import '../domain/parking_tenant.dart';
 import 'supabase_tenant_repository.dart';
 
 class LocalApiTenantStore implements TenantStore {
@@ -141,6 +142,64 @@ class LocalApiTenantStore implements TenantStore {
   }
 
   @override
+  Future<Map<String, dynamic>> getTenantMemberCapacity({
+    required String tenantId,
+  }) async {
+    try {
+      return await _api.requestJson(
+        'GET',
+        '/api/tenants/${Uri.encodeComponent(tenantId)}/member-capacity',
+      );
+    } on LocalApiException catch (error) {
+      throw _tenantStoreError(error);
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listTenantMemberCapacities() async {
+    try {
+      final response = await _api.requestJson(
+        'GET',
+        '/api/tenants/member-capacities',
+      );
+      return _rows(response['items']);
+    } on LocalApiException catch (error) {
+      throw _tenantStoreError(error);
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> setTenantMemberLimit({
+    required String tenantId,
+    required int memberLimit,
+  }) async {
+    try {
+      return await _api.requestJson(
+        'PATCH',
+        '/api/tenants/${Uri.encodeComponent(tenantId)}/member-limit',
+        body: {'memberLimit': memberLimit},
+      );
+    } on LocalApiException catch (error) {
+      throw _tenantStoreError(error);
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listTenantMemberAuditEvents({
+    required String tenantId,
+  }) async {
+    try {
+      final response = await _api.requestJson(
+        'GET',
+        '/api/tenants/${Uri.encodeComponent(tenantId)}/member-audit',
+      );
+      return _rows(response['items']);
+    } on LocalApiException catch (error) {
+      throw _tenantStoreError(error);
+    }
+  }
+
+  @override
   Future<Map<String, dynamic>> addTenantMember({
     required String tenantId,
     required String email,
@@ -154,6 +213,30 @@ class LocalApiTenantStore implements TenantStore {
       );
       _access = null;
       return response;
+    } on LocalApiException catch (error) {
+      throw _tenantStoreError(error);
+    }
+  }
+
+  @override
+  Future<void> setTenantMemberPermissions({
+    required String tenantId,
+    required String userId,
+    required TenantEntryPermissions permissions,
+  }) async {
+    try {
+      await _api.requestJson(
+        'PATCH',
+        '/api/tenants/${Uri.encodeComponent(tenantId)}/members/'
+            '${Uri.encodeComponent(userId)}/permissions',
+        body: {
+          'canViewEntries': permissions.canView,
+          'canAddEntries': permissions.canAdd,
+          'canEditEntries': permissions.canEdit,
+          'canDeleteEntries': permissions.canDelete,
+        },
+      );
+      _access = null;
     } on LocalApiException catch (error) {
       throw _tenantStoreError(error);
     }
@@ -233,18 +316,26 @@ class LocalApiTenantStore implements TenantStore {
     final message = switch (error.code) {
       'authentication_required' || 'session_expired' =>
         'Your local sign-in session expired. Sign in again and retry.',
-      'super_admin_required' =>
-        'Only a Super Admin can manage tenants and members.',
+      'super_admin_required' => 'Only a Super Admin can manage tenants.',
+      'tenant_management_required' =>
+        'You are not authorized to manage this tenant.',
       'account_not_found' => 'The local account could not be found. Sign in with that account first.',
       'owner_required' => 'A tenant must keep at least one owner.',
       'tenant_archived' => 'Restore the tenant before adding members.',
+      'member_limit_reached' => 'You have reached this tenant’s member limit. Remove a member or ask your Super Admin to increase the limit.',
       'tenant_not_found' ||
       'member_not_found' => 'The tenant or local account could not be found.',
       'invalid_request' || 'request_id_reused' =>
         'Check the tenant name, email, and selected role, then retry.',
       _ => error.message,
     };
-    return TenantStoreException(message);
+    return TenantStoreException(
+      message,
+      code: error.code == 'member_limit_reached'
+          ? 'MEMBER_LIMIT_REACHED'
+          : error.code,
+      details: error.details,
+    );
   }
 
   List<Map<String, dynamic>> _rows(Object? value) {

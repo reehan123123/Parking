@@ -1,8 +1,10 @@
-# Applies a single additive local PostgreSQL migration file without rotating
-# the parking_api role password or rewriting local-api/.env.local-api.
+# Applies a local PostgreSQL migration and refreshes the existing least-
+# privilege API role grants without rotating its password or rewriting
+# local-api/.env.local-api.
 # Usage:
 #   $env:PARKING_POSTGRES_PASSWORD = '<postgres1 password>'
 #   .\scripts\apply-local-migration.ps1 -MigrationFile local-api\migrations\002_parking_charges.sql
+#   .\scripts\apply-local-migration.ps1 -MigrationFile local-api\migrations\003_tenant_member_limits_permissions.sql
 
 param(
   [Parameter(Mandatory)]
@@ -61,9 +63,18 @@ try {
     throw 'Could not start the PostgreSQL client.'
   }
 
+  $migrationSql = Get-Content -LiteralPath $resolvedMigrationFile -Raw
+  $grantSql = @"
+GRANT CONNECT ON DATABASE $databaseName TO parking_api;
+GRANT USAGE ON SCHEMA core TO parking_api;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA core TO parking_api;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA core TO parking_api;
+ALTER DEFAULT PRIVILEGES FOR ROLE $adminRole IN SCHEMA core
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO parking_api;
+"@
   $stdoutTask = $process.StandardOutput.ReadToEndAsync()
   $stderrTask = $process.StandardError.ReadToEndAsync()
-  $process.StandardInput.Write((Get-Content -LiteralPath $resolvedMigrationFile -Raw))
+  $process.StandardInput.Write("$migrationSql`n$grantSql")
   $process.StandardInput.Close()
   $process.WaitForExit()
   $stdout = $stdoutTask.GetAwaiter().GetResult()

@@ -14,7 +14,7 @@ select ok(
     from pg_policies
     where schemaname = 'storage'
       and tablename = 'objects'
-      and policyname = 'Tenant members and Super Admins can read vehicle photos'
+      and policyname = 'Authorized tenant users can read vehicle photos'
   ),
   'vehicle photo select policy exists'
 );
@@ -25,7 +25,7 @@ select ok(
     from pg_policies
     where schemaname = 'storage'
       and tablename = 'objects'
-      and policyname = 'Tenant members and Super Admins can upload vehicle photos'
+      and policyname = 'Authorized tenant users can upload vehicle photos'
   ),
   'vehicle photo insert policy exists'
 );
@@ -36,7 +36,7 @@ select ok(
     from pg_policies
     where schemaname = 'storage'
       and tablename = 'objects'
-      and policyname = 'Tenant members and Super Admins can update vehicle photos'
+      and policyname = 'Authorized tenant users can update vehicle photos'
   ),
   'vehicle photo update policy exists'
 );
@@ -47,7 +47,7 @@ select ok(
     from pg_policies
     where schemaname = 'storage'
       and tablename = 'objects'
-      and policyname = 'Tenant members and Super Admins can delete vehicle photos'
+      and policyname = 'Authorized tenant users can delete vehicle photos'
   ),
   'vehicle photo delete policy exists'
 );

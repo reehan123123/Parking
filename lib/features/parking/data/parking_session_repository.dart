@@ -66,6 +66,8 @@ abstract interface class ParkingSessionStore {
     required String photoPath,
   });
 
+  Future<void> completePhotoUpload({required String sessionId});
+
   Future<void> update({
     required String sessionId,
     required Map<String, dynamic> values,

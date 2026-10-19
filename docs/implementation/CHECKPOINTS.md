@@ -115,3 +115,28 @@ contains the detailed scope, initial evidence, and blockers.
 - The tenant-management pgTAP test was reviewed but not executed because
   Supabase CLI, Docker, and `psql` are unavailable. No hosted migration,
   provisioning, RLS, or Storage check is claimed.
+
+## 2026-10-20 — Tenant member controls and entry permissions
+
+- Added member limits to the existing tenant model: one member by default,
+  owners excluded, maximum 50. Capacity checks lock the tenant row so
+  concurrent add/demote operations cannot consume the final slot twice.
+- Added View/Add/Edit/Delete membership flags, preserving existing access and
+  defaulting new members to View-only. PostgreSQL RLS and Storage helpers
+  enforce the permissions; Flutter navigation and actions reflect them.
+- Added owner Manage Members settings and member capacity/audit/permission
+  controls to the existing Super Admin tenant manager. Device policy
+  administration reuses the existing device-session implementation.
+- Extended the local API and documented its schema migration. Local setup now
+  applies ordered migrations; the existing-database migration helper refreshes
+  runtime grants after DDL.
+- Flutter validation passed: formatting, analysis, all 177 tests, and release
+  web build. Local API security tests passed (4); JavaScript and PowerShell
+  syntax checks and `git diff --check` passed.
+- Database checks remain unverified: Supabase local DB is not running because
+  Docker is unavailable, concurrency tests were skipped without local URLs,
+  and the existing `parking_local` schema needs migration 003 via the local
+  database owner. The runtime API role correctly lacks DDL ownership.
+- No hosted migration, production data change, commit, push, or deployment
+  occurred. `LLMWIKI_ROOT` is unset, so the personal audit wiki was not
+  updated.

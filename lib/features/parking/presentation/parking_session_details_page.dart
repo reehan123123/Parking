@@ -8,6 +8,7 @@ import '../../../shared/widgets/loading_view.dart';
 import '../data/parking_session_repository.dart';
 import '../domain/parking_duration_unit.dart';
 import '../domain/parking_session.dart';
+import '../../tenants/domain/parking_tenant.dart';
 import 'parking_entry_page.dart';
 import 'parking_session_list_view.dart';
 
@@ -15,12 +16,14 @@ class ParkingSessionDetailsPage extends StatefulWidget {
   const ParkingSessionDetailsPage({
     required this.repository,
     required this.session,
+    this.permissions = const TenantEntryPermissions.all(),
     this.onDataChanged,
     super.key,
   });
 
   final ParkingSessionRepository repository;
   final ParkingSession session;
+  final TenantEntryPermissions permissions;
   final VoidCallback? onDataChanged;
 
   @override
@@ -119,6 +122,9 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
   }
 
   Future<void> _edit() async {
+    if (!widget.permissions.canEdit) {
+      return;
+    }
     final updatedSession = await Navigator.of(context).push<ParkingSession>(
       MaterialPageRoute(
         builder: (context) => ParkingEntryPage(
@@ -136,7 +142,7 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
   }
 
   Future<void> _confirmDelete() async {
-    if (_isDeleting) {
+    if (_isDeleting || !widget.permissions.canDelete) {
       return;
     }
 
@@ -196,16 +202,18 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
       appBar: AppBar(
         title: Text(l10n.sessionDetailsTitle),
         actions: [
-          IconButton(
-            onPressed: _isLoading || _isDeleting ? null : _edit,
-            tooltip: l10n.editSessionTooltip,
-            icon: const Icon(Icons.edit_outlined),
-          ),
-          IconButton(
-            onPressed: _isLoading || _isDeleting ? null : _confirmDelete,
-            tooltip: l10n.deleteSessionTooltip,
-            icon: const Icon(Icons.delete_outline),
-          ),
+          if (widget.permissions.canEdit)
+            IconButton(
+              onPressed: _isLoading || _isDeleting ? null : _edit,
+              tooltip: l10n.editSessionTooltip,
+              icon: const Icon(Icons.edit_outlined),
+            ),
+          if (widget.permissions.canDelete)
+            IconButton(
+              onPressed: _isLoading || _isDeleting ? null : _confirmDelete,
+              tooltip: l10n.deleteSessionTooltip,
+              icon: const Icon(Icons.delete_outline),
+            ),
         ],
       ),
       body: Center(

@@ -37,10 +37,23 @@ npm run seed:local-admin
 Pop-Location
 ```
 
-The setup script prompts for the local PostgreSQL password, applies the
-local-only schema, creates a least-privilege `parking_api` role, generates a
-local signing secret, and writes `local-api\.env.local-api`. That file and the
-local photo directory are ignored by Git. Do not share or commit them.
+The setup script prompts for the local PostgreSQL password, applies the base
+schema and all ordered incremental local API migrations, creates a
+least-privilege `parking_api` role, generates a local signing secret, and
+writes `local-api\.env.local-api`. That file and the local photo directory are
+ignored by Git. Do not share or commit them.
+
+To upgrade an existing `parking_local` database, apply a new migration with
+the local database owner before running the integration suite. For example:
+
+```powershell
+.\scripts\apply-local-migration.ps1 `
+  -MigrationFile local-api\migrations\003_tenant_member_limits_permissions.sql
+```
+
+The script prompts for the local admin password when it is not already
+available in the current shell. The runtime `parking_api` role is deliberately
+not allowed to alter the database schema.
 
 The seed command creates only the synthetic local Super Admin
 `local-admin@parking.test` and prints a one-time password when it is first
@@ -86,4 +99,8 @@ npm run test:local-api
 
 The integration test uses the local PostgreSQL database and removes its
 temporary rows and photos. It is not a production-data or hosted Supabase
-test.
+test. The member-management routes are covered by that integration suite.
+The separate member-capacity concurrency test targets a local Supabase
+database, not the `parking_local` API database; see
+[tenant member management](tenant-member-management.md) for its
+loopback-only setup and command.

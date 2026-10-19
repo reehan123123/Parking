@@ -24,16 +24,23 @@ const photoBodyLimit = 10 * 1024 * 1024;
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const durationUnits = new Set(['minutes', 'hours', 'days', 'months']);
+const entryPermissionColumns = Object.freeze({
+  view: 'can_view_entries',
+  add: 'can_add_entries',
+  edit: 'can_edit_entries',
+  delete: 'can_delete_entries',
+});
 const allowedOrigins = new Set([
   'http://localhost:5211',
   'http://127.0.0.1:5211',
 ]);
 
 class ApiError extends Error {
-  constructor(status, code, message) {
+  constructor(status, code, message, details) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -170,7 +177,11 @@ export function createLocalApiServer({ pool, config }) {
 
       if (error instanceof ApiError) {
         sendJson(response, error.status, {
-          error: { code: error.code, message: error.message },
+          error: {
+            code: error.code,
+            message: error.message,
+            ...(error.details == null ? {} : { details: error.details }),
+          },
         });
         return;
       }
@@ -381,6 +392,14 @@ async function handleTenantRequest(request, response, url, user, pool) {
     await loadTenantAccess(response, user.id, pool);
     return;
   }
+  if (
+    segments.length === 3 &&
+    segments[2] === 'member-capacities' &&
+    request.method === 'GET'
+  ) {
+    await listTenantMemberCapacities(response, user, pool);
+    return;
+  }
   if (segments.length === 2 && segments[1] === 'tenants' && request.method === 'POST') {
     await createTenant(request, response, user, pool);
     return;
@@ -390,6 +409,30 @@ async function handleTenantRequest(request, response, url, user, pool) {
     const tenantId = requireUuid(segments[2], 'tenant');
     if (segments.length === 3 && request.method === 'PATCH') {
       await updateTenant(request, response, user, tenantId, pool);
+      return;
+    }
+    if (
+      segments.length === 4 &&
+      segments[3] === 'member-capacity' &&
+      request.method === 'GET'
+    ) {
+      await getTenantMemberCapacity(response, user, tenantId, pool);
+      return;
+    }
+    if (
+      segments.length === 4 &&
+      segments[3] === 'member-limit' &&
+      request.method === 'PATCH'
+    ) {
+      await setTenantMemberLimit(request, response, user, tenantId, pool);
+      return;
+    }
+    if (
+      segments.length === 4 &&
+      segments[3] === 'member-audit' &&
+      request.method === 'GET'
+    ) {
+      await listTenantMemberAuditEvents(response, user, tenantId, pool);
       return;
     }
     if (
@@ -432,6 +475,22 @@ async function handleTenantRequest(request, response, url, user, pool) {
       return;
     }
     if (
+      segments.length === 6 &&
+      segments[3] === 'members' &&
+      segments[5] === 'permissions' &&
+      request.method === 'PATCH'
+    ) {
+      await setTenantMemberPermissions(
+        request,
+        response,
+        user,
+        tenantId,
+        requireUuid(segments[4], 'user'),
+        pool,
+      );
+      return;
+    }
+    if (
       segments.length === 5 &&
       segments[3] === 'members' &&
       request.method === 'DELETE'
@@ -453,7 +512,7 @@ async function handleTenantRequest(request, response, url, user, pool) {
 async function loadTenantAccess(response, userId, pool) {
   const isSuperAdmin = await hasSuperAdminRole(userId, pool);
   const tenantsResult = await pool.query(
-    `select t.id, t.name, t.slug, t.archived_at, m.role
+    `select t.id, t.name, t.slug, t.archived_at, t.member_limit, m.role
        from core.tenants as t
        left join core.tenant_memberships as m
          on m.tenant_id = t.id and m.user_id = $1
@@ -471,7 +530,9 @@ async function loadTenantAccess(response, userId, pool) {
   const membershipsResult = isSuperAdmin
     ? { rows: [] }
     : await pool.query(
-        `select membership.tenant_id, membership.role
+        `select membership.tenant_id, membership.role,
+                membership.can_view_entries, membership.can_add_entries,
+                membership.can_edit_entries, membership.can_delete_entries
            from core.tenant_memberships as membership
            join core.tenants as t on t.id = membership.tenant_id
           where membership.user_id = $1
@@ -674,10 +735,13 @@ async function setTenantArchived(response, user, tenantId, archived, pool) {
 }
 
 async function listTenantMembers(response, user, tenantId, pool) {
-  await requireSuperAdmin(user.id, pool);
+  await requireTenantMemberManager(user.id, tenantId, pool);
   await requireTenantExists(tenantId, pool);
   const result = await pool.query(
-    `select membership.user_id, user_account.email, membership.role
+    `select membership.user_id, user_account.email, membership.role,
+            membership.created_at, membership.can_view_entries,
+            membership.can_add_entries, membership.can_edit_entries,
+            membership.can_delete_entries
        from core.tenant_memberships as membership
        join core.users as user_account on user_account.id = membership.user_id
       where membership.tenant_id = $1
@@ -687,24 +751,107 @@ async function listTenantMembers(response, user, tenantId, pool) {
   sendJson(response, 200, { items: result.rows });
 }
 
-async function addTenantMember(request, response, user, tenantId, pool) {
+async function getTenantMemberCapacity(response, user, tenantId, pool) {
+  await requireTenantMemberManager(user.id, tenantId, pool);
+  const capacity = await selectTenantMemberCapacity(pool, tenantId);
+  sendJson(response, 200, capacity);
+}
+
+async function listTenantMemberCapacities(response, user, pool) {
   await requireSuperAdmin(user.id, pool);
+  const result = await pool.query(
+    `select tenant.id as tenant_id, tenant.member_limit,
+            count(membership.user_id) filter (
+              where membership.role = 'member'
+            )::integer as active_member_count,
+            greatest(
+              0,
+              tenant.member_limit - count(membership.user_id) filter (
+                where membership.role = 'member'
+              )::integer
+            ) as remaining_member_count
+       from core.tenants as tenant
+       left join core.tenant_memberships as membership
+         on membership.tenant_id = tenant.id
+      group by tenant.id, tenant.member_limit
+      order by tenant.name, tenant.id`,
+  );
+  sendJson(response, 200, { items: result.rows });
+}
+
+async function setTenantMemberLimit(request, response, user, tenantId, pool) {
+  await requireSuperAdmin(user.id, pool);
+  const body = await readJsonBody(request);
+  const memberLimit = parseInteger(body.memberLimit, 1, 50);
+  const capacity = await withTransaction(pool, async (client) => {
+    await lockTenant(client, tenantId);
+    await requireSuperAdmin(user.id, client);
+    const currentResult = await client.query(
+      'select member_limit from core.tenants where id = $1',
+      [tenantId],
+    );
+    const previousLimit = currentResult.rows[0].member_limit;
+    if (previousLimit !== memberLimit) {
+      await client.query(
+        'update core.tenants set member_limit = $2 where id = $1',
+        [tenantId, memberLimit],
+      );
+      await recordTenantMemberAudit(
+        client,
+        tenantId,
+        user.id,
+        null,
+        'member_limit_changed',
+        { oldLimit: previousLimit, newLimit: memberLimit },
+      );
+    }
+    return selectTenantMemberCapacity(client, tenantId);
+  });
+  sendJson(response, 200, capacity);
+}
+
+async function listTenantMemberAuditEvents(response, user, tenantId, pool) {
+  await requireTenantMemberManager(user.id, tenantId, pool);
+  await requireTenantExists(tenantId, pool);
+  const result = await pool.query(
+    `select event.id, event.action, event.details, actor.email as actor_email,
+            subject.email as subject_email, event.created_at
+       from core.tenant_member_audit_events as event
+       left join core.users as actor on actor.id = event.actor_user_id
+       left join core.users as subject on subject.id = event.subject_user_id
+      where event.tenant_id = $1
+      order by event.created_at desc, event.id desc
+      limit 100`,
+    [tenantId],
+  );
+  sendJson(response, 200, { items: result.rows });
+}
+
+async function addTenantMember(request, response, user, tenantId, pool) {
   const body = await readJsonBody(request);
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const role = body.role;
   if (!isValidEmail(email) || !['owner', 'member'].includes(role)) {
     throw new ApiError(400, 'invalid_request', 'Enter a valid email and tenant role.');
   }
+  await requireTenantMemberManager(user.id, tenantId, pool);
+  const isSuperAdmin = await hasSuperAdminRole(user.id, pool);
+  if (!isSuperAdmin && role !== 'member') {
+    throw new ApiError(
+      403,
+      'tenant_management_required',
+      'Tenant owners can add member-role accounts only.',
+    );
+  }
 
   const result = await withTransaction(pool, async (client) => {
     await lockTenant(client, tenantId);
+    await requireTenantMemberManager(user.id, tenantId, client);
+    const isSuperAdmin = await hasSuperAdminRole(user.id, client);
     const tenant = await client.query(
-      'select archived_at from core.tenants where id = $1',
+      'select archived_at, member_limit from core.tenants where id = $1',
       [tenantId],
     );
-    if (tenant.rows[0] == null) {
-      throw new ApiError(404, 'tenant_not_found', 'The tenant was not found.');
-    }
     if (tenant.rows[0].archived_at != null) {
       throw new ApiError(409, 'tenant_archived', 'Restore the tenant before adding members.');
     }
@@ -717,13 +864,60 @@ async function addTenantMember(request, response, user, tenantId, pool) {
     if (member == null) {
       throw new ApiError(404, 'account_not_found', 'The local account was not found.');
     }
-    await client.query(
-      `insert into core.tenant_memberships (tenant_id, user_id, role)
-       values ($1, $2, $3)
-       on conflict (tenant_id, user_id)
-       do update set role = excluded.role`,
-      [tenantId, member.id, role],
+    const currentResult = await client.query(
+      `select role from core.tenant_memberships
+        where tenant_id = $1 and user_id = $2
+        for update`,
+      [tenantId, member.id],
     );
+    const current = currentResult.rows[0];
+    if (current == null) {
+      if (role === 'member') {
+        await requireMemberCapacity(client, tenantId, tenant.rows[0].member_limit);
+      }
+      await client.query(
+        `insert into core.tenant_memberships (tenant_id, user_id, role)
+         values ($1, $2, $3)`,
+        [tenantId, member.id, role],
+      );
+      await recordTenantMemberAudit(
+        client,
+        tenantId,
+        user.id,
+        member.id,
+        'member_added',
+        { role },
+      );
+    } else if (current.role !== role) {
+      if (!isSuperAdmin) {
+        throw new ApiError(
+          403,
+          'tenant_management_required',
+          'Tenant owners cannot change member roles.',
+        );
+      }
+      if (current.role === 'owner' && role === 'member') {
+        await preserveTenantOwner(client, tenantId, current.role, role);
+        await requireMemberCapacity(
+          client,
+          tenantId,
+          tenant.rows[0].member_limit,
+        );
+      }
+      await client.query(
+        `update core.tenant_memberships set role = $3
+          where tenant_id = $1 and user_id = $2`,
+        [tenantId, member.id, role],
+      );
+      await recordTenantMemberAudit(
+        client,
+        tenantId,
+        user.id,
+        member.id,
+        'member_role_changed',
+        { oldRole: current.role, newRole: role },
+      );
+    }
     return { user_id: member.id, email: member.email, role };
   });
   sendJson(response, 200, result);
@@ -745,6 +939,7 @@ async function updateTenantMemberRole(
 
   await withTransaction(pool, async (client) => {
     await lockTenant(client, tenantId);
+    await requireSuperAdmin(user.id, client);
     const current = await client.query(
       `select role from core.tenant_memberships
         where tenant_id = $1 and user_id = $2
@@ -755,21 +950,135 @@ async function updateTenantMemberRole(
     if (membership == null) {
       throw new ApiError(404, 'member_not_found', 'The tenant member was not found.');
     }
+    if (membership.role === body.role) {
+      return;
+    }
     await preserveTenantOwner(client, tenantId, membership.role, body.role);
+    if (membership.role === 'owner' && body.role === 'member') {
+      const tenant = await client.query(
+        'select member_limit from core.tenants where id = $1',
+        [tenantId],
+      );
+      await requireMemberCapacity(client, tenantId, tenant.rows[0].member_limit);
+    }
     await client.query(
       `update core.tenant_memberships set role = $3
         where tenant_id = $1 and user_id = $2`,
       [tenantId, userId, body.role],
+    );
+    await recordTenantMemberAudit(
+      client,
+      tenantId,
+      user.id,
+      userId,
+      'member_role_changed',
+      { oldRole: membership.role, newRole: body.role },
     );
   });
   response.writeHead(204);
   response.end();
 }
 
-async function removeTenantMember(response, user, tenantId, userId, pool) {
-  await requireSuperAdmin(user.id, pool);
+async function setTenantMemberPermissions(
+  request,
+  response,
+  user,
+  tenantId,
+  userId,
+  pool,
+) {
+  await requireTenantMemberManager(user.id, tenantId, pool);
+  const body = await readJsonBody(request);
+  const permissions = {
+    can_view_entries: body.canViewEntries,
+    can_add_entries: body.canAddEntries,
+    can_edit_entries: body.canEditEntries,
+    can_delete_entries: body.canDeleteEntries,
+  };
+  if (Object.values(permissions).some((value) => typeof value !== 'boolean')) {
+    throw new ApiError(
+      400,
+      'invalid_request',
+      'Choose all four parking-entry permissions.',
+    );
+  }
+
   await withTransaction(pool, async (client) => {
     await lockTenant(client, tenantId);
+    await requireTenantMemberManager(user.id, tenantId, client);
+    const currentResult = await client.query(
+      `select role, can_view_entries, can_add_entries, can_edit_entries,
+              can_delete_entries
+         from core.tenant_memberships
+        where tenant_id = $1 and user_id = $2
+        for update`,
+      [tenantId, userId],
+    );
+    const current = currentResult.rows[0];
+    if (current == null) {
+      throw new ApiError(404, 'member_not_found', 'The tenant member was not found.');
+    }
+    if (current.role !== 'member') {
+      throw new ApiError(
+        400,
+        'invalid_request',
+        'Parking-entry permissions can only be assigned to members.',
+      );
+    }
+
+    const changed = Object.keys(permissions).some(
+      (key) => current[key] !== permissions[key],
+    );
+    if (changed) {
+      await client.query(
+        `update core.tenant_memberships
+            set can_view_entries = $3,
+                can_add_entries = $4,
+                can_edit_entries = $5,
+                can_delete_entries = $6
+          where tenant_id = $1 and user_id = $2`,
+        [
+          tenantId,
+          userId,
+          permissions.can_view_entries,
+          permissions.can_add_entries,
+          permissions.can_edit_entries,
+          permissions.can_delete_entries,
+        ],
+      );
+      await recordTenantMemberAudit(
+        client,
+        tenantId,
+        user.id,
+        userId,
+        'member_permissions_changed',
+        {
+          oldPermissions: {
+            view: current.can_view_entries,
+            add: current.can_add_entries,
+            edit: current.can_edit_entries,
+            delete: current.can_delete_entries,
+          },
+          newPermissions: {
+            view: permissions.can_view_entries,
+            add: permissions.can_add_entries,
+            edit: permissions.can_edit_entries,
+            delete: permissions.can_delete_entries,
+          },
+        },
+      );
+    }
+  });
+  response.writeHead(204);
+  response.end();
+}
+
+async function removeTenantMember(response, user, tenantId, userId, pool) {
+  await requireTenantMemberManager(user.id, tenantId, pool);
+  await withTransaction(pool, async (client) => {
+    await lockTenant(client, tenantId);
+    await requireTenantMemberManager(user.id, tenantId, client);
+    const isSuperAdmin = await hasSuperAdminRole(user.id, client);
     const current = await client.query(
       `select role from core.tenant_memberships
         where tenant_id = $1 and user_id = $2
@@ -780,7 +1089,22 @@ async function removeTenantMember(response, user, tenantId, userId, pool) {
     if (membership == null) {
       throw new ApiError(404, 'member_not_found', 'The tenant member was not found.');
     }
+    if (membership.role === 'owner' && !isSuperAdmin) {
+      throw new ApiError(
+        403,
+        'tenant_management_required',
+        'Tenant owners can remove member-role accounts only.',
+      );
+    }
     await preserveTenantOwner(client, tenantId, membership.role, null);
+    await recordTenantMemberAudit(
+      client,
+      tenantId,
+      user.id,
+      userId,
+      'member_removed',
+      { role: membership.role },
+    );
     await client.query(
       'delete from core.tenant_memberships where tenant_id = $1 and user_id = $2',
       [tenantId, userId],
@@ -788,6 +1112,93 @@ async function removeTenantMember(response, user, tenantId, userId, pool) {
   });
   response.writeHead(204);
   response.end();
+}
+
+async function requireTenantMemberManager(userId, tenantId, pool) {
+  if (await hasSuperAdminRole(userId, pool)) {
+    return;
+  }
+  const result = await pool.query(
+    `select 1
+       from core.tenant_memberships as membership
+       join core.tenants as tenant on tenant.id = membership.tenant_id
+      where membership.tenant_id = $1
+        and membership.user_id = $2
+        and membership.role = 'owner'
+        and tenant.archived_at is null`,
+    [tenantId, userId],
+  );
+  if (result.rows[0] == null) {
+    throw new ApiError(
+      403,
+      'tenant_management_required',
+      'Only the tenant owner or a Super Admin can manage members.',
+    );
+  }
+}
+
+async function selectTenantMemberCapacity(client, tenantId) {
+  const result = await client.query(
+    `select tenant.id as tenant_id, tenant.member_limit,
+            count(membership.user_id) filter (
+              where membership.role = 'member'
+            )::integer as active_member_count,
+            greatest(
+              0,
+              tenant.member_limit - count(membership.user_id) filter (
+                where membership.role = 'member'
+              )::integer
+            ) as remaining_member_count
+       from core.tenants as tenant
+       left join core.tenant_memberships as membership
+         on membership.tenant_id = tenant.id
+      where tenant.id = $1
+      group by tenant.id, tenant.member_limit`,
+    [tenantId],
+  );
+  if (result.rows[0] == null) {
+    throw new ApiError(404, 'tenant_not_found', 'The tenant was not found.');
+  }
+  return result.rows[0];
+}
+
+async function requireMemberCapacity(client, tenantId, memberLimit) {
+  const result = await client.query(
+    `select count(*)::integer as active_member_count
+       from core.tenant_memberships
+      where tenant_id = $1 and role = 'member'`,
+    [tenantId],
+  );
+  const activeMemberCount = result.rows[0].active_member_count;
+  if (activeMemberCount >= memberLimit) {
+    throw new ApiError(
+      409,
+      'member_limit_reached',
+      'The tenant member limit has been reached.',
+      {
+        memberLimit,
+        activeMemberCount,
+        remainingMemberCount: Math.max(0, memberLimit - activeMemberCount),
+      },
+    );
+  }
+}
+
+async function recordTenantMemberAudit(
+  client,
+  tenantId,
+  actorUserId,
+  subjectUserId,
+  action,
+  details,
+) {
+  await client.query(
+    `insert into core.tenant_member_audit_events (
+       tenant_id, actor_user_id, subject_user_id, action, details
+     )
+     values ($1, $2, $3, $4, $5::jsonb)`,
+    [tenantId, actorUserId, subjectUserId, action, JSON.stringify(details)],
+  );
 }
 
 async function preserveTenantOwner(client, tenantId, oldRole, newRole) {
@@ -841,6 +1252,35 @@ async function handleParkingRequest(request, response, url, user, pool) {
 
   const segments = pathSegments(url.pathname);
   if (
+    segments.length === 4 &&
+    segments[1] === 'parking-sessions' &&
+    segments[3] === 'photo-path' &&
+    request.method === 'POST'
+  ) {
+    await setParkingSessionPhotoPath(
+      request,
+      response,
+      user,
+      requireUuid(segments[2], 'session'),
+      pool,
+    );
+    return;
+  }
+  if (
+    segments.length === 4 &&
+    segments[1] === 'parking-sessions' &&
+    segments[3] === 'photo-complete' &&
+    request.method === 'POST'
+  ) {
+    await completeParkingSessionPhotoUpload(
+      response,
+      user,
+      requireUuid(segments[2], 'session'),
+      pool,
+    );
+    return;
+  }
+  if (
     segments.length === 3 &&
     segments[1] === 'parking-sessions' &&
     request.method === 'GET'
@@ -887,6 +1327,9 @@ async function handleParkingRequest(request, response, url, user, pool) {
 async function listParkingSessions(response, url, user, pool) {
   const tenantId = parseOptionalUuid(url.searchParams.get('tenant_id'), 'tenant');
   await requireTenantAccess(user.id, tenantId, pool);
+  if (tenantId != null) {
+    await requireTenantEntryPermission(user.id, tenantId, 'view', pool);
+  }
   const offset = parseInteger(url.searchParams.get('offset') ?? '0', 0, 1000000);
   const limit = parseInteger(url.searchParams.get('limit') ?? '50', 1, 101);
   const search = url.searchParams.get('search')?.trim() ?? '';
@@ -911,6 +1354,9 @@ async function listParkingSessions(response, url, user, pool) {
 async function getParkingSummary(response, url, user, pool) {
   const tenantId = parseOptionalUuid(url.searchParams.get('tenant_id'), 'tenant');
   await requireTenantAccess(user.id, tenantId, pool);
+  if (tenantId != null) {
+    await requireTenantEntryPermission(user.id, tenantId, 'view', pool);
+  }
   const result = await pool.query(
     `select
        count(*) filter (where expires_at > $2)::integer as active_count,
@@ -929,13 +1375,18 @@ async function insertParkingSession(request, response, user, pool) {
   const body = await readJsonBody(request);
   const tenantId = requireUuid(body.tenant_id, 'tenant');
   await requireTenantAccess(user.id, tenantId, pool);
+  await requireTenantEntryPermission(user.id, tenantId, 'add', pool);
+  if (body.has_photo != null && typeof body.has_photo !== 'boolean') {
+    throw new ApiError(400, 'invalid_request', 'The photo upload flag is invalid.');
+  }
   const values = validateParkingValues(body, null);
   const result = await pool.query(
     `insert into core.parking_sessions (
        tenant_id, plate_number, entry_time, allowed_duration_value,
-       allowed_duration_unit, expires_at, created_by, total_charge, paid_amount
+       allowed_duration_unit, expires_at, created_by, total_charge, paid_amount,
+       photo_upload_pending
      )
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      returning id`,
     [
       tenantId,
@@ -947,9 +1398,93 @@ async function insertParkingSession(request, response, user, pool) {
       user.id,
       values.totalCharge,
       values.paidAmount,
+      body.has_photo === true,
     ],
   );
   sendJson(response, 201, { id: result.rows[0].id });
+}
+
+async function setParkingSessionPhotoPath(
+  request,
+  response,
+  user,
+  sessionId,
+  pool,
+) {
+  const body = await readJsonBody(request);
+  const photoPath = requirePhotoPath(body.photo_path);
+  const session = await findAuthorizedSession(
+    user.id,
+    sessionId,
+    pool,
+    null,
+  );
+  await requireTenantEntryPermission(user.id, session.tenant_id, 'add', pool);
+  if (
+    session.created_by !== user.id ||
+    !session.photo_upload_pending ||
+    session.photo_path != null ||
+    !isSessionPhotoPath(photoPath, session)
+  ) {
+    throw new ApiError(
+      403,
+      'invalid_photo_path',
+      'You cannot attach this photo to the parking session.',
+    );
+  }
+
+  const result = await pool.query(
+    `update core.parking_sessions
+        set photo_path = $3
+      where id = $1
+        and created_by = $2
+        and photo_path is null
+        and photo_upload_pending
+      returning id`,
+    [sessionId, user.id, photoPath],
+  );
+  if (result.rows[0] == null) {
+    throw new ApiError(
+      409,
+      'session_changed',
+      'The parking session changed before the photo could be attached.',
+    );
+  }
+  response.writeHead(204);
+  response.end();
+}
+
+async function completeParkingSessionPhotoUpload(
+  response,
+  user,
+  sessionId,
+  pool,
+) {
+  const session = await findAuthorizedSession(
+    user.id,
+    sessionId,
+    pool,
+    null,
+  );
+  await requireTenantEntryPermission(user.id, session.tenant_id, 'add', pool);
+  if (
+    session.created_by !== user.id ||
+    session.photo_path == null
+  ) {
+    throw new ApiError(
+      403,
+      'photo_upload_not_allowed',
+      'You cannot complete this photo upload.',
+    );
+  }
+  await pool.query(
+    `update core.parking_sessions
+        set photo_upload_pending = false
+      where id = $1 and photo_upload_pending`,
+    [sessionId],
+  );
+  response.writeHead(204);
+  response.end();
 }
 
 async function updateParkingSession(request, response, user, sessionId, pool) {
@@ -971,7 +1506,12 @@ async function updateParkingSession(request, response, user, sessionId, pool) {
     throw new ApiError(400, 'invalid_request', 'The parking-session update is invalid.');
   }
 
-  const current = await findAuthorizedSession(user.id, sessionId, pool);
+  const current = await findAuthorizedSession(
+    user.id,
+    sessionId,
+    pool,
+    'edit',
+  );
   const next = validateParkingValues(body, current);
   if (
     Object.hasOwn(body, 'photo_path') &&
@@ -1029,7 +1569,24 @@ async function updateParkingSession(request, response, user, sessionId, pool) {
 }
 
 async function deleteParkingSession(response, user, sessionId, pool) {
-  await findAuthorizedSession(user.id, sessionId, pool);
+  const session = await findAuthorizedSession(user.id, sessionId, pool, null);
+  const canDelete = await hasTenantEntryPermission(
+    user.id,
+    session.tenant_id,
+    'delete',
+    pool,
+  );
+  const canCleanPendingUpload =
+    session.created_by === user.id &&
+    session.photo_upload_pending &&
+    await hasTenantEntryPermission(user.id, session.tenant_id, 'add', pool);
+  if (!canDelete && !canCleanPendingUpload) {
+    throw new ApiError(
+      403,
+      'entry_permission_denied',
+      'You do not have permission to delete this parking entry.',
+    );
+  }
   await pool.query('delete from core.parking_sessions where id = $1', [sessionId]);
   response.writeHead(204);
   response.end();
@@ -1106,11 +1663,17 @@ function validateParkingValues(body, current) {
   };
 }
 
-async function findAuthorizedSession(userId, sessionId, pool) {
+async function findAuthorizedSession(
+  userId,
+  sessionId,
+  pool,
+  permission = 'view',
+) {
   const result = await pool.query(
     `select id, tenant_id, plate_number, photo_path, entry_time,
             allowed_duration_value, allowed_duration_unit, expires_at,
-            created_by, created_at, updated_at, total_charge, paid_amount
+            created_by, created_at, updated_at, total_charge, paid_amount,
+            photo_upload_pending
        from core.parking_sessions
       where id = $1`,
     [sessionId],
@@ -1120,6 +1683,14 @@ async function findAuthorizedSession(userId, sessionId, pool) {
     throw new ApiError(404, 'session_not_found', 'The parking session was not found.');
   }
   await requireTenantAccess(userId, session.tenant_id, pool);
+  if (permission != null) {
+    await requireTenantEntryPermission(
+      userId,
+      session.tenant_id,
+      permission,
+      pool,
+    );
+  }
   return session;
 }
 
@@ -1148,6 +1719,45 @@ async function requireTenantAccess(userId, tenantId, pool) {
   }
 }
 
+async function requireTenantEntryPermission(
+  userId,
+  tenantId,
+  permission,
+  pool,
+) {
+  await requireTenantAccess(userId, tenantId, pool);
+  if (!(await hasTenantEntryPermission(userId, tenantId, permission, pool))) {
+    throw new ApiError(
+      403,
+      'entry_permission_denied',
+      'You do not have permission to perform this parking-entry action.',
+    );
+  }
+}
+
+async function hasTenantEntryPermission(
+  userId,
+  tenantId,
+  permission,
+  pool,
+) {
+  const column = entryPermissionColumns[permission];
+  if (column == null) {
+    throw new Error('A valid parking-entry permission is required.');
+  }
+  if (await hasSuperAdminRole(userId, pool)) {
+    return true;
+  }
+  const result = await pool.query(
+    `select role, ${column} as allowed
+       from core.tenant_memberships
+      where tenant_id = $1 and user_id = $2`,
+    [tenantId, userId],
+  );
+  const membership = result.rows[0];
+  return membership?.role === 'owner' || membership?.allowed === true;
+}
+
 async function hasSuperAdminRole(userId, pool) {
   const result = await pool.query(
     'select 1 from core.super_admins where user_id = $1',
@@ -1174,7 +1784,12 @@ async function handlePhotoRequest(
     const body = await readJsonBody(request);
     const photoPath = requirePhotoPath(body.path);
     const expiresInSeconds = parseInteger(body.expiresInSeconds, 1, 3600);
-    const session = await requirePhotoSession(user.id, photoPath, pool);
+    const session = await requirePhotoSession(
+      user.id,
+      photoPath,
+      pool,
+      'view',
+    );
     if (session.photo_path !== photoPath) {
       throw new ApiError(404, 'photo_not_found', 'The private vehicle photo was not found.');
     }
@@ -1191,7 +1806,12 @@ async function handlePhotoRequest(
 
   if (request.method === 'PUT' && url.pathname === '/api/photos/upload') {
     const photoPath = requirePhotoPath(url.searchParams.get('path'));
-    const session = await requirePhotoSession(user.id, photoPath, pool);
+    const session = await requirePhotoSession(
+      user.id,
+      photoPath,
+      pool,
+      'upload',
+    );
     if (!isSessionPhotoPath(photoPath, session)) {
       throw new ApiError(403, 'invalid_photo_path', 'The vehicle photo path is not allowed.');
     }
@@ -1233,7 +1853,7 @@ async function handlePhotoRequest(
 
   if (request.method === 'DELETE' && url.pathname === '/api/photos') {
     const photoPath = requirePhotoPath(url.searchParams.get('path'));
-    await requirePhotoSession(user.id, photoPath, pool);
+    await requirePhotoSession(user.id, photoPath, pool, 'delete');
     const target = resolvePhotoPath(storageRoot, photoPath);
     try {
       await unlink(target);
@@ -1250,14 +1870,77 @@ async function handlePhotoRequest(
   throw new ApiError(404, 'not_found', 'The requested photo route was not found.');
 }
 
-async function requirePhotoSession(userId, photoPath, pool) {
+async function requirePhotoSession(userId, photoPath, pool, action) {
   const parsedPath = parsePhotoPath(photoPath);
   if (parsedPath == null) {
     throw new ApiError(400, 'invalid_photo_path', 'The vehicle photo path is invalid.');
   }
-  const session = await findAuthorizedSession(userId, parsedPath.sessionId, pool);
+  const session = await findAuthorizedSession(
+    userId,
+    parsedPath.sessionId,
+    pool,
+    null,
+  );
   if (session.created_by !== parsedPath.userId) {
     throw new ApiError(403, 'invalid_photo_path', 'The vehicle photo path is not allowed.');
+  }
+  if (action === 'view') {
+    if (session.photo_path !== photoPath) {
+      throw new ApiError(404, 'photo_not_found', 'The private vehicle photo was not found.');
+    }
+    await requireTenantEntryPermission(userId, session.tenant_id, 'view', pool);
+  } else if (action === 'upload') {
+    const canEdit = await hasTenantEntryPermission(
+      userId,
+      session.tenant_id,
+      'edit',
+      pool,
+    );
+    const canAddPending =
+      session.created_by === userId &&
+      session.photo_upload_pending &&
+      session.photo_path === photoPath &&
+      await hasTenantEntryPermission(userId, session.tenant_id, 'add', pool);
+    if (
+      (!canEdit && !canAddPending) ||
+      (canEdit && session.photo_path !== photoPath && !canAddPending)
+    ) {
+      throw new ApiError(
+        403,
+        'entry_permission_denied',
+        'You do not have permission to upload this parking-entry photo.',
+      );
+    }
+  } else if (action === 'delete') {
+    const canEdit = await hasTenantEntryPermission(
+      userId,
+      session.tenant_id,
+      'edit',
+      pool,
+    );
+    const canDelete = await hasTenantEntryPermission(
+      userId,
+      session.tenant_id,
+      'delete',
+      pool,
+    );
+    const canCleanPendingUpload =
+      session.created_by === userId &&
+      session.photo_upload_pending &&
+      session.photo_path === photoPath &&
+      await hasTenantEntryPermission(userId, session.tenant_id, 'add', pool);
+    if (
+      ((!canEdit && !canDelete) || session.photo_path !== photoPath) &&
+      !canCleanPendingUpload
+    ) {
+      throw new ApiError(
+        403,
+        'entry_permission_denied',
+        'You do not have permission to remove this parking-entry photo.',
+      );
+    }
+  } else {
+    throw new Error('A valid vehicle-photo action is required.');
   }
   return session;
 }

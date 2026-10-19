@@ -7,25 +7,28 @@ values
   ('10000000-0000-4000-8000-000000000001', 'device-owner@example.com'),
   ('20000000-0000-4000-8000-000000000001', 'device-admin@example.com');
 
-insert into public.tenants (id, name, slug, created_by)
+insert into public.tenants (id, name, slug, created_by, valid_until)
 values
   (
     '30000000-0000-4000-8000-000000000001',
     'Device tenant one',
     'device-tenant-one',
-    '20000000-0000-4000-8000-000000000001'
+    '20000000-0000-4000-8000-000000000001',
+    (now() at time zone 'Asia/Kolkata')::date + 3650
   ),
   (
     '30000000-0000-4000-8000-000000000002',
     'Device tenant two',
     'device-tenant-two',
-    '20000000-0000-4000-8000-000000000001'
+    '20000000-0000-4000-8000-000000000001',
+    (now() at time zone 'Asia/Kolkata')::date + 3650
   ),
   (
     '30000000-0000-4000-8000-000000000003',
     'Device tenant three',
     'device-tenant-three',
-    '20000000-0000-4000-8000-000000000001'
+    '20000000-0000-4000-8000-000000000001',
+    (now() at time zone 'Asia/Kolkata')::date + 3650
   );
 
 insert into public.tenant_memberships (tenant_id, user_id, role)

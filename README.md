@@ -20,6 +20,14 @@ The tenant authorization model is enforced by PostgreSQL RLS. Apply the
 tenant migrations, deploy the two onboarding Edge Functions, and provision
 the initial Super Admin before using these features.
 
+Tenant member limits and independent parking-entry permissions are now
+implemented in source. New tenants allow one member by default (owners do
+not count); only Super Admins can change the limit. Owners can manage
+existing member accounts in their own tenant. The new migration has not been
+applied to a hosted database; see
+[docs/tenant-member-management.md](docs/tenant-member-management.md) before
+local testing or rollout.
+
 Configurable tenant-scoped device-session limits are implemented in source.
 The initial policy is one device, with tenant and per-account overrides,
 server-side registration, and a Supabase Auth refresh hook. The feature has
@@ -78,7 +86,9 @@ See [docs/parking-entry.md](docs/parking-entry.md) for the entry form, photo
 limits, persistence sequence, edit behavior, cleanup handling, and manual
 checks. See [docs/parking-session-management.md](docs/parking-session-management.md)
 for dashboard, history, details, search, signed photos, editing, deletion, and
-refresh behavior. See [docs/deployment.md](docs/deployment.md) for the
+refresh behavior. See [docs/tenant-member-management.md](docs/tenant-member-management.md)
+for member capacity, permissions, and local-only database validation. See
+[docs/deployment.md](docs/deployment.md) for the
 GitHub Actions, Cloudflare Pages, Supabase production, verification, and
 rollback handover.
 
@@ -86,7 +96,8 @@ The source-controlled SQL is under `supabase/migrations/`. It creates the
 parking-session and tenant tables, indexes, triggers, tenant-membership and
 Super Admin RLS policies, private photo policies, tenant lifecycle and
 membership-management operations, the temporary-password access gate, and
-the versioned device-session policy and enforcement work.
+the versioned device-session policy and enforcement work, member-capacity
+and entry-permission enforcement.
 Migration files are reviewable source; applying them to a hosted project is a
 separate operation.
 

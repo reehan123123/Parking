@@ -117,7 +117,7 @@ Before live testing:
    `supabase/migrations/20261014160000_create_parking_sessions_security.sql`
    `supabase/migrations/20261018185121_tenant_administration.sql`, and all
    subsequent timestamped migrations through
-   `supabase/migrations/20261024090000_device_session_limits.sql`.
+   `supabase/migrations/20261024100000_tenant_member_limits_permissions.sql`.
 2. Apply any pending migrations to the intended Supabase project through the
    approved Supabase workflow. Do not reset the project or run an unreviewed
    migration.
@@ -160,13 +160,17 @@ Before live testing:
     or used; none of these secret values are committed, logged, or present
     in Dart/browser code. See `docs/security.md` for the full architecture
     and the 6-recovery-emails-per-account-per-day application-level cap.
-11. Device-session limits are not part of the current production rollout.
-    The migration `20261024090000_device_session_limits.sql` and local
-    `[auth.hook.custom_access_token]` configuration are source-only. Review
+11. Device-session limits and tenant member limits/permissions are not part
+    of the current production rollout. The migrations
+    `20261024090000_device_session_limits.sql` and
+    `20261024100000_tenant_member_limits_permissions.sql`, along with local
+    `[auth.hook.custom_access_token]` configuration, are source-only. Review
     and test them in a local/non-production Supabase environment first.
     Migration application, `supabase config push`, and any production
     frontend deployment require separate explicit approval. See
-    `docs/device-session-limits.md` for the dry-run and staged rollout.
+    `docs/device-session-limits.md` and
+    `docs/tenant-member-management.md` for local dry-run and validation
+    commands.
 
 The frontend deployment alone does not prove hosted RLS or Storage isolation.
 Tenant A members must not be able to read, update, delete, sign, or replace
@@ -299,4 +303,7 @@ As of the 2026-10-19 static-host check:
   static delivery only.
 - Hosted Supabase migration/Auth/RLS/Storage behavior is not yet verified; the
   local app currently reports missing tenant setup.
+- Device-session and tenant-member limit/permission follow-ups remain local.
+  Their migrations have not been applied to the hosted project; no member
+  changes, production data updates, or deployment were performed for them.
 - Android/iPhone production/PWA checks are not yet verified.

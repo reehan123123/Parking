@@ -6,12 +6,25 @@ import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/empty_state_view.dart';
 import '../../device_sessions/data/device_session_repository.dart';
 import '../../device_sessions/presentation/device_sessions_panel.dart';
+import '../../tenants/data/tenant_repository.dart';
+import '../../tenants/domain/parking_tenant.dart';
+import '../../tenants/presentation/tenant_admin_page.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({this.onSignOut, this.deviceSessionRepository, super.key});
+  const SettingsPage({
+    this.onSignOut,
+    this.deviceSessionRepository,
+    this.tenant,
+    this.tenantRepository,
+    this.onMembersChanged,
+    super.key,
+  });
 
   final Future<void> Function()? onSignOut;
   final DeviceSessionRepository? deviceSessionRepository;
+  final ParkingTenant? tenant;
+  final TenantRepository? tenantRepository;
+  final Future<void> Function()? onMembersChanged;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -20,6 +33,31 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   bool _isSigningOut = false;
   String? _errorMessage;
+
+  Future<void> _manageMembers() async {
+    final ParkingTenant? tenant = widget.tenant;
+    final TenantRepository? repository = widget.tenantRepository;
+    if (tenant == null ||
+        repository == null ||
+        tenant.role != ParkingTenantRole.owner) {
+      return;
+    }
+
+    await showTenantMembersDialog(
+      context: context,
+      tenant: tenant,
+      repository: repository,
+      canManageMemberLimit: false,
+      canManageMemberRoles: false,
+    );
+    if (!mounted) {
+      return;
+    }
+    final Future<void> Function()? onMembersChanged = widget.onMembersChanged;
+    if (onMembersChanged != null) {
+      await onMembersChanged();
+    }
+  }
 
   Future<void> _signOut() async {
     final onSignOut = widget.onSignOut;
@@ -98,6 +136,35 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 16),
+              if (widget.tenant?.role == ParkingTenantRole.owner &&
+                  widget.tenantRepository != null) ...[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.settingsManageMembersTitle,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.settingsManageMembersDescription,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.tonalIcon(
+                          onPressed: _manageMembers,
+                          icon: const Icon(Icons.group_outlined),
+                          label: Text(l10n.manageMembersMenuItem),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               if (widget.deviceSessionRepository != null) ...[
                 DeviceSessionsPanel(
                   repository: widget.deviceSessionRepository!,

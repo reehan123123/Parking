@@ -91,6 +91,8 @@ With Docker installed, start and rebuild only the local Supabase database,
 then run pgTAP:
 
 ```powershell
+# Use the disposable local hook-secret setup documented in
+# tenant-member-management.md before running these local-only commands.
 supabase start
 supabase db reset
 supabase test db --local
@@ -106,8 +108,9 @@ npm --prefix local-api run test:device-session-concurrency
 Remove-Item Env:\DEVICE_SESSION_TEST_DATABASE_URL
 ```
 
-The script rejects non-loopback hosts before connecting. Flutter validation
-from the repository root:
+The test accepts only the local Supabase PostgreSQL endpoint (`postgres` on a
+loopback host at port `54322`, database `postgres`) before connecting.
+Flutter validation from the repository root:
 
 ```powershell
 dart format .

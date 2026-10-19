@@ -1,6 +1,6 @@
 # Parking SaaS and Performance Progress
 
-- **Updated:** 2026-10-19
+- **Updated:** 2026-10-20
 - **Branch:** `main`
 - **Baseline commit:** `a3faec0`
 
@@ -152,3 +152,42 @@ the migration was not applied and the functions were not deployed. Hosted
 account creation, RLS behavior, and Super Admin end-to-end access therefore
 remain unverified. The worktree is uncommitted; no push or deployment was
 performed.
+
+## Tenant member limits and parking-entry permissions
+
+- [x] Add the database-backed tenant member limit (default 1, maximum 50),
+      preserving existing memberships and excluding owners from usage.
+- [x] Enforce member capacity atomically in PostgreSQL and mirror the policy
+      in the loopback-only local API.
+- [x] Add independent View/Add/Edit/Delete membership permissions with
+      server-side parking-session and private-photo authorization.
+- [x] Add owner Manage Members settings, Super Admin tenant/member controls,
+      capacity reporting, audit history, and existing device-policy reuse.
+- [x] Add English/Hindi strings, repository/widget/API/pgTAP/concurrency
+      coverage, and member-management/security documentation.
+- [x] Update local PostgreSQL initialization and migration tooling to apply
+      the local member schema and refresh the least-privilege API role grants.
+
+Local validation:
+
+- `dart format .` — passed; 92 Dart files checked, 3 formatted.
+- `flutter analyze` — passed with no issues.
+- `flutter test` — passed; 177 tests.
+- `flutter build web --release` — passed. Flutter emitted the existing
+  non-fatal Cupertino icon-font warning and Wasm dry-run notice.
+- `npm --prefix local-api test` — passed; 4 security tests.
+- `node --check` — passed for the local API server and integration/concurrency
+  tests. PowerShell migration scripts parsed successfully.
+- `git diff --check` — passed.
+
+Database verification remains blocked. `supabase db push --dry-run --local`
+and `supabase test db --local` could not connect to `127.0.0.1:54322`; Docker
+is unavailable. The PostgreSQL concurrency tests were skipped because their
+local Supabase URLs were not configured. The local API integration test
+returned 500 because the existing `parking_local` database lacks the new
+member columns. Applying migration 003 as the runtime `parking_api` role was
+denied because that role does not own the tables; the documented local-owner
+migration path requires the local admin password, which was not available.
+No hosted migration, production data change, commit, push, or deployment was
+performed. The audit-trail wiki could not be updated because
+`LLMWIKI_ROOT` is not configured.

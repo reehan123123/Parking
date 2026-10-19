@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -15,6 +17,7 @@ class DeviceSessionAdminPage extends StatefulWidget {
   const DeviceSessionAdminPage({
     required this.tenants,
     required this.repository,
+    this.initialTenantId,
     super.key,
   });
 
@@ -23,6 +26,7 @@ class DeviceSessionAdminPage extends StatefulWidget {
 
   /// The server-backed Super Admin device-session repository.
   final DeviceSessionAdminRepository repository;
+  final String? initialTenantId;
 
   @override
   State<DeviceSessionAdminPage> createState() => _DeviceSessionAdminPageState();
@@ -229,6 +233,7 @@ class _DeviceSessionAdminPageState extends State<DeviceSessionAdminPage> {
                       repository: widget.repository,
                       platformDeviceLimit: _policy!.deviceLimit,
                       onPolicyChanged: _refreshAuditEvents,
+                      initiallyExpanded: tenant.id == widget.initialTenantId,
                     ),
                   ),
                 const SizedBox(height: 16),
@@ -408,6 +413,7 @@ class _TenantDevicePolicyCard extends StatefulWidget {
     required this.repository,
     required this.platformDeviceLimit,
     required this.onPolicyChanged,
+    this.initiallyExpanded = false,
     super.key,
   });
 
@@ -415,6 +421,7 @@ class _TenantDevicePolicyCard extends StatefulWidget {
   final DeviceSessionAdminRepository repository;
   final int platformDeviceLimit;
   final Future<void> Function() onPolicyChanged;
+  final bool initiallyExpanded;
 
   @override
   State<_TenantDevicePolicyCard> createState() =>
@@ -426,7 +433,7 @@ class _TenantDevicePolicyCardState extends State<_TenantDevicePolicyCard> {
   TenantDeviceSessionPolicy? _policy;
   List<TenantMemberDevicePolicy> _members = const [];
   List<AdminDeviceSession> _sessions = const [];
-  bool _isExpanded = false;
+  late bool _isExpanded = widget.initiallyExpanded;
   bool _isLoading = false;
   bool _isSaving = false;
   String? _errorMessage;
@@ -435,6 +442,14 @@ class _TenantDevicePolicyCardState extends State<_TenantDevicePolicyCard> {
   void dispose() {
     _tenantLimitController.dispose();
     super.dispose();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initiallyExpanded) {
+      unawaited(_load());
+    }
   }
 
   Future<void> _load() async {
@@ -636,6 +651,7 @@ class _TenantDevicePolicyCardState extends State<_TenantDevicePolicyCard> {
     final TenantDeviceSessionPolicy? policy = _policy;
     return Card(
       child: ExpansionTile(
+        initiallyExpanded: widget.initiallyExpanded,
         title: Text(widget.tenant.name),
         subtitle: policy == null
             ? null

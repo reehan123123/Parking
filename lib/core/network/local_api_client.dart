@@ -8,11 +8,13 @@ class LocalApiException implements Exception {
     required this.statusCode,
     required this.code,
     required this.message,
+    this.details,
   });
 
   final int statusCode;
   final String code;
   final String message;
+  final Map<String, dynamic>? details;
 
   @override
   String toString() => message;
@@ -113,6 +115,7 @@ class LocalApiClient {
     final body = decoded ?? _decodeJson(response.body);
     final error = body is Map ? body['error'] : null;
     final errorMap = error is Map ? error : const <Object?, Object?>{};
+    final details = errorMap['details'];
     throw LocalApiException(
       statusCode: response.statusCode,
       code: errorMap['code'] is String
@@ -121,6 +124,11 @@ class LocalApiClient {
       message: errorMap['message'] is String
           ? errorMap['message'] as String
           : 'The local API request failed.',
+      details: details is Map<String, dynamic>
+          ? details
+          : details is Map
+          ? Map<String, dynamic>.from(details)
+          : null,
     );
   }
 

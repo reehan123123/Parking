@@ -2215,6 +2215,312 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The member change failed. Check your connection and retry.'**
   String get memberActionGenericError;
+
+  /// No description provided for @addOnlyAccessTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'You can add parking entries'**
+  String get addOnlyAccessTitle;
+
+  /// No description provided for @addOnlyAccessMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'You can create parking entries but cannot view existing records. Ask the tenant owner to enable View if you need to see them.'**
+  String get addOnlyAccessMessage;
+
+  /// No description provided for @limitedEntryPermissionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'View permission is disabled'**
+  String get limitedEntryPermissionsTitle;
+
+  /// No description provided for @limitedEntryPermissionsMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account has entry-management permissions, but records are not visible without View. Ask the tenant owner to enable View.'**
+  String get limitedEntryPermissionsMessage;
+
+  /// No description provided for @noEntryPermissionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No parking-entry access'**
+  String get noEntryPermissionsTitle;
+
+  /// No description provided for @noEntryPermissionsMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Your tenant owner has not enabled any parking-entry permissions for your account.'**
+  String get noEntryPermissionsMessage;
+
+  /// No description provided for @navAddEntry.
+  ///
+  /// In en, this message translates to:
+  /// **'Add entry'**
+  String get navAddEntry;
+
+  /// No description provided for @navEntryAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Entry access'**
+  String get navEntryAccess;
+
+  /// No description provided for @settingsManageMembersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tenant members'**
+  String get settingsManageMembersTitle;
+
+  /// No description provided for @settingsManageMembersDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage existing accounts in this tenant, their parking-entry permissions, and member usage.'**
+  String get settingsManageMembersDescription;
+
+  /// No description provided for @memberUsageTemplate.
+  ///
+  /// In en, this message translates to:
+  /// **'{active} of {limit} members used (owner excluded)'**
+  String memberUsageTemplate(int active, int limit);
+
+  /// No description provided for @memberUsageLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Member usage loading…'**
+  String get memberUsageLoading;
+
+  /// No description provided for @memberUsageUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Member usage unavailable'**
+  String get memberUsageUnavailable;
+
+  /// No description provided for @memberCapacityLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Tenant member usage could not be loaded.'**
+  String get memberCapacityLoadError;
+
+  /// No description provided for @memberRemainingTemplate.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} member slots remaining'**
+  String memberRemainingTemplate(int count);
+
+  /// No description provided for @memberLimitOwnerHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Only a Super Admin can change this limit. The tenant owner is not counted.'**
+  String get memberLimitOwnerHint;
+
+  /// No description provided for @memberLimitAdminHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Counts member accounts only; the tenant owner is excluded. Allowed range: 1–50.'**
+  String get memberLimitAdminHint;
+
+  /// No description provided for @memberLimitEditButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Change limit'**
+  String get memberLimitEditButton;
+
+  /// No description provided for @memberLimitIncreaseButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Increase member limit'**
+  String get memberLimitIncreaseButton;
+
+  /// No description provided for @memberLimitReachedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Member limit reached'**
+  String get memberLimitReachedTitle;
+
+  /// No description provided for @memberLimitReachedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This tenant uses {active} of {limit} allowed members. Remove a member or ask a Super Admin to increase the limit.'**
+  String memberLimitReachedMessage(int active, int limit);
+
+  /// No description provided for @memberLimitDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set tenant member limit'**
+  String get memberLimitDialogTitle;
+
+  /// No description provided for @memberLimitFieldLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Allowed members'**
+  String get memberLimitFieldLabel;
+
+  /// No description provided for @memberLimitRangeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a whole number from 1 to 50. The owner is excluded.'**
+  String get memberLimitRangeHint;
+
+  /// No description provided for @memberLimitValidation.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a whole number from 1 to 50.'**
+  String get memberLimitValidation;
+
+  /// No description provided for @memberLimitSavedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'The tenant member limit was saved.'**
+  String get memberLimitSavedMessage;
+
+  /// No description provided for @memberNewMemberPermissionNote.
+  ///
+  /// In en, this message translates to:
+  /// **'New members start with View enabled. Add, Edit, and Delete are disabled until granted.'**
+  String get memberNewMemberPermissionNote;
+
+  /// No description provided for @memberAddedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'{email} was added to the tenant.'**
+  String memberAddedMessage(String email);
+
+  /// No description provided for @memberPermissionsEditButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit entry permissions'**
+  String get memberPermissionsEditButton;
+
+  /// No description provided for @memberPermissionsDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Entry permissions: {email}'**
+  String memberPermissionsDialogTitle(String email);
+
+  /// No description provided for @memberPermissionsDialogDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Permissions apply to all parking entries in this tenant and are enforced by the server. Edit or Delete does not grant View; members without View cannot browse existing entries.'**
+  String get memberPermissionsDialogDescription;
+
+  /// No description provided for @memberPermissionView.
+  ///
+  /// In en, this message translates to:
+  /// **'View'**
+  String get memberPermissionView;
+
+  /// No description provided for @memberPermissionAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get memberPermissionAdd;
+
+  /// No description provided for @memberPermissionEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get memberPermissionEdit;
+
+  /// No description provided for @memberPermissionDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get memberPermissionDelete;
+
+  /// No description provided for @memberPermissionNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No entry access'**
+  String get memberPermissionNone;
+
+  /// No description provided for @memberPermissionViewDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Read parking entries in this tenant.'**
+  String get memberPermissionViewDescription;
+
+  /// No description provided for @memberPermissionAddDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Create new parking entries.'**
+  String get memberPermissionAddDescription;
+
+  /// No description provided for @memberPermissionEditDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Modify existing parking entries.'**
+  String get memberPermissionEditDescription;
+
+  /// No description provided for @memberPermissionDeleteDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete or archive entries according to the application\'s policy.'**
+  String get memberPermissionDeleteDescription;
+
+  /// No description provided for @memberPermissionsSavedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Entry permissions were saved.'**
+  String get memberPermissionsSavedMessage;
+
+  /// No description provided for @memberCreatedAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Added {date}'**
+  String memberCreatedAt(String date);
+
+  /// No description provided for @memberAuditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent member and limit changes'**
+  String get memberAuditTitle;
+
+  /// No description provided for @memberAuditEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No member-management changes have been recorded.'**
+  String get memberAuditEmpty;
+
+  /// No description provided for @memberAuditLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Member change history could not be loaded.'**
+  String get memberAuditLoadError;
+
+  /// No description provided for @memberAuditAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Member added'**
+  String get memberAuditAdded;
+
+  /// No description provided for @memberAuditRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Member removed'**
+  String get memberAuditRemoved;
+
+  /// No description provided for @memberAuditRoleChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Member role changed'**
+  String get memberAuditRoleChanged;
+
+  /// No description provided for @memberAuditPermissionsChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Entry permissions changed'**
+  String get memberAuditPermissionsChanged;
+
+  /// No description provided for @memberAuditLimitChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Member limit changed'**
+  String get memberAuditLimitChanged;
+
+  /// No description provided for @memberManageDevicePolicies.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage device policies'**
+  String get memberManageDevicePolicies;
 }
 
 class _AppLocalizationsDelegate

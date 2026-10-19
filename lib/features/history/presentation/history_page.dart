@@ -217,6 +217,7 @@ class _HistoryPageState extends State<HistoryPage> with WidgetsBindingObserver {
         builder: (context) => ParkingSessionDetailsPage(
           repository: widget.repository!,
           session: session,
+          permissions: widget.scope.permissions,
           onDataChanged: _handleDataChanged,
         ),
       ),

@@ -37,6 +37,35 @@ void main() {
       expect(store.lastTenantIds, ['tenant-a']);
     });
 
+    test(
+      'rejects missing member permissions instead of granting access',
+      () async {
+        final store = _FakeTenantStore()
+          ..membershipRows = [
+            {'tenant_id': 'tenant-a', 'role': 'member'},
+          ]
+          ..tenantRows = [
+            {
+              'id': 'tenant-a',
+              'name': 'North lot',
+              'slug': 'north-lot',
+              'archived_at': null,
+            },
+          ];
+
+        await expectLater(
+          SupabaseTenantRepository(null, tenantStore: store).loadAccess(),
+          throwsA(
+            isA<TenantRepositoryException>().having(
+              (error) => error.message,
+              'message',
+              contains('access data is invalid'),
+            ),
+          ),
+        );
+      },
+    );
+
     test('loads bootstrap tenant choices before device registration', () async {
       final store = _FakeDeviceSessionTenantStore()
         ..choiceRows = [
@@ -301,7 +330,16 @@ void main() {
     test('lists and manages tenant members', () async {
       final store = _FakeTenantStore()
         ..memberRows = [
-          {'user_id': 'user-a', 'email': 'owner@example.com', 'role': 'owner'},
+          {
+            'user_id': 'user-a',
+            'email': 'owner@example.com',
+            'role': 'owner',
+            'created_at': '2026-10-01T00:00:00Z',
+            'can_view_entries': true,
+            'can_add_entries': true,
+            'can_edit_entries': true,
+            'can_delete_entries': true,
+          },
         ];
       final repository = SupabaseTenantRepository(null, tenantStore: store);
 
@@ -320,10 +358,96 @@ void main() {
 
       expect(members.single.email, 'owner@example.com');
       expect(members.single.role, ParkingTenantRole.owner);
+      expect(members.single.permissions.canDelete, isTrue);
+      expect(members.single.createdAt, DateTime.utc(2026, 10, 1));
       expect(store.lastEmail, 'member@example.com');
       expect(store.lastRole, 'member');
       expect(store.updateMemberRoleCalls, 1);
       expect(store.removeMemberCalls, 1);
+    });
+
+    test('maps member capacity and saves a validated limit', () async {
+      final store = _FakeTenantStore()
+        ..capacityRow = {
+          'member_limit': 4,
+          'active_member_count': 2,
+          'remaining_member_count': 2,
+        };
+      final repository = SupabaseTenantRepository(null, tenantStore: store);
+
+      final capacity = await repository.getMemberCapacity(tenantId: 'tenant-a');
+      final updated = await repository.setMemberLimit(
+        tenantId: 'tenant-a',
+        memberLimit: 5,
+      );
+
+      expect(capacity.memberLimit, 4);
+      expect(capacity.activeMemberCount, 2);
+      expect(capacity.remainingMemberCount, 2);
+      expect(updated.memberLimit, 5);
+      expect(store.lastMemberLimit, 5);
+    });
+
+    test('maps member-limit violations as a typed exception', () async {
+      final store = _FakeTenantStore()
+        ..managementError = const PostgrestException(
+          message: 'MEMBER_LIMIT_REACHED',
+          code: 'P0001',
+          details: '{"memberLimit":1,"activeMemberCount":1,"remainingMemberCount":0}',
+        );
+
+      await expectLater(
+        SupabaseTenantRepository(null, tenantStore: store).addMember(
+          tenantId: 'tenant-a',
+          email: 'member@example.com',
+          role: ParkingTenantRole.member,
+        ),
+        throwsA(
+          isA<TenantMemberLimitReachedException>()
+              .having((error) => error.memberLimit, 'memberLimit', 1)
+              .having(
+                (error) => error.activeMemberCount,
+                'activeMemberCount',
+                1,
+              )
+              .having(
+                (error) => error.remainingMemberCount,
+                'remainingMemberCount',
+                0,
+              ),
+        ),
+      );
+    });
+
+    test('maps member-limit violations from role changes', () async {
+      final store = _FakeTenantStore()
+        ..managementError = const PostgrestException(
+          message: 'MEMBER_LIMIT_REACHED',
+          code: 'P0001',
+          details: '{"memberLimit":1,"activeMemberCount":1,"remainingMemberCount":0}',
+        );
+
+      await expectLater(
+        SupabaseTenantRepository(null, tenantStore: store).updateMemberRole(
+          tenantId: 'tenant-a',
+          userId: 'user-a',
+          role: ParkingTenantRole.member,
+        ),
+        throwsA(
+          isA<TenantMemberLimitReachedException>()
+              .having((error) => error.memberLimit, 'memberLimit', 1)
+              .having(
+                (error) => error.activeMemberCount,
+                'activeMemberCount',
+                1,
+              )
+              .having(
+                (error) => error.remainingMemberCount,
+                'remainingMemberCount',
+                0,
+              ),
+        ),
+      );
     });
 
     test('prevents removing the last tenant owner', () async {
@@ -369,6 +493,13 @@ class _FakeTenantStore implements TenantStore {
     'archived_at': null,
   };
   List<Map<String, dynamic>> memberRows = [];
+  Map<String, dynamic> capacityRow = {
+    'member_limit': 1,
+    'active_member_count': 0,
+    'remaining_member_count': 1,
+  };
+  List<Map<String, dynamic>> capacityRows = [];
+  List<Map<String, dynamic>> auditRows = [];
   Object? createError;
   PostgrestException? managementError;
   PostgrestException? accessError;
@@ -380,6 +511,7 @@ class _FakeTenantStore implements TenantStore {
   String? lastRequestId;
   String? lastEmail;
   String? lastRole;
+  int? lastMemberLimit;
   bool? lastIsActive;
   DateTime? lastValidUntil;
   String? lastContactName;
@@ -391,6 +523,7 @@ class _FakeTenantStore implements TenantStore {
   int archiveTenantCalls = 0;
   int restoreTenantCalls = 0;
   int updateMemberRoleCalls = 0;
+  int setMemberPermissionsCalls = 0;
   int removeMemberCalls = 0;
 
   @override
@@ -501,6 +634,53 @@ class _FakeTenantStore implements TenantStore {
   }
 
   @override
+  Future<Map<String, dynamic>> getTenantMemberCapacity({
+    required String tenantId,
+  }) async {
+    lastTenantId = tenantId;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+    return capacityRow;
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listTenantMemberCapacities() async {
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+    return capacityRows;
+  }
+
+  @override
+  Future<Map<String, dynamic>> setTenantMemberLimit({
+    required String tenantId,
+    required int memberLimit,
+  }) async {
+    lastTenantId = tenantId;
+    lastMemberLimit = memberLimit;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+    return {...capacityRow, 'member_limit': memberLimit};
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listTenantMemberAuditEvents({
+    required String tenantId,
+  }) async {
+    lastTenantId = tenantId;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+    return auditRows;
+  }
+
+  @override
   Future<Map<String, dynamic>> addTenantMember({
     required String tenantId,
     required String email,
@@ -526,6 +706,21 @@ class _FakeTenantStore implements TenantStore {
     lastTenantId = tenantId;
     lastUserId = userId;
     lastRole = role;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+  }
+
+  @override
+  Future<void> setTenantMemberPermissions({
+    required String tenantId,
+    required String userId,
+    required TenantEntryPermissions permissions,
+  }) async {
+    setMemberPermissionsCalls++;
+    lastTenantId = tenantId;
+    lastUserId = userId;
     final error = managementError;
     if (error != null) {
       throw error;

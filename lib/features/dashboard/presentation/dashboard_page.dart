@@ -178,6 +178,7 @@ class _DashboardPageState extends State<DashboardPage>
         builder: (context) => ParkingSessionDetailsPage(
           repository: widget.repository!,
           session: session,
+          permissions: widget.scope.permissions,
           onDataChanged: _handleDataChanged,
         ),
       ),

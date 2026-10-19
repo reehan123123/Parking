@@ -65,9 +65,26 @@ project settings, passwords, or service-role credentials.
 
 `public.tenants` identifies parking workspaces.
 `public.tenant_memberships` maps Auth users to workspaces with `owner` or
-`member` role. A Super Admin can add or remove existing Auth users and change
-their tenant role. Both roles currently have the same parking-session
-permissions.
+`member` role. Tenant owners have full access within their tenant. Member
+accounts receive independent View, Add, Edit, and Delete permissions;
+Super Admins retain platform-wide access under the existing role policy.
+
+The member-management migration stores a positive tenant member limit
+(default 1, maximum 50) in `public.tenants.member_limit`; owners do not consume
+slots. Active usage is the count of member-role membership rows. Existing
+memberships are preserved during the default backfill, and existing members
+retain their former full access. New members default to View-only. There is no
+member invitation, account-provisioning, or soft-deletion flow.
+
+Database RPCs serialize member additions and owner-to-member role changes
+with a tenant-row lock before checking capacity. A full tenant receives the
+stable `MEMBER_LIMIT_REACHED` error and structured limit/usage details.
+Super Admins alone can change limits; owners can manage member-role accounts
+only in their own tenant. Authenticated clients cannot directly change
+membership roles, permission flags, or member limits. Membership and policy
+changes are recorded in tenant-scoped audit events. Removal revokes that
+member's registered device sessions in the tenant but preserves the shared
+Auth identity and parking history.
 
 The tenant migration creates a `Personal workspace` and owner membership for
 each existing Auth user, then assigns that user's existing parking sessions
@@ -84,10 +101,13 @@ provisioning status must be verified separately.
 `public.parking_sessions` retains `created_by` for audit and photo path
 compatibility and has a required `tenant_id`. RLS enforces:
 
-- Select, update, and delete are allowed only for a member of the row's
-  tenant or a database-recognized Super Admin.
-- Inserts must use the caller's Auth user ID as `created_by` and a tenant the
-  caller belongs to, unless the caller is a Super Admin.
+- Select requires View; insert requires Add and the caller's Auth user ID as
+  `created_by`; update requires Edit; delete requires Delete (with a narrow
+  pending-photo cleanup exception for the creator). Owners and
+  database-recognized Super Admins retain full access.
+- Every operation checks the row's tenant and the registered active
+  device-session gate for ordinary tenant users. A client-supplied tenant ID,
+  membership role, or permission flag cannot grant access.
 - Non-admin users cannot change a session's `tenant_id` or `created_by`.
 - Authenticated users cannot insert or update rows in `public.super_admins`.
 - Tenant creation is restricted to Super Admins. The authenticated
@@ -105,8 +125,11 @@ compatibility and has a required `tenant_id`. RLS enforces:
 
 The Flutter repository sends an explicit selected-tenant filter for list and
 summary queries. A global Super Admin view omits that filter; RLS still
-enforces the caller's real role in both cases. Direct-ID lookups and mutations
-also rely on RLS rather than trusting client-side ownership filters.
+enforces the caller's real role and entry permission in both cases. Direct-ID
+lookups and mutations also rely on RLS rather than trusting client-side
+ownership filters. The owner Settings screen and Super Admin tenant manager
+call scoped RPCs; ordinary members are not granted owner-management
+capabilities.
 
 ## Concurrent device-session limits
 
@@ -144,10 +167,13 @@ The `vehicle-photos` bucket remains private. The object path remains:
 
 Each Storage operation verifies that the second path component identifies a
 parking session, that the first component matches that row's `created_by`,
-and that the current user is a member of the session tenant or a Super Admin.
-This preserves existing object paths while granting access at the tenant
-boundary. Signed URLs are created only after the associated session and photo
-path are verified through the authenticated client.
+that the object name exactly matches the row's recorded `photo_path`, and
+that the caller has the matching View, Add, Edit, or Delete permission for
+the session tenant. Add permission has a narrow creator-only exception for
+uploading and cleaning up a pending photo. This preserves existing object
+paths while granting access at the tenant boundary. Signed URLs are created
+only after the associated session and photo path are verified through the
+authenticated client.
 
 The save sequence remains row first, Storage upload second, with cleanup on
 failure. Photo deletion precedes session deletion; cleanup failures remain
@@ -258,16 +284,24 @@ The source-controlled database tests are
 `supabase/tests/parking_sessions_rls.test.sql` and
 `supabase/tests/vehicle_photos_rls.test.sql`,
 `supabase/tests/tenant_management.test.sql`, and
-`supabase/tests/tenant_owner_onboarding.test.sql`. Run them with Supabase CLI
-and Docker against a local or non-production project:
+`supabase/tests/tenant_owner_onboarding.test.sql`,
+`supabase/tests/device_session_limits.test.sql`, and
+`supabase/tests/tenant_member_limits_permissions.test.sql`. Run them only
+against the local Supabase database:
 
 ```powershell
-supabase test db
+supabase test db --local
 ```
 
-The SQL tests have not been executed in this environment. Hosted RLS, two-user
-tenant isolation, private-photo access, live Super Admin provisioning, and
-production migration state remain unverified.
+The member and device concurrency tests also require an explicit local
+Supabase PostgreSQL URL using the `postgres` role, a loopback host, port
+`54322`, and the `postgres` database; see
+[tenant member management](tenant-member-management.md) and
+[device-session limits](device-session-limits.md). Docker is unavailable in
+the current environment, so pgTAP and PostgreSQL concurrency tests have not
+been executed. Hosted RLS, two-user tenant isolation, private-photo access,
+live Super Admin provisioning, and production migration state remain
+unverified.
 
 Inspect for privileged credential patterns:
 

@@ -5,13 +5,14 @@ $psqlPath = 'C:\Program Files\PostgreSQL\16\bin\psql.exe'
 $databaseName = 'parking_local'
 $adminRole = 'postgres1'
 $environmentFile = Join-Path $repositoryRoot 'local-api\.env.local-api'
-$migrationFile = Join-Path $repositoryRoot 'local-api\migrations\001_local_schema.sql'
+$migrationDirectory = Join-Path $repositoryRoot 'local-api\migrations'
+$initialMigrationFile = Join-Path $migrationDirectory '001_local_schema.sql'
 $storageDirectory = Join-Path $repositoryRoot 'local-api\storage\vehicle-photos'
 
 if (-not (Test-Path -LiteralPath $psqlPath)) {
   throw "PostgreSQL client not found at $psqlPath."
 }
-if (-not (Test-Path -LiteralPath $migrationFile)) {
+if (-not (Test-Path -LiteralPath $initialMigrationFile)) {
   throw 'The local PostgreSQL schema migration is missing.'
 }
 
@@ -89,7 +90,18 @@ try {
 
   Invoke-LocalPsql `
     -Database $databaseName `
-    -Sql (Get-Content -LiteralPath $migrationFile -Raw) | Out-Null
+    -Sql (Get-Content -LiteralPath $initialMigrationFile -Raw) | Out-Null
+
+  $incrementalMigrations = @(
+    Get-ChildItem -LiteralPath $migrationDirectory -File -Filter '*.sql' |
+      Where-Object { $_.Name -ne '001_local_schema.sql' } |
+      Sort-Object Name
+  )
+  foreach ($migration in $incrementalMigrations) {
+    Invoke-LocalPsql `
+      -Database $databaseName `
+      -Sql (Get-Content -LiteralPath $migration.FullName -Raw) | Out-Null
+  }
 
   $appPasswordBytes = [byte[]]::new(32)
   [Security.Cryptography.RandomNumberGenerator]::Fill($appPasswordBytes)

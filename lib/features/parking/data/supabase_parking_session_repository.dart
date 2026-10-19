@@ -201,6 +201,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       plateNumber: plateNumber,
       userId: userId,
       tenantId: tenantId,
+      hasPhoto: photo != null,
     );
 
     late final String sessionId;
@@ -234,6 +235,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
         photoPath: photoPath,
       );
       await _photoStorage.upload(path: photoPath, photo: photo);
+      await _sessionStore.completePhotoUpload(sessionId: sessionId);
     } on Exception catch (error) {
       return _handleSaveFailure(
         sessionId: sessionId,
@@ -516,6 +518,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
     required String plateNumber,
     required String userId,
     required String tenantId,
+    required bool hasPhoto,
   }) {
     return {
       'tenant_id': tenantId,
@@ -529,6 +532,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       'total_charge': session.totalCharge,
       'paid_amount': session.paidAmount,
       'contact_number': session.contactNumber,
+      'has_photo': hasPhoto,
     };
   }
 
@@ -871,12 +875,20 @@ class _SupabaseParkingSessionStore implements ParkingSessionStore {
 
   @override
   Future<String> insert(Map<String, dynamic> values) async {
-    final row = await _client
-        .from('parking_sessions')
-        .insert(values)
-        .select('id')
-        .single();
-    final id = row['id'];
+    final id = await _client.rpc(
+      'create_parking_session',
+      params: {
+        'p_tenant_id': values['tenant_id'],
+        'p_plate_number': values['plate_number'],
+        'p_entry_time': values['entry_time'],
+        'p_allowed_duration_value': values['allowed_duration_value'],
+        'p_allowed_duration_unit': values['allowed_duration_unit'],
+        'p_expires_at': values['expires_at'],
+        'p_total_charge': values['total_charge'],
+        'p_paid_amount': values['paid_amount'],
+        'p_has_photo': values['has_photo'],
+      },
+    );
     if (id is! String || id.isEmpty) {
       throw const FormatException(
         'Supabase did not return a parking session id.',
@@ -953,7 +965,18 @@ class _SupabaseParkingSessionStore implements ParkingSessionStore {
     required String sessionId,
     required String photoPath,
   }) async {
-    await update(sessionId: sessionId, values: {'photo_path': photoPath});
+    await _client.rpc(
+      'set_new_parking_session_photo_path',
+      params: {'p_session_id': sessionId, 'p_photo_path': photoPath},
+    );
+  }
+
+  @override
+  Future<void> completePhotoUpload({required String sessionId}) async {
+    await _client.rpc(
+      'complete_parking_session_photo_upload',
+      params: {'p_session_id': sessionId},
+    );
   }
 
   @override

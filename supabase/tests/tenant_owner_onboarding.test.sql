@@ -25,19 +25,21 @@ values
     '{}'::jsonb
   );
 
-insert into public.tenants (id, name, slug, created_by)
+insert into public.tenants (id, name, slug, created_by, valid_until)
 values
   (
     'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
     'Temporary owner workspace',
     'temporary-owner-workspace',
-    '66666666-6666-6666-6666-666666666666'
+    '66666666-6666-6666-6666-666666666666',
+    (now() at time zone 'Asia/Kolkata')::date + 3650
   ),
   (
     'ffffffff-ffff-ffff-ffff-ffffffffffff',
     'Regular owner workspace',
     'regular-owner-workspace',
-    '66666666-6666-6666-6666-666666666666'
+    '66666666-6666-6666-6666-666666666666',
+    (now() at time zone 'Asia/Kolkata')::date + 3650
   );
 
 insert into public.tenant_memberships (tenant_id, user_id, role)

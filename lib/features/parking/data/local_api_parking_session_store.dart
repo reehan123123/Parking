@@ -77,7 +77,23 @@ class LocalApiParkingSessionStore implements ParkingSessionStore {
     required String sessionId,
     required String photoPath,
   }) {
-    return update(sessionId: sessionId, values: {'photo_path': photoPath});
+    return _api
+        .requestJson(
+          'POST',
+          '/api/parking-sessions/${Uri.encodeComponent(sessionId)}/photo-path',
+          body: {'photo_path': photoPath},
+        )
+        .then((_) {});
+  }
+
+  @override
+  Future<void> completePhotoUpload({required String sessionId}) {
+    return _api
+        .requestJson(
+          'POST',
+          '/api/parking-sessions/${Uri.encodeComponent(sessionId)}/photo-complete',
+        )
+        .then((_) {});
   }
 
   @override

@@ -7,12 +7,22 @@ const databaseUrl = process.env.DEVICE_SESSION_TEST_DATABASE_URL;
 
 test(
   'concurrent registrations serialize the final device slot',
-  { skip: databaseUrl ? false : 'Set DEVICE_SESSION_TEST_DATABASE_URL to a local Supabase database.' },
+  {
+    skip: databaseUrl
+      ? false
+      : 'Set DEVICE_SESSION_TEST_DATABASE_URL to a local Supabase database.',
+  },
   async () => {
     const databaseUri = new URL(databaseUrl);
-    if (!['localhost', '127.0.0.1', '[::1]'].includes(databaseUri.hostname)) {
+    const isLocalSupabaseDatabase =
+      ['postgres:', 'postgresql:'].includes(databaseUri.protocol) &&
+      ['localhost', '127.0.0.1', '[::1]', '::1'].includes(databaseUri.hostname) &&
+      databaseUri.port === '54322' &&
+      databaseUri.pathname === '/postgres' &&
+      databaseUri.username === 'postgres';
+    if (!isLocalSupabaseDatabase) {
       throw new Error(
-        'The device-session concurrency test only allows a loopback database host.',
+        'The device-session concurrency test requires the local Supabase PostgreSQL endpoint.',
       );
     }
 
@@ -35,8 +45,20 @@ test(
         [userId, email],
       );
       await setupClient.query(
-        `insert into public.tenants (id, name, slug, created_by)
-         values ($1, $2, $3, $4)`,
+        `insert into public.tenants (
+           id,
+           name,
+           slug,
+           created_by,
+           valid_until
+         )
+         values (
+           $1,
+           $2,
+           $3,
+           $4,
+           (now() at time zone 'Asia/Kolkata')::date + 3650
+         )`,
         [
           tenantId,
           'Device session concurrency test',

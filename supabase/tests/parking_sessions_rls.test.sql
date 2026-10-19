@@ -8,19 +8,21 @@ values
   ('22222222-2222-2222-2222-222222222222', 'other@example.com'),
   ('33333333-3333-3333-3333-333333333333', 'admin@example.com');
 
-insert into public.tenants (id, name, slug, created_by)
+insert into public.tenants (id, name, slug, created_by, valid_until)
 values
   (
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
     'Owner workspace',
     'owner-workspace',
-    '11111111-1111-1111-1111-111111111111'
+    '11111111-1111-1111-1111-111111111111',
+    (now() at time zone 'Asia/Kolkata')::date + 3650
   ),
   (
     'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
     'Other workspace',
     'other-workspace',
-    '22222222-2222-2222-2222-222222222222'
+    '22222222-2222-2222-2222-222222222222',
+    (now() at time zone 'Asia/Kolkata')::date + 3650
   );
 
 insert into public.tenant_memberships (tenant_id, user_id, role)

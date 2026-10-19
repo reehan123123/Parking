@@ -323,14 +323,12 @@ class _AppShellState extends State<AppShell> {
           tenantId: selectedTenantId,
         );
       }
-      final showAdmin = access.isSuperAdmin && widget.tenantRepository != null;
-      final destinationCount = showAdmin ? 4 : 3;
 
       setState(() {
         _tenantAccess = access;
         _selectedTenantId = selectedTenantId;
         _deviceLimitTenantId = selectedTenantId;
-        _selectedIndex = _selectedIndex < destinationCount ? _selectedIndex : 0;
+        _selectedIndex = 0;
         _isLoadingTenantAccess = false;
         _dataVersion++;
       });
@@ -425,6 +423,7 @@ class _AppShellState extends State<AppShell> {
     }
     setState(() {
       _selectedTenantId = tenantId;
+      _selectedIndex = 0;
       _dataVersion++;
     });
   }
@@ -445,7 +444,10 @@ class _AppShellState extends State<AppShell> {
   ) async {
     final l10n = AppLocalizations.of(context);
     final repository = widget.parkingSessionRepository;
-    if (repository == null) {
+    final selectedTenant = _tenantForId(access, _selectedTenantId);
+    if (repository == null ||
+        (!access.isSuperAdmin &&
+            !(selectedTenant?.entryPermissions.canAdd ?? false))) {
       return;
     }
     var tenantId = _selectedTenantId;
@@ -587,59 +589,111 @@ class _AppShellState extends State<AppShell> {
       );
     }
 
-    final scope = ParkingTenantScope(
-      isSuperAdmin: access.isSuperAdmin,
-      tenantId: _selectedTenantId,
-    );
     final activeTenants = access.tenants
         .where((tenant) => !tenant.isArchived)
         .toList(growable: false);
+    final selectedTenant = _tenantForId(access, _selectedTenantId);
+    final permissions = access.isSuperAdmin
+        ? const TenantEntryPermissions.all()
+        : selectedTenant?.entryPermissions ??
+              const TenantEntryPermissions.viewOnly();
+    final scope = ParkingTenantScope(
+      isSuperAdmin: access.isSuperAdmin,
+      tenantId: _selectedTenantId,
+      permissions: permissions,
+    );
     final canCreateParkingEntry =
         widget.parkingSessionRepository != null &&
+        scope.canAddEntries &&
         (_selectedTenantId != null ||
             (access.isSuperAdmin && activeTenants.isNotEmpty));
     final showAdmin = access.isSuperAdmin && widget.tenantRepository != null;
-    final destinations = _destinations(context, showAdmin: showAdmin);
+    final destinations = _destinations(
+      context,
+      showAdmin: showAdmin,
+      canViewEntries: scope.canViewEntries,
+      canAddEntries: scope.canAddEntries,
+    );
+    final pages = <Widget>[];
+    if (scope.canViewEntries) {
+      pages
+        ..add(
+          DashboardPage(
+            scope: scope,
+            repository: widget.parkingSessionRepository,
+            onNewParkingEntry: canCreateParkingEntry
+                ? () => _openNewParkingEntry(context, access)
+                : null,
+            onViewHistory: () => _selectDestination(1),
+            onDataChanged: _notifyDataChanged,
+            refreshToken: _dataVersion,
+          ),
+        )
+        ..add(
+          HistoryPage(
+            scope: scope,
+            repository: widget.parkingSessionRepository,
+            onDataChanged: _notifyDataChanged,
+            refreshToken: _dataVersion,
+          ),
+        );
+    } else {
+      pages.add(
+        _EntryPermissionState(
+          title: scope.canAddEntries
+              ? l10n.addOnlyAccessTitle
+              : permissions.hasAnyPermission
+              ? l10n.limitedEntryPermissionsTitle
+              : l10n.noEntryPermissionsTitle,
+          message: scope.canAddEntries
+              ? l10n.addOnlyAccessMessage
+              : permissions.hasAnyPermission
+              ? l10n.limitedEntryPermissionsMessage
+              : l10n.noEntryPermissionsMessage,
+          icon: scope.canAddEntries
+              ? Icons.add_circle_outline
+              : Icons.lock_outline,
+          action: canCreateParkingEntry
+              ? FilledButton.icon(
+                  onPressed: () => _openNewParkingEntry(context, access),
+                  icon: const Icon(Icons.add),
+                  label: Text(l10n.dashboardNewEntry),
+                )
+              : null,
+        ),
+      );
+    }
+    if (showAdmin) {
+      pages.add(
+        TenantAdminPage(
+          access: access,
+          repository: widget.tenantRepository!,
+          deviceSessionAdminRepository:
+              widget.deviceSessionRepository is DeviceSessionAdminRepository
+              ? widget.deviceSessionRepository! as DeviceSessionAdminRepository
+              : null,
+          onTenantChanged: _handleTenantChanged,
+        ),
+      );
+    }
+    pages.add(
+      SettingsPage(
+        onSignOut: widget.onSignOut,
+        deviceSessionRepository: widget.deviceSessionRepository,
+        tenant: selectedTenant,
+        tenantRepository: widget.tenantRepository,
+        onMembersChanged: selectedTenant?.role == ParkingTenantRole.owner
+            ? () => _loadTenantAccess(preferredTenantId: selectedTenant!.id)
+            : null,
+      ),
+    );
+    final selectedIndex = _selectedIndex < pages.length
+        ? _selectedIndex
+        : pages.length - 1;
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 700;
-        final content = IndexedStack(
-          index: _selectedIndex,
-          children: [
-            DashboardPage(
-              scope: scope,
-              repository: widget.parkingSessionRepository,
-              onNewParkingEntry: canCreateParkingEntry
-                  ? () => _openNewParkingEntry(context, access)
-                  : null,
-              onViewHistory: () => _selectDestination(1),
-              onDataChanged: _notifyDataChanged,
-              refreshToken: _dataVersion,
-            ),
-            HistoryPage(
-              scope: scope,
-              repository: widget.parkingSessionRepository,
-              onDataChanged: _notifyDataChanged,
-              refreshToken: _dataVersion,
-            ),
-            if (showAdmin)
-              TenantAdminPage(
-                access: access,
-                repository: widget.tenantRepository!,
-                deviceSessionAdminRepository:
-                    widget.deviceSessionRepository
-                        is DeviceSessionAdminRepository
-                    ? widget.deviceSessionRepository!
-                          as DeviceSessionAdminRepository
-                    : null,
-                onTenantChanged: _handleTenantChanged,
-              ),
-            SettingsPage(
-              onSignOut: widget.onSignOut,
-              deviceSessionRepository: widget.deviceSessionRepository,
-            ),
-          ],
-        );
+        final content = IndexedStack(index: selectedIndex, children: pages);
 
         return Scaffold(
           appBar: AppBar(
@@ -650,7 +704,7 @@ class _AppShellState extends State<AppShell> {
               ? Row(
                   children: [
                     NavigationRail(
-                      selectedIndex: _selectedIndex,
+                      selectedIndex: selectedIndex,
                       onDestinationSelected: _selectDestination,
                       labelType: NavigationRailLabelType.all,
                       destinations: [
@@ -670,7 +724,7 @@ class _AppShellState extends State<AppShell> {
           bottomNavigationBar: isWide
               ? null
               : NavigationBar(
-                  selectedIndex: _selectedIndex,
+                  selectedIndex: selectedIndex,
                   onDestinationSelected: _selectDestination,
                   destinations: [
                     for (final destination in destinations)
@@ -689,31 +743,68 @@ class _AppShellState extends State<AppShell> {
   List<_AppDestination> _destinations(
     BuildContext context, {
     required bool showAdmin,
+    required bool canViewEntries,
+    required bool canAddEntries,
   }) {
     final l10n = AppLocalizations.of(context);
-    return [
-      _AppDestination(
-        label: l10n.navDashboard,
-        icon: Icons.dashboard_outlined,
-        selectedIcon: Icons.dashboard,
-      ),
-      _AppDestination(
-        label: l10n.navHistory,
-        icon: Icons.history_outlined,
-        selectedIcon: Icons.history,
-      ),
-      if (showAdmin)
+    final destinations = <_AppDestination>[];
+    if (canViewEntries) {
+      destinations
+        ..add(
+          _AppDestination(
+            label: l10n.navDashboard,
+            icon: Icons.dashboard_outlined,
+            selectedIcon: Icons.dashboard,
+          ),
+        )
+        ..add(
+          _AppDestination(
+            label: l10n.navHistory,
+            icon: Icons.history_outlined,
+            selectedIcon: Icons.history,
+          ),
+        );
+    } else {
+      destinations.add(
+        _AppDestination(
+          label: canAddEntries ? l10n.navAddEntry : l10n.navEntryAccess,
+          icon: canAddEntries ? Icons.add_circle_outline : Icons.lock_outline,
+          selectedIcon: canAddEntries ? Icons.add_circle : Icons.lock,
+        ),
+      );
+    }
+    if (showAdmin) {
+      destinations.add(
         _AppDestination(
           label: l10n.navAdmin,
           icon: Icons.admin_panel_settings_outlined,
           selectedIcon: Icons.admin_panel_settings,
         ),
+      );
+    }
+    destinations.add(
       _AppDestination(
         label: l10n.navSettings,
         icon: Icons.settings_outlined,
         selectedIcon: Icons.settings,
       ),
-    ];
+    );
+    return destinations;
+  }
+
+  static ParkingTenant? _tenantForId(
+    ParkingTenantAccess access,
+    String? tenantId,
+  ) {
+    if (tenantId == null) {
+      return null;
+    }
+    for (final tenant in access.tenants) {
+      if (tenant.id == tenantId) {
+        return tenant;
+      }
+    }
+    return null;
   }
 
   Widget _buildTenantSelector(
@@ -794,4 +885,36 @@ class _AppDestination {
   final String label;
   final IconData icon;
   final IconData selectedIcon;
+}
+
+class _EntryPermissionState extends StatelessWidget {
+  const _EntryPermissionState({
+    required this.title,
+    required this.message,
+    required this.icon,
+    this.action,
+  });
+
+  final String title;
+  final String message;
+  final IconData icon;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 640),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: EmptyStateView(
+            icon: icon,
+            title: title,
+            message: message,
+            action: action,
+          ),
+        ),
+      ),
+    );
+  }
 }
