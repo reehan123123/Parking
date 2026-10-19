@@ -232,14 +232,12 @@ void main() {
           'archived_at': null,
         };
 
-      final tenant = await SupabaseTenantRepository(
-        null,
-        tenantStore: store,
-      ).updateTenant(
-        tenantId: 'tenant-a',
-        name: ' North Lot ',
-        validUntil: DateTime(2027, 1, 1),
-      );
+      final tenant = await SupabaseTenantRepository(null, tenantStore: store)
+          .updateTenant(
+            tenantId: 'tenant-a',
+            name: ' North Lot ',
+            validUntil: DateTime(2027, 1, 1),
+          );
 
       expect(store.lastTenantId, 'tenant-a');
       expect(store.lastName, 'North Lot');
