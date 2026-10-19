@@ -1,0 +1,14 @@
+{
+  "name": "parking-local-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --env-file=.env.local-api src/server.js",
+    "seed:local-admin": "node --env-file=.env.local-api scripts/seed-local-admin.js",
+    "test": "node --test test/security.test.js",
+    "test:local-api": "node --env-file=.env.local-api --test test/local_api.integration.test.js"
+  },
+  "dependencies": {
+    "pg": "8.23.1"
+  }
+}

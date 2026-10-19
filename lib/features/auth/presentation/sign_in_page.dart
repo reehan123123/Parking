@@ -43,6 +43,12 @@ class _SignInPageState extends State<SignInPage> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+    } on AuthRepositoryException catch (error) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = error.message;
+        });
+      }
     } on AuthException catch (error) {
       if (mounted) {
         setState(() {

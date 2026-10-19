@@ -1,0 +1,5 @@
+[functions.create-tenant-owner]
+verify_jwt = true
+
+[functions.complete-temporary-password-reset]
+verify_jwt = true

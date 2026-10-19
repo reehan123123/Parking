@@ -4,6 +4,11 @@ This document describes how to configure and verify the Parking Management
 PWA's Supabase project without placing privileged credentials in the Flutter
 client.
 
+Supabase remains the production/default backend. For a single local database
+without Docker, Supabase CLI, or a hosted development project, use
+[Local PostgreSQL development](local-development.md); that mode is isolated
+from hosted Supabase and does not apply its migrations.
+
 ## 1. Create or select the project
 
 1. Create or select the Supabase project that will host the application.
@@ -37,6 +42,8 @@ The migrations are applied in timestamp order:
 ```text
 supabase/migrations/20261014160000_create_parking_sessions_security.sql
 supabase/migrations/20261018185121_tenant_administration.sql
+supabase/migrations/20261019090000_tenant_management.sql
+supabase/migrations/20261020090000_tenant_owner_onboarding.sql
 ```
 
 The first migration creates the initial `parking_sessions` table, private
@@ -54,10 +61,17 @@ migration:
   session's tenant membership or the Super Admin role.
 - Adds `public.create_tenant`, which checks the caller's database-backed role
   and atomically assigns an existing Auth account as the new tenant owner.
+- The tenant-management migration adds reversible tenant archiving, tenant
+  renaming, and Super Admin member-management procedures. Archiving retains
+  parking records and photos while suspending tenant-member access.
+- The tenant-owner-onboarding migration adds an idempotent tenant-creation
+  wrapper, a service-role-only Auth account lookup, and a database access gate
+  for accounts that must change a temporary password.
 
-The tenant migration has not been applied to the hosted project. Review it
-and get explicit approval before applying it to production. It preserves
-existing parking rows but changes their authorization boundary.
+The tenant-administration and tenant-management migrations must be reviewed
+and applied in order. They preserve existing parking rows but change their
+authorization boundary. Hosted migration and role-provisioning status must be
+verified before expecting the Admin features to work.
 
 ### Supabase CLI path
 
@@ -74,15 +88,31 @@ The CLI and Docker were unavailable in the development environment, so these
 commands have not been executed here. Do not treat a successful Flutter build
 as proof that the migration reached Supabase.
 
+After applying all migrations, deploy the authenticated Edge Functions:
+
+```powershell
+supabase functions deploy create-tenant-owner
+supabase functions deploy complete-temporary-password-reset
+```
+
+Both functions keep JWT verification enabled. Supabase injects the project
+URL and API-key dictionaries into the Edge Function runtime; the privileged
+secret key is used only server-side. Do not put it in Flutter configuration,
+GitHub build settings, browser assets, or function responses.
+
 Use one migration-application path per environment. If a migration was
 applied manually in the SQL Editor, reconcile Supabase's migration history
 before using `supabase db push`; do not blindly apply the same file again.
 
 ### SQL Editor path
 
-If the initial parking migration is already applied, review and run only
-`20261018185121_tenant_administration.sql` exactly once. Do not rerun the
-initial migration. Confirm that the bucket remains private and RLS is enabled:
+If the initial parking migration is already applied, review and run
+`20261018185121_tenant_administration.sql` exactly once, followed by
+`20261019090000_tenant_management.sql` and
+`20261020090000_tenant_owner_onboarding.sql`, each exactly once. Do not rerun
+the initial migration. Then run
+`supabase/operations/provision_initial_super_admin.sql`. Confirm that the
+bucket remains private and RLS is enabled:
 
 ```sql
 select id, name, public
@@ -119,16 +149,20 @@ Authenticated users cannot read or write `public.super_admins` directly.
 
 ## 4. Create tenant workspaces
 
-Only a Super Admin can use the app's **Admin > Create tenant** form. Enter a
-tenant name and the email address of an account that already exists in
-Supabase Authentication. The database function validates the role and
-atomically creates the workspace and owner membership.
+Only a Super Admin can use the Admin screen to create, rename, archive, and
+restore tenants, or manage tenant membership. An email already registered in
+Supabase Auth is assigned as owner without changing its password. If the
+email is new, `create-tenant-owner` creates the Auth account server-side and
+shows a cryptographically random temporary password once. The administrator
+must forward it securely; the owner must change it at first sign-in before
+any tenant or parking data is accessible. A retry reuses the original
+request ID and returns the same tenant rather than creating a duplicate.
 
-The app does not create Auth users, send invitations, or use a service-role
-key. Create or invite an owner through the intended Supabase Auth process
-first, then create the tenant in the app. Tenant `owner` and `member` roles
-currently share the same parking-session access; granular member-management
-permissions are not implemented.
+The Flutter app never creates Auth users or receives the privileged API key.
+Archiving preserves parking records and photos and can be reversed; removing
+a membership does not delete the Auth account or parking data. A tenant must
+always retain at least one owner. Tenant `owner` and `member` roles share the
+same parking-session permissions.
 
 ## 5. Test the policies
 
@@ -137,6 +171,8 @@ The source-controlled database tests are:
 ```text
 supabase/tests/parking_sessions_rls.test.sql
 supabase/tests/vehicle_photos_rls.test.sql
+supabase/tests/tenant_management.test.sql
+supabase/tests/tenant_owner_onboarding.test.sql
 ```
 
 With the Supabase CLI and Docker available, run them against a local or
@@ -148,9 +184,11 @@ supabase test db
 
 The tests cover anonymous denial, tenant-scoped reads and writes,
 cross-tenant transfer denial, prevention of client-side Super Admin grants,
-Super Admin access, tenant-creation authorization, and private Storage policy
-definitions. They have not been executed in this environment. Hosted RLS and
-photo access still require a safe project and separate test accounts.
+Super Admin access, tenant creation and management, archive/restore behavior,
+owner retention, temporary-password RLS denial, request idempotency, and
+private Storage policy definitions. They have not been executed in this
+environment. Hosted RLS and photo access still require a safe project and
+separate test accounts.
 
 ## 6. Authentication URLs and troubleshooting
 

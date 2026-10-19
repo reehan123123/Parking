@@ -39,6 +39,10 @@ migrate_working_dir/
 .env
 .env.*
 !.env.example
+local-api/.env.local-api
+local-api/storage/
+local-api/node_modules/
+supabase/.temp/
 
 # Symbolication related
 app.*.symbols

@@ -22,25 +22,46 @@ class ParkingSessionListView extends StatelessWidget {
       itemBuilder: (context, index) {
         final session = sessions[index];
         return Card(
-          child: ListTile(
+          child: InkWell(
             onTap: () => onSessionTap(session),
-            leading: CircleAvatar(
-              child: Text(
-                session.plateNumber.isEmpty
-                    ? '?'
-                    : session.plateNumber.substring(0, 1),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    child: Text(
+                      session.plateNumber.isEmpty
+                          ? '?'
+                          : session.plateNumber.substring(0, 1),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          session.plateNumber,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Entry: ${ParkingSessionFormatters.dateTime(context, session.entryTime)}\n'
+                          'Expiry: ${ParkingSessionFormatters.dateTime(context, session.expiresAt)}',
+                        ),
+                        if (session.totalCharge > 0) ...[
+                          const SizedBox(height: 8),
+                          ParkingPaymentStatusChip(session: session),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  ParkingSessionStatusChip(session: session),
+                ],
               ),
             ),
-            title: Text(session.plateNumber),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 6),
-              child: Text(
-                'Entry: ${ParkingSessionFormatters.dateTime(context, session.entryTime)}\n'
-                'Expiry: ${ParkingSessionFormatters.dateTime(context, session.expiresAt)}',
-              ),
-            ),
-            isThreeLine: true,
-            trailing: ParkingSessionStatusChip(session: session),
           ),
         );
       },
@@ -54,23 +75,94 @@ class ParkingSessionStatusChip extends StatelessWidget {
   final ParkingSession session;
   final DateTime? now;
 
+  /// Returns how far an active session has progressed through its allowed
+  /// duration, as a value clamped to `[0, 1]`. A zero-length or already
+  /// elapsed window reports `1` (treated as fully elapsed).
+  static double elapsedFraction(ParkingSession session, DateTime now) {
+    final totalMs = session.expiresAt
+        .difference(session.entryTime)
+        .inMilliseconds;
+    if (totalMs <= 0) {
+      return 1;
+    }
+    final elapsedMs = now.difference(session.entryTime).inMilliseconds;
+    return (elapsedMs / totalMs).clamp(0, 1).toDouble();
+  }
+
+  /// Steps the elapsed-duration fraction into a traffic-light color band
+  /// that shifts every 30% of the allowed duration: green, amber, deep
+  /// orange, then red as the session approaches or passes expiry.
+  static Color activeBandColor(double elapsedFraction) {
+    if (elapsedFraction < 0.3) {
+      return Colors.green.shade600;
+    }
+    if (elapsedFraction < 0.6) {
+      return Colors.amber.shade700;
+    }
+    if (elapsedFraction < 0.9) {
+      return Colors.deepOrange.shade600;
+    }
+    return Colors.red.shade700;
+  }
+
   @override
   Widget build(BuildContext context) {
-    final status = session.statusAt(now ?? DateTime.now());
+    final resolvedNow = now ?? DateTime.now();
+    final status = session.statusAt(resolvedNow);
     final colorScheme = Theme.of(context).colorScheme;
     final isActive = status == ParkingSessionStatus.active;
+    final activeColor = isActive
+        ? activeBandColor(elapsedFraction(session, resolvedNow))
+        : null;
     return Chip(
       avatar: Icon(
         isActive ? Icons.check_circle_outline : Icons.history,
         size: 18,
-        color: isActive
-            ? colorScheme.onSecondaryContainer
-            : colorScheme.onSurfaceVariant,
+        color: isActive ? Colors.white : colorScheme.onSurfaceVariant,
       ),
-      label: Text(isActive ? 'Active' : 'Expired'),
+      label: Text(
+        isActive ? 'Active' : 'Expired',
+        style: isActive ? const TextStyle(color: Colors.white) : null,
+      ),
       backgroundColor: isActive
-          ? colorScheme.secondaryContainer
+          ? activeColor
           : colorScheme.surfaceContainerHighest,
+    );
+  }
+}
+
+class ParkingPaymentStatusChip extends StatelessWidget {
+  const ParkingPaymentStatusChip({required this.session, super.key});
+
+  final ParkingSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = session.paymentStatus;
+    final colorScheme = Theme.of(context).colorScheme;
+    final (label, icon) = switch (status) {
+      ParkingPaymentStatus.paid => ('Paid', Icons.check_circle_outline),
+      ParkingPaymentStatus.partiallyPaid => (
+        'Partially paid',
+        Icons.hourglass_bottom_outlined,
+      ),
+      ParkingPaymentStatus.unpaid => ('Unpaid', Icons.error_outline),
+    };
+    final backgroundColor = switch (status) {
+      ParkingPaymentStatus.paid => colorScheme.secondaryContainer,
+      ParkingPaymentStatus.partiallyPaid => colorScheme.tertiaryContainer,
+      ParkingPaymentStatus.unpaid => colorScheme.errorContainer,
+    };
+    return Tooltip(
+      message:
+          'Total: ${ParkingSessionFormatters.currency(session.totalCharge)}\n'
+          'Paid: ${ParkingSessionFormatters.currency(session.paidAmount)}\n'
+          'Remaining: ${ParkingSessionFormatters.currency(session.remainingBalance)}',
+      child: Chip(
+        avatar: Icon(icon, size: 18),
+        label: Text(label),
+        backgroundColor: backgroundColor,
+      ),
     );
   }
 }
@@ -87,5 +179,9 @@ class ParkingSessionFormatters {
       alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
     );
     return '$date at $time';
+  }
+
+  static String currency(double value) {
+    return '₹${value.toStringAsFixed(2)}';
   }
 }

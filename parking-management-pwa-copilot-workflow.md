@@ -15,7 +15,11 @@ The app is for personal or small private parking use. The priority is minimal ma
 ## 2. Required technology stack
 
 - **Frontend:** Flutter Web with Dart.
-- **Backend/database/authentication:** Supabase (PostgreSQL + Supabase Auth + Row Level Security).
+- **Production backend/database/authentication:** Supabase (PostgreSQL + Supabase Auth + Row Level Security).
+- **Approved local development exception:** a loopback-only API may connect
+  the web app to one local PostgreSQL database without Docker or a hosted
+  Supabase development project. It is opt-in, contains no production data,
+  and must never be deployed; production remains on Supabase.
 - **Photo storage:** Supabase Storage using a private bucket.
 - **Source control:** GitHub.
 - **Web hosting:** Cloudflare Pages, or another static host whose terms permit this use.
@@ -35,7 +39,10 @@ Do not implement these in the first version:
 - Payments, fines, invoicing, subscriptions, or billing.
 - Parking-slot allocation or reservations.
 - Multi-location administration.
-- Custom .NET/API server, Docker, Kubernetes, Redis, background job server, or virtual machine.
+- Custom backend infrastructure as a production architecture, Docker,
+  Kubernetes, Redis, background job server, or virtual machine. The only
+  exception is the explicitly approved loopback-only local PostgreSQL API
+  documented in `docs/local-development.md`.
 - Native Android/iOS build and store release workflows.
 - Mandatory custom domain.
 - Full offline operation or offline photo-upload queue.
@@ -54,7 +61,10 @@ Do not implement these in the first version:
 10. User enters a positive whole-number duration.
 11. App calculates and displays the expiry date/time before saving.
 12. User confirms and saves the parking session.
-13. App uploads the photo to private Supabase Storage and saves the database record with a safe failure-handling strategy.
+13. In production/default mode, the app uploads the photo to private Supabase
+    Storage and saves the database record with a safe failure-handling
+    strategy. In the approved local-only development mode, it uses the local
+    API and local photo directory instead.
 14. Dashboard refreshes and displays the new session with Active/Expired status.
 15. User can search and open session details, including the photo and expiry.
 16. User can edit or delete a session they are authorized to manage.
@@ -65,10 +75,16 @@ Do not implement these in the first version:
 ### 5.1 Authentication
 
 - Require authentication for all parking data and private photos.
-- Use Supabase Auth with a straightforward sign-in flow.
+- Use Supabase Auth with a straightforward sign-in flow in production/default
+  mode. Local-only development uses separate synthetic local accounts; never
+  reuse production credentials there.
 - Do not expose service-role keys or any privileged secret in the Flutter client.
 - Document how the initial user account is created.
 - Do not implement public self-registration unless specifically approved. Prefer invite/admin-created users or a documented private setup.
+- A Super Admin may onboard a new tenant owner through an authenticated
+  server-side Supabase Edge Function. Existing Auth accounts keep their
+  current passwords; newly created accounts receive a one-time temporary
+  password and must change it before tenant data is accessible.
 
 ### 5.2 Dashboard
 
@@ -189,8 +205,16 @@ Keep the schema small. Add tables only when a concrete requirement needs them.
 - Create explicit policies so authenticated users can only read/insert/update/delete records in tenants where they have a membership. Inserts must bind `created_by` to `auth.uid()`, and regular members cannot transfer sessions between tenants or change their creator.
 - Keep Super Admin authorization database-backed. Never allow a client to grant itself the role; only a controlled administrative operation may provision the initial Super Admin.
 - Ensure Storage policies protect photos by checking the related session's creator path and tenant membership, with cross-tenant access reserved for a database-authorized Super Admin. Avoid overly broad authenticated-user policies.
-- Allow only a Super Admin to create a tenant, and assign its owner to an existing Supabase Auth account. Do not create Auth users from the browser or expose a service-role key.
+- Allow only a Super Admin to create a tenant. Assign an existing Auth account
+  without changing its password, or create a missing owner account only in a
+  server-side Edge Function. Never create Auth users from the browser or
+  expose a service-role key. A new account's temporary-password reset must be
+  enforced by both the application gate and RLS until the password changes.
 - The frontend may use only the Supabase project URL and publishable/anon key. Never use the service-role key in the client, GitHub, build artifacts, logs, or documentation.
+- The opt-in local development API must bind to loopback, use only the
+  isolated local database, keep credentials outside the browser and Git, and
+  remain separate from the production Supabase path. Local API tests do not
+  establish Supabase RLS or hosted Storage behavior.
 - Put local configuration/secrets in ignored environment/config files as appropriate. Commit an example configuration file with placeholders, not real secrets.
 - Validate user input in the client and use database constraints/RLS as the security boundary.
 - Do not disable RLS to make a test pass.
@@ -206,7 +230,9 @@ Keep the schema small. Add tables only when a concrete requirement needs them.
   - iPhone: open in Safari → Share → Add to Home Screen.
   - Android: open in Chrome → Install app or Add to Home screen, depending on browser.
 - Test camera access both in a browser tab and when launched from the home screen.
-- Do not promise complete offline operation. The app needs internet for Supabase operations.
+- Do not promise complete offline operation. Production operations need
+  network access to Supabase; local mode requires its local API and database
+  to be running.
 - If a service worker/offline cache is configured, cache only safe static assets. Never cache private API responses or photos in a way that leaks user data.
 - Configure SPA fallback/routing correctly for the selected static host.
 - Verify Flutter Web base-path configuration for the chosen hosting URL.
@@ -297,7 +323,9 @@ At minimum test:
 - Unauthenticated users cannot access parking data or private photos.
 - A tenant member cannot access another tenant's sessions/photos.
 - A regular member cannot change a session's tenant or creator or grant a Super Admin role.
-- A database-provisioned Super Admin can access all tenant sessions/photos and create tenants for existing Auth accounts.
+- A database-provisioned Super Admin can access all tenant sessions/photos
+  and create tenants for existing or new owner accounts through the
+  server-side onboarding flow.
 - No service-role key appears in source, browser bundles, or logs.
 - RLS is enabled and tested.
 - Storage bucket is private.
@@ -339,7 +367,9 @@ Do not generate the entire app in a single uncontrolled change. Use the phases b
 ### Phase 3 — Supabase and security
 - Add Supabase initialization.
 - Create migrations for `parking_sessions`, tenant workspaces/memberships, constraints, indexes, RLS, and private storage policies. Backfill existing users and sessions without changing session ownership or photo paths.
-- Add a database-backed Super Admin role and a guarded tenant-creation operation; keep Auth-user creation outside the browser.
+- Add a database-backed Super Admin role and guarded tenant create, rename,
+  archive/restore, and membership-management operations; keep Auth-user
+  creation outside the browser.
 - Implement sign-in/sign-out and explain initial account setup.
 - Add repository tests or practical verification steps.
 - Never bypass RLS.
@@ -375,7 +405,8 @@ Do not generate the entire app in a single uncontrolled change. Use the phases b
 
 ### Phase 7 — Dashboard, history, edit/delete
 - Implement lists, search, status, detail view, editing, and deletion.
-- Add tenant selection and a role-gated Super Admin screen for creating tenants with existing Auth accounts as owners.
+- Add tenant selection and a role-gated Super Admin screen for creating
+  tenants with existing or newly provisioned Auth accounts as owners.
 - Handle loading, empty, and failure states.
 - Run quality gates.
 
@@ -404,9 +435,11 @@ Follow these rules throughout the project:
 3. Inspect current package documentation/API signatures rather than guessing.
 4. Keep changes small and reviewable.
 5. Explain any new dependency and why Flutter built-ins are insufficient.
-6. Do not introduce paid services, custom servers, native mobile targets,
+6. Do not introduce paid services, production custom servers, native mobile targets,
    OCR or external image-recognition/processing services, or complex
    abstractions. Preserve the existing private Supabase vehicle-photo flow.
+   Keep the explicitly approved loopback-only local PostgreSQL API strictly
+   development-only as documented in `docs/local-development.md`.
 7. Never hardcode credentials or secrets.
 8. Never disable security controls to get a passing test.
 9. Run formatter, analyzer, and tests after meaningful changes.
@@ -423,8 +456,8 @@ added to an Android and iPhone home screen, captures/uploads a vehicle photo,
 accepts manually entered plate details and an allowed duration in
 minutes/hours/days/months, calculates expiry correctly, shows active/expired
 sessions, supports tenant-scoped search and history, provides a database-role
-gated Super Admin panel for tenant creation, enforces tenant and private-photo
-security in Supabase, passes documented tests, and includes
+gated Super Admin panel for tenant and membership management, enforces tenant
+and private-photo security in Supabase, passes documented tests, and includes
 setup/deployment/backup documentation.
 
 Begin with **Phase 1 only**. Inspect the repository and environment, propose the plan, and wait for approval before making substantial changes.

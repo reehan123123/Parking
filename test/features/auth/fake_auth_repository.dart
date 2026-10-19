@@ -3,15 +3,24 @@ import 'dart:async';
 import 'package:parking_management/features/auth/data/auth_repository.dart';
 
 class FakeAuthRepository implements AuthRepository {
-  FakeAuthRepository({this.isSignedIn = false, this.signInCompleter});
+  FakeAuthRepository({
+    this.isSignedIn = false,
+    this.requiresTemporaryPasswordChange = false,
+    this.signInCompleter,
+  });
 
   @override
   bool isSignedIn;
 
+  @override
+  bool requiresTemporaryPasswordChange;
+
   final StreamController<bool> _signedInChanges =
       StreamController<bool>.broadcast();
   Object? signInError;
+  Object? passwordChangeError;
   Completer<void>? signInCompleter;
+  String? lastNewPassword;
 
   @override
   Stream<bool> get signedInChanges => _signedInChanges.stream;
@@ -30,6 +39,18 @@ class FakeAuthRepository implements AuthRepository {
 
     isSignedIn = true;
     _signedInChanges.add(true);
+  }
+
+  @override
+  Future<void> changeTemporaryPassword({required String newPassword}) async {
+    final error = passwordChangeError;
+    if (error != null) {
+      throw error;
+    }
+
+    lastNewPassword = newPassword;
+    requiresTemporaryPasswordChange = false;
+    _signedInChanges.add(isSignedIn);
   }
 
   @override

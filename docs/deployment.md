@@ -6,12 +6,15 @@ using the free `pages.dev` hostname and the selected project name
 `https://parking-85u.pages.dev/`. The application continues to use Supabase
 for authentication, PostgreSQL, and private vehicle photo storage.
 
-Static deployment verification on 2026-10-18 confirmed HTTP 200 for the root,
-manifest, Flutter bootstrap and loader, Dart bundle, and 192/512 app icons.
-This confirms static asset availability only; it does not verify
-authentication, Supabase, private photo storage, or device behavior. The
-current local performance-hardening and tenant-administration changes have
-not been deployed.
+The tenant-administration frontend was deployed from commit `5e2ace7` by
+GitHub Actions run `39209169654` on 2026-10-19. The run succeeded. This
+confirms the static build and deployment only; the local app displayed the
+tenant-setup error because the configured Supabase project had not yet been
+verified as migrated and provisioned. The expanded tenant lifecycle and
+membership-management follow-up is still local and requires a separate
+deployment. Temporary-password owner onboarding is also source-only: its
+migration and Edge Functions have not been applied or deployed to the hosted
+Supabase project.
 
 ## Architecture and security boundary
 
@@ -21,6 +24,11 @@ not been deployed.
 - The browser receives public compile-time configuration: `SUPABASE_URL`,
   and `SUPABASE_PUBLISHABLE_KEY`. Flutter embeds these values in the public
   browser bundle.
+- The local PostgreSQL API described in
+  [Local PostgreSQL development](local-development.md) is an opt-in,
+  loopback-only development aid. The production workflow does not set
+  `PARKING_BACKEND=local`, does not deploy that API, and continues to build
+  the Supabase backend path.
 - Authentication, tenant membership, PostgreSQL grants/RLS, and private
   `vehicle-photos` Storage policies remain the authorization boundary.
 - The Cloudflare token, account ID, GitHub credentials, passwords, and any
@@ -105,29 +113,37 @@ directory to Pages instead of asking Pages to install an SDK on every build.
 
 Before live testing:
 
-1. Review both source-controlled migrations:
+1. Review all source-controlled migrations:
    `supabase/migrations/20261014160000_create_parking_sessions_security.sql`
-   and `supabase/migrations/20261018185121_tenant_administration.sql`.
+   `supabase/migrations/20261018185121_tenant_administration.sql`, and
+   `supabase/migrations/20261019090000_tenant_management.sql`, and
+   `supabase/migrations/20261020090000_tenant_owner_onboarding.sql`.
 2. Apply any pending migrations to the intended Supabase project through the
    approved Supabase workflow. Do not reset the project or run an unreviewed
    migration.
-3. Confirm `parking_sessions`, `tenants`, and `tenant_memberships` have RLS
+3. Deploy `create-tenant-owner` and
+   `complete-temporary-password-reset` with the Supabase CLI. Keep JWT
+   verification enabled and do not disable it to resolve authentication
+   errors.
+4. Confirm `parking_sessions`, `tenants`, and `tenant_memberships` have RLS
    enabled and the `vehicle-photos` bucket is private.
-4. Create or verify the private Auth account for
+5. Create or verify the private Auth account for
    `dieselpetrol6@gmail.com`, then review and run
    `supabase/operations/provision_initial_super_admin.sql`.
-5. Sign in and verify the Admin destination appears only for that
+6. Sign out and back in. Verify the Admin destination appears only for the
    database-provisioned role. Create a tenant using an existing Auth account
-   as the owner.
-6. Use separate accounts to verify that one tenant cannot read or modify
+   as the owner, then create a tenant with a new email and verify the
+   temporary-password reset gate before tenant management and parking
+   operations.
+7. Use separate accounts to verify that one tenant cannot read or modify
    another tenant's records/photos and the Super Admin can access both.
-7. In Supabase Auth URL Configuration, set the Site URL to the actual
+8. In Supabase Auth URL Configuration, set the Site URL to the actual
    `https://<actual-project>.pages.dev/` URL after it exists. Add the exact
    production origin and any intentionally supported local URL to the allowed
    redirect list. This app currently uses password sign-in rather than an
    OAuth callback, but the URL configuration still matters for Auth email
    links and future password-reset behavior.
-8. Do not use the privileged SQL Editor as proof of browser RLS.
+9. Do not use the privileged SQL Editor as proof of browser RLS.
 
 The frontend deployment alone does not prove hosted RLS or Storage isolation.
 Tenant A members must not be able to read, update, delete, sign, or replace
@@ -251,12 +267,13 @@ or PWA installation behavior across browsers.
 
 ## Current handover status
 
-As of the 2026-10-18 static-host check:
+As of the 2026-10-19 static-host check:
 
-- Local Phase 4-8 code is committed and pushed.
-- The current local performance-hardening implementation is uncommitted and
-  has not been pushed or deployed.
-- The production hostname and the sampled Flutter/PWA assets returned HTTP
-  200. This verifies static delivery only.
-- Hosted Supabase migration/Auth/RLS/Storage behavior is not yet verified.
+- Phase 4-8 and performance hardening are committed and pushed.
+- Commit `5e2ace7` deployed tenant creation and Super Admin access; workflow
+  `39209169654` succeeded. The current tenant-management follow-up is local.
+- The production hostname returned HTTP 200 after deployment. This verifies
+  static delivery only.
+- Hosted Supabase migration/Auth/RLS/Storage behavior is not yet verified; the
+  local app currently reports missing tenant setup.
 - Android/iPhone production/PWA checks are not yet verified.

@@ -95,6 +95,55 @@ void main() {
     expect(repository.listCalls, 3);
   });
 
+  testWidgets('filters sessions by status and payment chips', (
+    WidgetTester tester,
+  ) async {
+    final farFuture = DateTime.now().add(const Duration(days: 365));
+    final farPast = DateTime.now().subtract(const Duration(days: 365));
+    final repository = TestParkingSessionRepository(
+      sessions: [
+        _session(
+          id: 'active-unpaid',
+          plateNumber: 'ACTIVE UNPAID',
+          expiresAt: farFuture,
+        ),
+        _session(
+          id: 'expired-paid',
+          plateNumber: 'EXPIRED PAID',
+          expiresAt: farPast,
+          totalCharge: 100,
+          paidAmount: 100,
+        ),
+      ],
+    );
+
+    await _pumpHistory(tester, repository);
+    await tester.pump();
+
+    expect(find.text('ACTIVE UNPAID'), findsOneWidget);
+    expect(find.text('EXPIRED PAID'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Active'));
+    await tester.pump();
+
+    expect(find.text('ACTIVE UNPAID'), findsOneWidget);
+    expect(find.text('EXPIRED PAID'), findsNothing);
+
+    await tester.tap(find.widgetWithText(FilterChip, 'Active'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilterChip, 'Paid'));
+    await tester.pump();
+
+    expect(find.text('ACTIVE UNPAID'), findsNothing);
+    expect(find.text('EXPIRED PAID'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(ActionChip, 'Clear filters'));
+    await tester.pump();
+
+    expect(find.text('ACTIVE UNPAID'), findsOneWidget);
+    expect(find.text('EXPIRED PAID'), findsOneWidget);
+  });
+
   testWidgets('retries a failed next page without losing current sessions', (
     WidgetTester tester,
   ) async {
@@ -236,7 +285,13 @@ Future<void> _pumpHistory(
   );
 }
 
-ParkingSession _session({required String id, required String plateNumber}) {
+ParkingSession _session({
+  required String id,
+  required String plateNumber,
+  DateTime? expiresAt,
+  double totalCharge = 0,
+  double paidAmount = 0,
+}) {
   return ParkingSession(
     id: id,
     plateNumber: plateNumber,
@@ -245,6 +300,8 @@ ParkingSession _session({required String id, required String plateNumber}) {
       value: 1,
       unit: ParkingDurationUnit.hours,
     ),
-    expiresAt: DateTime(2026, 10, 14, 11, 30),
+    expiresAt: expiresAt ?? DateTime(2026, 10, 14, 11, 30),
+    totalCharge: totalCharge,
+    paidAmount: paidAmount,
   );
 }

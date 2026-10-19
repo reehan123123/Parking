@@ -64,9 +64,14 @@ PNG, and WebP images are accepted.
 
 ## Save and cleanup sequence
 
-The client uses the authenticated Supabase session and public publishable
-key. PostgreSQL RLS authorizes parking access using tenant membership or the
-database-backed Super Admin role:
+In production/default mode, the client uses the authenticated Supabase
+session and public publishable key. PostgreSQL RLS authorizes parking access
+using tenant membership or the database-backed Super Admin role. The
+opt-in local mode uses the loopback API and local photo directory instead;
+its authorization is local-only and does not verify Supabase RLS. See
+[Local PostgreSQL development](local-development.md) for its setup.
+
+The production/default save sequence is:
 
 1. Recheck that a current authenticated user and selected tenant exist.
 2. Insert `parking_sessions` with the exact migration column names, selected

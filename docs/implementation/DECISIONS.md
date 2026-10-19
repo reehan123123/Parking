@@ -22,11 +22,21 @@ and a role-gated tenant administration screen.
 - Tenant creation requires an existing Supabase Auth account as the tenant
   owner. No service-role key, browser-side privilege grant, invite service, or
   paid dependency is introduced.
+- Super Admin tenant removal is reversible archival, not a hard delete.
+  Archiving preserves parking rows and private photos, suspends member access,
+  and supports restoration. Membership changes never delete Auth accounts or
+  parking data, and a tenant must retain at least one owner.
 - The requested initial Super Admin is provisioned with a separate SQL
   operation after migration and account creation. The migration and operation
-  have not been applied to the hosted project.
-- Billing, payment processing, location management, reporting, charts, CSV
-  export, and member administration remain outside this implementation.
+  are a manual Supabase operation; their hosted status must be verified.
+- Tenant membership management uses existing Auth accounts. Invitations and
+  Auth-user creation remain outside the browser.
+- Billing, payment processing, location management, reporting, charts, and
+  CSV export remain outside this implementation.
+
+The existing-account-only tenant-owner restriction above was superseded by
+the server-side onboarding decision below. Auth-user creation remains outside
+the browser.
 
 ## Bound session reads
 
@@ -77,11 +87,35 @@ When no parent callback is provided, the page still refreshes locally.
 
 ## Deployment and operational boundary
 
-The production static host was rechecked and the sampled shell, Flutter, and
-PWA assets returned HTTP 200. This is not evidence of authenticated app,
-Supabase, private photo, or mobile behavior. Tenant/admin code, migrations,
-and performance changes remain local, uncommitted, and undeployed.
+The static host returned HTTP 200 after the tenant-administration commit was
+pushed. That confirms static delivery only, not authenticated app, Supabase,
+private photo, or mobile behavior. The tenant-management follow-up remains
+local until separately validated and deployed.
 
-No hosted migration, data modification, commit, push, or deployment was
-performed. Production tenant access cannot work until the migration is
-reviewed and applied and the initial Super Admin operation is run.
+The configured Supabase project displayed the missing-tenant-setup error.
+This environment has no privileged database access; the migrations and
+initial Super Admin provisioning must be applied through the approved
+Supabase process before end-to-end Super Admin behavior can be verified.
+
+## Server-side tenant-owner onboarding
+
+- An existing email is assigned to the tenant without changing its Auth
+  password.
+- If the email is not registered, the `create-tenant-owner` Edge Function
+  verifies the caller's JWT and database-backed Super Admin role before
+  creating an email-confirmed Auth user. The service-role/secret key remains
+  server-side.
+- The function generates a cryptographically random temporary password. It
+  is returned only to the authorized Super Admin and shown once in the
+  tenant-creation dialog for secure forwarding; plaintext credentials are not
+  stored in the database or logged.
+- The new account is marked as requiring a password change. The Auth gate
+  blocks the app, and PostgreSQL membership/Super Admin checks deny tenant
+  data access until the authenticated owner changes the password through
+  `complete-temporary-password-reset`.
+- A request-ID ledger makes tenant creation retries idempotent. A partial
+  account-creation failure is surfaced with the temporary password when it
+  can be safely recovered, and retries reuse the same tenant request.
+- The choice adds no paid service or Flutter runtime dependency. The new
+  migration and Edge Functions remain unapplied/undeployed until reviewed and
+  deployed through the approved Supabase process.

@@ -5,9 +5,16 @@ The authenticated Dashboard and History views use the tenant-aware
 authorization: list, detail, update, and delete operations use the
 authenticated Supabase client and remain protected by tenant RLS.
 
+That describes production/default mode. The opt-in local development mode
+uses the loopback API and local PostgreSQL/photo storage; it is isolated from
+Supabase and is not evidence of hosted RLS or Storage behavior.
+
 Tenant members see their selected workspace. A database-provisioned Super
 Admin can select one tenant or all tenants. The `owner` and `member`
 membership roles currently have the same parking-session permissions.
+In the all-tenant view, creating a parking entry prompts the Super Admin to
+choose an active tenant. Archived tenant records remain visible to Super
+Admins for support; tenant members lose access until the workspace is restored.
 
 ## Dashboard
 
@@ -40,11 +47,12 @@ session opens a responsive details page containing:
 - expiry date/time and current status;
 - a private vehicle photo when one is attached.
 
-Photo display uses a short-lived signed URL created only after the repository
-confirms that the requested session and `photo_path` are accessible to the
-current tenant member or Super Admin under RLS. Signed URLs are not stored in
-the database or domain model. They are refreshed when the details page loads
-or the application resumes.
+In production/default mode, photo display uses a short-lived signed URL
+created only after the repository confirms that the requested session and
+`photo_path` are accessible to the current tenant member or Super Admin under
+RLS. The local API provides equivalent local-only photo retrieval without
+Supabase Storage. Signed URLs are not stored in the database or domain model;
+they are refreshed when the details page loads or the application resumes.
 
 ## Editing
 
@@ -76,11 +84,20 @@ refreshes on resume so the displayed active/expired status remains current.
 Search and refresh reset History pagination; loading additional pages appends
 results in stable order.
 
+## Tenant administration
+
+The Super Admin area can create and rename workspaces, manage existing
+Supabase Auth memberships, and archive or restore tenants. Archiving is
+reversible and retains parking rows and private photos while suspending
+tenant-member access. Removing a membership does not delete the Auth account
+or its parking data, and every tenant must retain at least one owner.
+
 ## Limitations and manual checks
 
 The local test suite covers tenant filters, server-side search, summary
 boundaries, signed-photo authorization checks, pagination, update/delete
 ordering, dashboard/history states, detail navigation, edit mode, and failure
-handling. Hosted RLS/Storage behavior still requires verification against the
-intended Supabase project. Member management, user invitations, billing,
-payments, locations, reports, and exports are not implemented.
+handling. Tenant-management workflows are covered by repository and widget
+tests. Hosted RLS/Storage behavior still requires verification against the
+intended Supabase project. Auth invitations, billing, payments, locations,
+reports, and exports are not implemented.

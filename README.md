@@ -1,18 +1,24 @@
 # Parking Management PWA
 
 Private parking management Progressive Web App built with Flutter Web. The
-application uses Supabase for authentication, PostgreSQL data, and private
-photo storage, and is intended for free-tier-friendly static hosting.
+production application uses Supabase for authentication, PostgreSQL data, and
+private photo storage, and is intended for free-tier-friendly static hosting.
+An opt-in, loopback-only development API can connect the app to one local
+PostgreSQL database without Docker or a hosted Supabase development project.
 
 ## Current status
 
 The application includes authenticated parking entry and private photo
 handling, dashboard/history/details/edit/delete flows, tenant-scoped access,
-and a role-gated Super Admin tenant-creation screen. The tenant authorization
-model is enforced by PostgreSQL RLS. To enable it on a hosted project, review
-and apply the tenant-administration migration, then provision the initial
-Super Admin with the documented SQL operation. The hosted migration and role
-assignment have not been verified.
+and a role-gated Super Admin area. Super Admins can view parking across
+tenants, create parking entries for a selected active tenant, rename tenants,
+reversibly archive or restore tenants, and manage existing Auth-user
+memberships. Tenant owners can be assigned from an existing Auth account or
+onboarded by the server-side Supabase Edge Function. New owners receive a
+one-time temporary password and must change it before accessing tenant data.
+The tenant authorization model is enforced by PostgreSQL RLS. Apply the
+tenant migrations, deploy the two onboarding Edge Functions, and provision
+the initial Super Admin before using these features.
 
 ## Local development
 
@@ -47,11 +53,19 @@ flutter build web --release `
 file automatically, and real values must not be committed. A build without
 the defines shows an explicit configuration-required page.
 
+### Use one local PostgreSQL database
+
+For local development without Docker or a hosted Supabase project, follow
+[docs/local-development.md](docs/local-development.md). The local API is
+opt-in and binds only to `127.0.0.1`; it does not copy production data.
+Production builds continue to use Supabase.
+
 ## Supabase setup
 
 Follow [docs/supabase.md](docs/supabase.md) to configure a project, apply the
 migrations, provision the initial Super Admin, create tenants, and run the
-verification commands.
+verification commands. The local PostgreSQL workflow is separate and does
+not apply or modify hosted Supabase migrations.
 
 See [docs/parking-entry.md](docs/parking-entry.md) for the entry form, photo
 limits, persistence sequence, edit behavior, cleanup handling, and manual
@@ -63,16 +77,19 @@ rollback handover.
 
 The source-controlled SQL is under `supabase/migrations/`. It creates the
 parking-session and tenant tables, indexes, triggers, tenant-membership and
-Super Admin RLS policies, and private photo policies. Migration files are
-reviewable source; applying them to a hosted project is a separate operation.
+Super Admin RLS policies, private photo policies, tenant lifecycle and
+membership-management operations, and the temporary-password access gate.
+Migration files are reviewable source; applying them to a hosted project is a
+separate operation.
 
 ## Security
 
-The browser receives only the Supabase project URL and publishable key. Never
-put a service-role key, provider secret, or another privileged secret in
-Flutter code, web assets, Git, or logs. RLS remains enabled, the photo bucket
-remains private, and tenant membership—not a browser-supplied role or tenant
-ID—is the access boundary. Existing photo paths remain:
+In production/default mode, the browser receives only the Supabase project
+URL and publishable key. In local mode, the browser talks to the loopback API
+and never receives PostgreSQL credentials. Never put a service-role key,
+provider secret, or another privileged secret in Flutter code, web assets,
+Git, or logs. Supabase RLS and the private photo bucket remain the production
+access boundary. Existing photo paths remain:
 
 ```text
 {session-created-by-user-id}/{parking-session-id}/{filename}

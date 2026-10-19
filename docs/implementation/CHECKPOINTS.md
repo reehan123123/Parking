@@ -69,3 +69,49 @@ contains the detailed scope, initial evidence, and blockers.
   unavailable here. Hosted migration/RLS/Storage verification and initial
   Super Admin provisioning remain unperformed; no commit, push, or deployment
   was made.
+
+## Tenant-owner onboarding follow-up
+
+- Chose to preserve existing Auth passwords and create a missing owner account
+  only in a JWT-authenticated Edge Function after a database-backed Super
+  Admin check.
+- New owners receive a one-time, cryptographically generated temporary
+  password. A first-sign-in gate and database authorization helpers block
+  tenant data until the owner changes it.
+- Added an idempotent tenant-creation request ledger so retrying after a
+  partial failure does not create duplicate workspaces.
+- Local validation passed: formatting, analysis, all 122 Flutter tests, the
+  release web build, a Node TypeScript syntax parse of all three Edge
+  Function files, and `git diff --check`.
+- The Supabase CLI 2.121.0 is installed, but Deno, Docker, and `psql` are not.
+  Deno/SDK type-checking, Edge Function runtime checks, and pgTAP migration
+  tests have not been run. No hosted migration, function deployment, commit,
+  or push was performed.
+
+## 2026-10-19 — Super Admin rollout and tenant management
+
+- Pushed tenant-creation foundation commit `5e2ace7` to `main`. GitHub Actions
+  run `39209169654` completed successfully; static deployment returned HTTP
+  200.
+- The local sign-in error is caused by missing tenant schema in the configured
+  Supabase project (or a project mismatch), not by stale browser assets. The
+  user-provided Supabase dashboard screenshot shows only `parking_sessions`
+  under `public`.
+- The user selected reversible tenant archival. The follow-up adds tenant
+  rename, archive/restore, member and role management for existing Auth users,
+  last-owner protections, and a tenant chooser when adding a parking entry
+  from All Tenants. Archival preserves sessions/photos and suspends member
+  access.
+- Follow-up migration:
+  `supabase/migrations/20261019090000_tenant_management.sql`. It must run
+  after `20261018185121_tenant_administration.sql`; then run
+  `supabase/operations/provision_initial_super_admin.sql`.
+- Supabase SQL Editor application and role provisioning remain pending. This
+  environment has no privileged database credential or migration CLI.
+- Follow-up local validation passed: formatting (56 files, no changes),
+  analysis, all 118 Flutter tests, release web build, and `git diff --check`.
+  The 39-file release contains no OCR-only asset names or runtime/bridge
+  references.
+- The tenant-management pgTAP test was reviewed but not executed because
+  Supabase CLI, Docker, and `psql` are unavailable. No hosted migration,
+  provisioning, RLS, or Storage check is claimed.

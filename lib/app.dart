@@ -163,8 +163,8 @@ class _AppShellState extends State<AppShell> {
     } else if (widget.parkingSessionRepository != null &&
         _tenantAccess == null) {
       _tenantAccessError =
-          'Tenant access is not configured. Apply the tenant administration '
-          'migration before using this version.';
+          'Tenant access is not configured. Apply all tenant migrations '
+          'before using this version.';
     }
   }
 
@@ -185,11 +185,14 @@ class _AppShellState extends State<AppShell> {
         return;
       }
 
-      final tenantIds = access.tenants.map((tenant) => tenant.id).toSet();
+      final activeTenants = access.tenants
+          .where((tenant) => !tenant.isArchived)
+          .toList(growable: false);
+      final tenantIds = activeTenants.map((tenant) => tenant.id).toSet();
       final currentTenantId = _selectedTenantId;
-      final fallbackTenantId = access.tenants.isEmpty
+      final fallbackTenantId = activeTenants.isEmpty
           ? null
-          : access.tenants.first.id;
+          : activeTenants.first.id;
       final selectedTenantId = access.isSuperAdmin
           ? (preferredTenantId != null && tenantIds.contains(preferredTenantId)
                 ? preferredTenantId
@@ -228,8 +231,8 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
-  Future<void> _handleTenantCreated(ParkingTenant tenant) {
-    return _loadTenantAccess(preferredTenantId: tenant.id);
+  Future<void> _handleTenantChanged(ParkingTenant? tenant) {
+    return _loadTenantAccess(preferredTenantId: tenant?.id);
   }
 
   void _selectTenant(String? tenantId) {
@@ -253,19 +256,56 @@ class _AppShellState extends State<AppShell> {
     });
   }
 
-  Future<void> _openNewParkingEntry(BuildContext context) async {
+  Future<void> _openNewParkingEntry(
+    BuildContext context,
+    ParkingTenantAccess access,
+  ) async {
     final repository = widget.parkingSessionRepository;
     if (repository == null) {
       return;
     }
-    final tenantId = _selectedTenantId;
+    var tenantId = _selectedTenantId;
     if (tenantId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Select a tenant before adding a vehicle.'),
+      if (!access.isSuperAdmin) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Select a tenant before adding a vehicle.'),
+          ),
+        );
+        return;
+      }
+
+      final activeTenants = access.tenants
+          .where((tenant) => !tenant.isArchived)
+          .toList(growable: false);
+      if (activeTenants.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Create or restore a tenant before adding a vehicle.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      final selectedTenant = await showDialog<ParkingTenant>(
+        context: context,
+        builder: (context) => SimpleDialog(
+          title: const Text('Select a tenant'),
+          children: [
+            for (final tenant in activeTenants)
+              SimpleDialogOption(
+                onPressed: () => Navigator.of(context).pop(tenant),
+                child: Text(tenant.name),
+              ),
+          ],
         ),
       );
-      return;
+      if (!context.mounted || selectedTenant == null) {
+        return;
+      }
+      tenantId = selectedTenant.id;
     }
 
     final session = await Navigator.of(context).push<ParkingSession>(
@@ -352,6 +392,13 @@ class _AppShellState extends State<AppShell> {
       isSuperAdmin: access.isSuperAdmin,
       tenantId: _selectedTenantId,
     );
+    final activeTenants = access.tenants
+        .where((tenant) => !tenant.isArchived)
+        .toList(growable: false);
+    final canCreateParkingEntry =
+        widget.parkingSessionRepository != null &&
+        (_selectedTenantId != null ||
+            (access.isSuperAdmin && activeTenants.isNotEmpty));
     final showAdmin = access.isSuperAdmin && widget.tenantRepository != null;
     final destinations = _destinations(showAdmin: showAdmin);
     return LayoutBuilder(
@@ -363,11 +410,9 @@ class _AppShellState extends State<AppShell> {
             DashboardPage(
               scope: scope,
               repository: widget.parkingSessionRepository,
-              onNewParkingEntry:
-                  widget.parkingSessionRepository == null ||
-                      _selectedTenantId == null
-                  ? null
-                  : () => _openNewParkingEntry(context),
+              onNewParkingEntry: canCreateParkingEntry
+                  ? () => _openNewParkingEntry(context, access)
+                  : null,
               onViewHistory: () => _selectDestination(1),
               onDataChanged: _notifyDataChanged,
               refreshToken: _dataVersion,
@@ -382,7 +427,7 @@ class _AppShellState extends State<AppShell> {
               TenantAdminPage(
                 access: access,
                 repository: widget.tenantRepository!,
-                onTenantCreated: _handleTenantCreated,
+                onTenantChanged: _handleTenantChanged,
               ),
             SettingsPage(onSignOut: widget.onSignOut),
           ],
@@ -460,8 +505,11 @@ class _AppShellState extends State<AppShell> {
   }
 
   Widget _buildTenantSelector(ParkingTenantAccess access) {
+    final activeTenants = access.tenants
+        .where((tenant) => !tenant.isArchived)
+        .toList(growable: false);
     ParkingTenant? tenant;
-    for (final candidate in access.tenants) {
+    for (final candidate in activeTenants) {
       if (candidate.id == _selectedTenantId) {
         tenant = candidate;
         break;
@@ -470,7 +518,7 @@ class _AppShellState extends State<AppShell> {
     final label = _selectedTenantId == null
         ? 'All tenants'
         : tenant?.name ?? 'Workspace';
-    final canChoose = access.isSuperAdmin || access.tenants.length > 1;
+    final canChoose = access.isSuperAdmin || activeTenants.length > 1;
     if (!canChoose) {
       return Padding(
         padding: const EdgeInsets.only(right: 12),
@@ -492,7 +540,7 @@ class _AppShellState extends State<AppShell> {
             value: _allTenantsValue,
             child: Text('All tenants'),
           ),
-        for (final tenant in access.tenants)
+        for (final tenant in activeTenants)
           PopupMenuItem(value: tenant.id, child: Text(tenant.name)),
       ],
       child: Container(

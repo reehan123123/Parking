@@ -9,7 +9,8 @@ import '../../tenants/domain/parking_tenant_scope.dart';
 
 const _parkingSessionColumns =
     'id,tenant_id,plate_number,photo_path,entry_time,allowed_duration_value,'
-    'allowed_duration_unit,expires_at,created_by,created_at,updated_at';
+    'allowed_duration_unit,expires_at,created_by,created_at,updated_at,'
+    'total_charge,paid_amount';
 const _maximumParkingSessionPageSize = 100;
 
 class SupabaseParkingSessionRepository implements ParkingSessionRepository {
@@ -524,6 +525,8 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       'allowed_duration_unit': session.allowedDuration.unit.name,
       'expires_at': session.expiresAt.toUtc().toIso8601String(),
       'created_by': userId,
+      'total_charge': session.totalCharge,
+      'paid_amount': session.paidAmount,
     };
   }
 
@@ -537,6 +540,8 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       'allowed_duration_value': session.allowedDuration.value,
       'allowed_duration_unit': session.allowedDuration.unit.name,
       'expires_at': session.expiresAt.toUtc().toIso8601String(),
+      'total_charge': session.totalCharge,
+      'paid_amount': session.paidAmount,
     };
   }
 
@@ -555,6 +560,8 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
     final durationUnit = ParkingDurationUnit.values.byName(
       _requiredString(row['allowed_duration_unit'], 'allowed_duration_unit'),
     );
+    final totalCharge = _parseOptionalDouble(row['total_charge']) ?? 0;
+    final paidAmount = _parseOptionalDouble(row['paid_amount']) ?? 0;
 
     return ParkingSession(
       id: id,
@@ -568,6 +575,8 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
         unit: durationUnit,
       ),
       expiresAt: expiresAt,
+      totalCharge: totalCharge,
+      paidAmount: paidAmount,
     );
   }
 
@@ -588,6 +597,8 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       entryTime: session.entryTime,
       allowedDuration: session.allowedDuration,
       expiresAt: session.expiresAt,
+      totalCharge: session.totalCharge,
+      paidAmount: session.paidAmount,
     );
   }
 
@@ -632,6 +643,23 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
     throw const FormatException('An optional text value is invalid.');
   }
 
+  double? _parseOptionalDouble(Object? value) {
+    if (value == null) {
+      return null;
+    }
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      final parsed = double.tryParse(value);
+      if (parsed != null) {
+        return parsed;
+      }
+    }
+
+    throw const FormatException('A parking charge amount is invalid.');
+  }
+
   String? _validateSession(ParkingSession session, String plateNumber) {
     if (plateNumber.isEmpty) {
       return 'Enter a vehicle registration number.';
@@ -647,6 +675,18 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
 
     if (!session.expiresAt.isAfter(session.entryTime)) {
       return 'The expiry time must be after the entry time.';
+    }
+
+    if (session.totalCharge < 0) {
+      return 'The parking charge cannot be negative.';
+    }
+
+    if (session.paidAmount < 0) {
+      return 'The amount paid cannot be negative.';
+    }
+
+    if (session.paidAmount > session.totalCharge) {
+      return 'The amount paid cannot exceed the total parking charge.';
     }
 
     return null;

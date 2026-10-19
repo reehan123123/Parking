@@ -5,6 +5,7 @@ import 'package:parking_management/app.dart';
 import 'package:parking_management/shared/widgets/empty_state_view.dart';
 import 'package:parking_management/shared/widgets/error_state_view.dart';
 import 'package:parking_management/shared/widgets/loading_view.dart';
+import 'package:parking_management/features/parking/presentation/parking_entry_page.dart';
 import 'package:parking_management/features/tenants/domain/parking_tenant.dart';
 import 'package:parking_management/features/tenants/domain/parking_tenant_scope.dart';
 import 'package:parking_management/features/tenants/presentation/tenant_admin_page.dart';
@@ -136,6 +137,54 @@ void main() {
     );
   });
 
+  testWidgets(
+    'creates a parking entry from All Tenants after choosing an active tenant',
+    (WidgetTester tester) async {
+      const access = ParkingTenantAccess(
+        isSuperAdmin: true,
+        tenants: [
+          ParkingTenant(
+            id: 'north-tenant',
+            name: 'North lot',
+            slug: 'north-lot',
+          ),
+          ParkingTenant(
+            id: 'archived-tenant',
+            name: 'Archived lot',
+            slug: 'archived-lot',
+            isArchived: true,
+          ),
+        ],
+      );
+      final tenantRepository = TestTenantRepository(access: access);
+      final parkingRepository = TestParkingSessionRepository();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AppShell(
+            initialTenantAccess: access,
+            tenantRepository: tenantRepository,
+            parkingSessionRepository: parkingRepository,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('New Parking Entry').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Select a tenant'), findsOneWidget);
+      expect(find.text('Archived lot'), findsNothing);
+      await tester.tap(find.text('North lot').last);
+      await tester.pumpAndSettle();
+
+      final entryPage = tester.widget<ParkingEntryPage>(
+        find.byType(ParkingEntryPage),
+      );
+      expect(entryPage.tenantId, 'north-tenant');
+    },
+  );
+
   testWidgets('renders the tenant Admin page at mobile width', (
     WidgetTester tester,
   ) async {
@@ -157,7 +206,7 @@ void main() {
           body: TenantAdminPage(
             access: access,
             repository: repository,
-            onTenantCreated: (_) async {},
+            onTenantChanged: (_) async {},
           ),
         ),
       ),

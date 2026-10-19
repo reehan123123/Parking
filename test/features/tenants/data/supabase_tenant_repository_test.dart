@@ -11,8 +11,18 @@ void main() {
           {'tenant_id': 'tenant-a', 'role': 'owner'},
         ]
         ..tenantRows = [
-          {'id': 'tenant-a', 'name': 'North lot', 'slug': 'north-lot'},
-          {'id': 'tenant-b', 'name': 'South lot', 'slug': 'south-lot'},
+          {
+            'id': 'tenant-a',
+            'name': 'North lot',
+            'slug': 'north-lot',
+            'archived_at': null,
+          },
+          {
+            'id': 'tenant-b',
+            'name': 'South lot',
+            'slug': 'south-lot',
+            'archived_at': '2026-10-19T00:00:00Z',
+          },
         ];
 
       final access = await SupabaseTenantRepository(
@@ -33,8 +43,18 @@ void main() {
         final store = _FakeTenantStore()
           ..superAdmin = true
           ..tenantRows = [
-            {'id': 'tenant-a', 'name': 'North lot', 'slug': 'north-lot'},
-            {'id': 'tenant-b', 'name': 'South lot', 'slug': 'south-lot'},
+            {
+              'id': 'tenant-a',
+              'name': 'North lot',
+              'slug': 'north-lot',
+              'archived_at': null,
+            },
+            {
+              'id': 'tenant-b',
+              'name': 'South lot',
+              'slug': 'south-lot',
+              'archived_at': '2026-10-19T00:00:00Z',
+            },
           ];
 
         final access = await SupabaseTenantRepository(
@@ -44,6 +64,7 @@ void main() {
 
         expect(access.isSuperAdmin, isTrue);
         expect(access.tenants, hasLength(2));
+        expect(access.tenants.last.isArchived, isTrue);
         expect(store.membershipCalls, 0);
         expect(store.lastTenantIds, isNull);
       },
@@ -65,35 +86,87 @@ void main() {
       },
     );
 
+    test('explains when a required tenant migration is missing', () async {
+      final store = _FakeTenantStore()
+        ..superAdmin = true
+        ..accessError = const PostgrestException(
+          message: 'The archived_at column is missing from the schema cache.',
+          code: 'PGRST204',
+        );
+
+      await expectLater(
+        SupabaseTenantRepository(null, tenantStore: store).loadAccess(),
+        throwsA(
+          isA<TenantRepositoryException>().having(
+            (error) => error.message,
+            'message',
+            contains('Apply all tenant migrations'),
+          ),
+        ),
+      );
+    });
+
     test(
-      'creates a tenant from normalized values returned by the store',
+      'creates an existing-account tenant without returning a password',
       () async {
         final store = _FakeTenantStore()
           ..createdRow = {
-            'id': 'tenant-c',
-            'name': 'Airport Parking',
-            'slug': 'airport-parking-12345678',
+            'success': true,
+            'tenant': {
+              'id': 'tenant-c',
+              'name': 'Airport Parking',
+              'slug': 'airport-parking-12345678',
+            },
           };
 
-        final tenant = await SupabaseTenantRepository(null, tenantStore: store)
+        final result = await SupabaseTenantRepository(null, tenantStore: store)
             .createTenant(
               name: ' Airport Parking ',
               ownerEmail: ' Owner@Example.com ',
+              requestId: 'e6e5b36d-1890-4fc5-9a0c-47eeacb44119',
             );
 
         expect(store.lastName, 'Airport Parking');
         expect(store.lastOwnerEmail, 'owner@example.com');
-        expect(tenant.name, 'Airport Parking');
-        expect(tenant.role, ParkingTenantRole.owner);
+        expect(store.lastRequestId, 'e6e5b36d-1890-4fc5-9a0c-47eeacb44119');
+        expect(result.tenant.name, 'Airport Parking');
+        expect(result.tenant.role, ParkingTenantRole.owner);
+        expect(result.temporaryPassword, isNull);
       },
     );
+
+    test('returns a one-time password for a newly created owner', () async {
+      final store = _FakeTenantStore()
+        ..createdRow = {
+          'success': true,
+          'tenant': {
+            'id': 'tenant-c',
+            'name': 'Airport Parking',
+            'slug': 'airport-parking-12345678',
+          },
+          'temporaryPassword': 'temporary-value-for-test',
+        };
+
+      final result = await SupabaseTenantRepository(null, tenantStore: store)
+          .createTenant(
+            name: 'Airport Parking',
+            ownerEmail: 'owner@example.com',
+            requestId: 'e6e5b36d-1890-4fc5-9a0c-47eeacb44119',
+          );
+
+      expect(result.temporaryPassword, 'temporary-value-for-test');
+    });
 
     test('rejects invalid tenant input before invoking the store', () async {
       final store = _FakeTenantStore();
       final repository = SupabaseTenantRepository(null, tenantStore: store);
 
       await expectLater(
-        repository.createTenant(name: ' ', ownerEmail: 'owner@example.com'),
+        repository.createTenant(
+          name: ' ',
+          ownerEmail: 'owner@example.com',
+          requestId: 'e6e5b36d-1890-4fc5-9a0c-47eeacb44119',
+        ),
         throwsA(
           isA<TenantRepositoryException>().having(
             (error) => error.message,
@@ -103,30 +176,130 @@ void main() {
         ),
       );
       await expectLater(
-        repository.createTenant(name: 'Workspace', ownerEmail: 'not-an-email'),
+        repository.createTenant(
+          name: 'Workspace',
+          ownerEmail: 'not-an-email',
+          requestId: 'e6e5b36d-1890-4fc5-9a0c-47eeacb44119',
+        ),
         throwsA(isA<TenantRepositoryException>()),
       );
       expect(store.createTenantCalls, 0);
     });
 
-    test('explains that the tenant owner account must already exist', () async {
-      final store = _FakeTenantStore()
-        ..createError = const PostgrestException(
-          message: 'Owner account not found.',
-          code: 'P0002',
+    test(
+      'preserves a temporary password when tenant setup is incomplete',
+      () async {
+        final store = _FakeTenantStore()
+          ..createError = const TenantStoreException(
+            'The owner account was created, but tenant setup could not be confirmed.',
+            temporaryPassword: 'temporary-value-for-test',
+          );
+        final repository = SupabaseTenantRepository(null, tenantStore: store);
+
+        await expectLater(
+          repository.createTenant(
+            name: 'Workspace',
+            ownerEmail: 'owner@example.com',
+            requestId: 'e6e5b36d-1890-4fc5-9a0c-47eeacb44119',
+          ),
+          throwsA(
+            isA<TenantRepositoryException>().having(
+              (error) => error.temporaryPassword,
+              'temporaryPassword',
+              'temporary-value-for-test',
+            ),
+          ),
         );
+      },
+    );
+
+    test('updates a tenant with a normalized name', () async {
+      final store = _FakeTenantStore()
+        ..updatedRow = {
+          'id': 'tenant-a',
+          'name': 'North Lot',
+          'slug': 'north-lot',
+          'archived_at': null,
+        };
+
+      final tenant = await SupabaseTenantRepository(
+        null,
+        tenantStore: store,
+      ).updateTenant(tenantId: 'tenant-a', name: ' North Lot ');
+
+      expect(store.lastTenantId, 'tenant-a');
+      expect(store.lastName, 'North Lot');
+      expect(tenant.name, 'North Lot');
+      expect(tenant.isArchived, isFalse);
+    });
+
+    test('rejects an invalid update before invoking the store', () async {
+      final store = _FakeTenantStore();
       final repository = SupabaseTenantRepository(null, tenantStore: store);
 
       await expectLater(
-        repository.createTenant(
-          name: 'Workspace',
-          ownerEmail: 'owner@example.com',
-        ),
+        repository.updateTenant(tenantId: 'tenant-a', name: ' '),
+        throwsA(isA<TenantRepositoryException>()),
+      );
+      expect(store.updateTenantCalls, 0);
+    });
+
+    test('archives and restores a tenant', () async {
+      final store = _FakeTenantStore();
+      final repository = SupabaseTenantRepository(null, tenantStore: store);
+
+      await repository.archiveTenant(tenantId: 'tenant-a');
+      await repository.restoreTenant(tenantId: 'tenant-a');
+
+      expect(store.archiveTenantCalls, 1);
+      expect(store.restoreTenantCalls, 1);
+    });
+
+    test('lists and manages tenant members', () async {
+      final store = _FakeTenantStore()
+        ..memberRows = [
+          {'user_id': 'user-a', 'email': 'owner@example.com', 'role': 'owner'},
+        ];
+      final repository = SupabaseTenantRepository(null, tenantStore: store);
+
+      final members = await repository.listMembers(tenantId: 'tenant-a');
+      await repository.addMember(
+        tenantId: 'tenant-a',
+        email: ' Member@Example.com ',
+        role: ParkingTenantRole.member,
+      );
+      await repository.updateMemberRole(
+        tenantId: 'tenant-a',
+        userId: 'user-a',
+        role: ParkingTenantRole.member,
+      );
+      await repository.removeMember(tenantId: 'tenant-a', userId: 'user-a');
+
+      expect(members.single.email, 'owner@example.com');
+      expect(members.single.role, ParkingTenantRole.owner);
+      expect(store.lastEmail, 'member@example.com');
+      expect(store.lastRole, 'member');
+      expect(store.updateMemberRoleCalls, 1);
+      expect(store.removeMemberCalls, 1);
+    });
+
+    test('prevents removing the last tenant owner', () async {
+      final store = _FakeTenantStore()
+        ..managementError = const PostgrestException(
+          message: 'A tenant must keep at least one owner.',
+          code: '23514',
+        );
+
+      await expectLater(
+        SupabaseTenantRepository(
+          null,
+          tenantStore: store,
+        ).removeMember(tenantId: 'tenant-a', userId: 'owner-a'),
         throwsA(
           isA<TenantRepositoryException>().having(
             (error) => error.message,
             'message',
-            contains('does not have a Supabase account'),
+            contains('at least one owner'),
           ),
         ),
       );
@@ -139,16 +312,38 @@ class _FakeTenantStore implements TenantStore {
   List<Map<String, dynamic>> membershipRows = [];
   List<Map<String, dynamic>> tenantRows = [];
   Map<String, dynamic> createdRow = {
-    'id': 'new-tenant',
-    'name': 'New tenant',
-    'slug': 'new-tenant-12345678',
+    'success': true,
+    'tenant': {
+      'id': 'new-tenant',
+      'name': 'New tenant',
+      'slug': 'new-tenant-12345678',
+    },
   };
-  PostgrestException? createError;
+  Map<String, dynamic> updatedRow = {
+    'id': 'tenant-a',
+    'name': 'Updated tenant',
+    'slug': 'updated-tenant',
+    'archived_at': null,
+  };
+  List<Map<String, dynamic>> memberRows = [];
+  Object? createError;
+  PostgrestException? managementError;
+  PostgrestException? accessError;
   List<String>? lastTenantIds;
+  String? lastTenantId;
+  String? lastUserId;
   String? lastName;
   String? lastOwnerEmail;
+  String? lastRequestId;
+  String? lastEmail;
+  String? lastRole;
   int membershipCalls = 0;
   int createTenantCalls = 0;
+  int updateTenantCalls = 0;
+  int archiveTenantCalls = 0;
+  int restoreTenantCalls = 0;
+  int updateMemberRoleCalls = 0;
+  int removeMemberCalls = 0;
 
   @override
   Future<bool> isSuperAdmin() async => superAdmin;
@@ -162,6 +357,10 @@ class _FakeTenantStore implements TenantStore {
   @override
   Future<List<Map<String, dynamic>>> tenants({List<String>? tenantIds}) async {
     lastTenantIds = tenantIds;
+    final error = accessError;
+    if (error != null) {
+      throw error;
+    }
     if (tenantIds == null) {
       return tenantRows;
     }
@@ -175,14 +374,109 @@ class _FakeTenantStore implements TenantStore {
   Future<Map<String, dynamic>> createTenant({
     required String name,
     required String ownerEmail,
+    required String requestId,
   }) async {
     createTenantCalls++;
     lastName = name;
     lastOwnerEmail = ownerEmail;
+    lastRequestId = requestId;
     final error = createError;
     if (error != null) {
       throw error;
     }
     return createdRow;
+  }
+
+  @override
+  Future<Map<String, dynamic>> updateTenant({
+    required String tenantId,
+    required String name,
+  }) async {
+    updateTenantCalls++;
+    lastTenantId = tenantId;
+    lastName = name;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+    return updatedRow;
+  }
+
+  @override
+  Future<void> archiveTenant({required String tenantId}) async {
+    archiveTenantCalls++;
+    lastTenantId = tenantId;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+  }
+
+  @override
+  Future<void> restoreTenant({required String tenantId}) async {
+    restoreTenantCalls++;
+    lastTenantId = tenantId;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listTenantMembers({
+    required String tenantId,
+  }) async {
+    lastTenantId = tenantId;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+    return memberRows;
+  }
+
+  @override
+  Future<Map<String, dynamic>> addTenantMember({
+    required String tenantId,
+    required String email,
+    required String role,
+  }) async {
+    lastTenantId = tenantId;
+    lastEmail = email;
+    lastRole = role;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+    return {'user_id': 'member-id', 'email': email, 'role': role};
+  }
+
+  @override
+  Future<void> updateTenantMemberRole({
+    required String tenantId,
+    required String userId,
+    required String role,
+  }) async {
+    updateMemberRoleCalls++;
+    lastTenantId = tenantId;
+    lastUserId = userId;
+    lastRole = role;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
+  }
+
+  @override
+  Future<void> removeTenantMember({
+    required String tenantId,
+    required String userId,
+  }) async {
+    removeMemberCalls++;
+    lastTenantId = tenantId;
+    lastUserId = userId;
+    final error = managementError;
+    if (error != null) {
+      throw error;
+    }
   }
 }

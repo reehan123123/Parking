@@ -43,6 +43,8 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
   final _formKey = GlobalKey<FormState>();
   final _plateController = TextEditingController();
   final _durationController = TextEditingController();
+  final _totalChargeController = TextEditingController();
+  final _paidAmountController = TextEditingController();
   final _calculator = const ParkingDurationCalculator();
 
   late final ParkingPhotoSource _photoSource =
@@ -52,6 +54,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
   late DateTime _entryDate;
   late TimeOfDay _entryTime;
   ParkingDurationUnit _durationUnit = ParkingDurationUnit.minutes;
+  bool _isFullyPaid = false;
   ParkingPhoto? _selectedPhoto;
   String? _existingPhotoPath;
   ParkingSessionSaveFailure? _saveFailure;
@@ -79,6 +82,11 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
           .toString();
       _existingPhotoPath = initialSession.photoPath;
       _continueWithoutPhoto = initialSession.photoPath == null;
+      _totalChargeController.text = _formatAmount(initialSession.totalCharge);
+      _paidAmountController.text = _formatAmount(initialSession.paidAmount);
+      _isFullyPaid =
+          initialSession.totalCharge > 0 &&
+          initialSession.paidAmount >= initialSession.totalCharge;
       return;
     }
 
@@ -87,10 +95,16 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     _entryTime = TimeOfDay.fromDateTime(initialNow);
   }
 
+  String _formatAmount(double amount) {
+    return amount == 0 ? '' : amount.toStringAsFixed(2);
+  }
+
   @override
   void dispose() {
     _plateController.dispose();
     _durationController.dispose();
+    _totalChargeController.dispose();
+    _paidAmountController.dispose();
     super.dispose();
   }
 
@@ -319,6 +333,69 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     _formKey.currentState?.validate();
   }
 
+  double? get _enteredTotalCharge {
+    final text = _totalChargeController.text.trim();
+    if (text.isEmpty) {
+      return 0;
+    }
+    return double.tryParse(text);
+  }
+
+  double? get _enteredPaidAmount {
+    if (_isFullyPaid) {
+      return _enteredTotalCharge;
+    }
+    final text = _paidAmountController.text.trim();
+    if (text.isEmpty) {
+      return 0;
+    }
+    return double.tryParse(text);
+  }
+
+  String? _validateTotalCharge(String? value) {
+    final text = (value ?? '').trim();
+    if (text.isEmpty) {
+      return null;
+    }
+    final amount = double.tryParse(text);
+    if (amount == null) {
+      return 'Enter a valid amount.';
+    }
+    if (amount < 0) {
+      return 'The charge cannot be negative.';
+    }
+    return null;
+  }
+
+  String? _validatePaidAmount(String? value) {
+    if (_isFullyPaid) {
+      return null;
+    }
+    final text = (value ?? '').trim();
+    if (text.isEmpty) {
+      return null;
+    }
+    final amount = double.tryParse(text);
+    if (amount == null) {
+      return 'Enter a valid amount.';
+    }
+    if (amount < 0) {
+      return 'The amount paid cannot be negative.';
+    }
+    final total = _enteredTotalCharge ?? 0;
+    if (amount > total) {
+      return 'The amount paid cannot exceed the total charge.';
+    }
+    return null;
+  }
+
+  void _handleFullyPaidChanged(bool? value) {
+    setState(() {
+      _isFullyPaid = value ?? false;
+    });
+    _formKey.currentState?.validate();
+  }
+
   Future<void> _save() async {
     FocusScope.of(context).unfocus();
     final form = _formKey.currentState;
@@ -340,6 +417,15 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       return;
     }
 
+    final totalCharge = _enteredTotalCharge;
+    final paidAmount = _enteredPaidAmount;
+    if (totalCharge == null || paidAmount == null) {
+      setState(() {
+        _saveError = 'Enter a valid parking charge before saving.';
+      });
+      return;
+    }
+
     final session = ParkingSession(
       id: widget.initialSession?.id,
       tenantId: widget.initialSession?.tenantId ?? widget.tenantId,
@@ -349,6 +435,8 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       entryTime: _entryDateTime,
       allowedDuration: duration,
       expiresAt: calculation.expiresAt,
+      totalCharge: totalCharge,
+      paidAmount: paidAmount,
     );
 
     setState(() {
@@ -572,6 +660,8 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                       const SizedBox(height: 16),
                       _buildDetailsCard(context),
                       const SizedBox(height: 16),
+                      _buildChargeCard(context),
+                      const SizedBox(height: 16),
                       _buildPhotoCard(context),
                       const SizedBox(height: 16),
                       _buildSaveError(context),
@@ -677,6 +767,71 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
             ),
             const SizedBox(height: 16),
             _buildExpiryPreview(context, calculation),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChargeCard(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Parking charge',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 20),
+            TextFormField(
+              controller: _totalChargeController,
+              enabled: !_isSaving,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+              ],
+              decoration: const InputDecoration(
+                labelText: 'Total charge',
+                hintText: 'For example, 50.00',
+                prefixText: '₹ ',
+              ),
+              validator: _validateTotalCharge,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _isFullyPaid,
+              onChanged: _isSaving ? null : _handleFullyPaidChanged,
+              title: const Text('Fully paid'),
+              subtitle: const Text(
+                'Leave unchecked to record a partial payment.',
+              ),
+            ),
+            if (!_isFullyPaid) ...[
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _paidAmountController,
+                enabled: !_isSaving,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                ],
+                decoration: const InputDecoration(
+                  labelText: 'Amount paid',
+                  hintText: 'For example, 20.00',
+                  prefixText: '₹ ',
+                ),
+                validator: _validatePaidAmount,
+              ),
+            ],
           ],
         ),
       ),

@@ -258,7 +258,16 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
             style: Theme.of(context).textTheme.headlineMedium,
           ),
         ),
-        ParkingSessionStatusChip(session: _session),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            ParkingSessionStatusChip(session: _session),
+            if (_session.totalCharge > 0) ...[
+              const SizedBox(height: 6),
+              ParkingPaymentStatusChip(session: _session),
+            ],
+          ],
+        ),
       ],
     );
   }
@@ -291,6 +300,25 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
                 _session.expiresAt,
               ),
             ),
+            if (_session.totalCharge > 0) ...[
+              const Divider(height: 24),
+              _DetailRow(
+                label: 'Total charge',
+                value: ParkingSessionFormatters.currency(_session.totalCharge),
+              ),
+              const Divider(height: 24),
+              _DetailRow(
+                label: 'Amount paid',
+                value: ParkingSessionFormatters.currency(_session.paidAmount),
+              ),
+              const Divider(height: 24),
+              _DetailRow(
+                label: 'Remaining balance',
+                value: ParkingSessionFormatters.currency(
+                  _session.remainingBalance,
+                ),
+              ),
+            ],
           ],
         ),
       ),

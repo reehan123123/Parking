@@ -44,6 +44,8 @@ class _HistoryPageState extends State<HistoryPage> with WidgetsBindingObserver {
   bool _isLoadingMore = false;
   bool _hasMore = false;
   bool _retryAppend = false;
+  ParkingSessionStatus? _statusFilter;
+  ParkingPaymentStatus? _paymentFilter;
 
   @override
   void initState() {
@@ -163,6 +165,41 @@ class _HistoryPageState extends State<HistoryPage> with WidgetsBindingObserver {
     _handleSearchChanged('');
   }
 
+  List<ParkingSession> get _filteredSessions {
+    final statusFilter = _statusFilter;
+    final paymentFilter = _paymentFilter;
+    if (statusFilter == null && paymentFilter == null) {
+      return _sessions;
+    }
+
+    final now = DateTime.now();
+    return _sessions
+        .where((session) {
+          if (statusFilter != null && session.statusAt(now) != statusFilter) {
+            return false;
+          }
+          if (paymentFilter != null && session.paymentStatus != paymentFilter) {
+            return false;
+          }
+          return true;
+        })
+        .toList(growable: false);
+  }
+
+  bool get _hasActiveFilters => _statusFilter != null || _paymentFilter != null;
+
+  void _toggleStatusFilter(ParkingSessionStatus value) {
+    setState(() {
+      _statusFilter = _statusFilter == value ? null : value;
+    });
+  }
+
+  void _togglePaymentFilter(ParkingPaymentStatus value) {
+    setState(() {
+      _paymentFilter = _paymentFilter == value ? null : value;
+    });
+  }
+
   void _loadMore() {
     if (_isLoading || _isLoadingMore || !_hasMore) {
       return;
@@ -213,6 +250,8 @@ class _HistoryPageState extends State<HistoryPage> with WidgetsBindingObserver {
               _buildHeader(context),
               const SizedBox(height: 20),
               _buildSearchField(),
+              const SizedBox(height: 16),
+              _buildFilterChips(),
               const SizedBox(height: 20),
               if (_isLoading && _sessions.isEmpty)
                 const SizedBox(height: 320, child: LoadingView())
@@ -277,12 +316,64 @@ class _HistoryPageState extends State<HistoryPage> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildFilterChips() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilterChip(
+          label: const Text('Active'),
+          selected: _statusFilter == ParkingSessionStatus.active,
+          onSelected: (_) => _toggleStatusFilter(ParkingSessionStatus.active),
+        ),
+        FilterChip(
+          label: const Text('Expired'),
+          selected: _statusFilter == ParkingSessionStatus.expired,
+          onSelected: (_) => _toggleStatusFilter(ParkingSessionStatus.expired),
+        ),
+        FilterChip(
+          label: const Text('Paid'),
+          selected: _paymentFilter == ParkingPaymentStatus.paid,
+          onSelected: (_) => _togglePaymentFilter(ParkingPaymentStatus.paid),
+        ),
+        FilterChip(
+          label: const Text('Partially paid'),
+          selected: _paymentFilter == ParkingPaymentStatus.partiallyPaid,
+          onSelected: (_) =>
+              _togglePaymentFilter(ParkingPaymentStatus.partiallyPaid),
+        ),
+        FilterChip(
+          label: const Text('Unpaid'),
+          selected: _paymentFilter == ParkingPaymentStatus.unpaid,
+          onSelected: (_) => _togglePaymentFilter(ParkingPaymentStatus.unpaid),
+        ),
+        if (_hasActiveFilters)
+          ActionChip(
+            avatar: const Icon(Icons.clear, size: 18),
+            label: const Text('Clear filters'),
+            onPressed: () {
+              setState(() {
+                _statusFilter = null;
+                _paymentFilter = null;
+              });
+            },
+          ),
+      ],
+    );
+  }
+
   Widget _buildSessionList() {
-    if (_sessions.isEmpty) {
+    final sessions = _filteredSessions;
+    if (sessions.isEmpty) {
+      final noRawSessions = _sessions.isEmpty;
       return EmptyStateView(
         icon: Icons.history,
-        title: _search.isEmpty ? 'No parking history' : 'No matching sessions',
-        message: _search.isEmpty
+        title: noRawSessions && _search.isEmpty
+            ? 'No parking history'
+            : 'No matching sessions',
+        message: !noRawSessions && _hasActiveFilters
+            ? 'No sessions match the selected filters.'
+            : _search.isEmpty
             ? 'Saved parking sessions will appear here.'
             : 'Try a different registration search.',
       );
@@ -291,7 +382,7 @@ class _HistoryPageState extends State<HistoryPage> with WidgetsBindingObserver {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        ParkingSessionListView(sessions: _sessions, onSessionTap: _openSession),
+        ParkingSessionListView(sessions: sessions, onSessionTap: _openSession),
         if (_hasMore)
           Padding(
             padding: const EdgeInsets.only(top: 16),

@@ -55,6 +55,8 @@ void main() {
         'allowed_duration_unit': 'hours',
         'expires_at': '2026-10-14T12:30:00.000Z',
         'created_by': 'user-1',
+        'total_charge': 0.0,
+        'paid_amount': 0.0,
       });
       expect(store.events, ['insert']);
     });

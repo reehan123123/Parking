@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../shared/widgets/error_state_view.dart';
 import '../data/auth_repository.dart';
 import 'sign_in_page.dart';
+import 'temporary_password_reset_page.dart';
 
 typedef AuthenticatedBuilder = Widget Function(
   BuildContext context,
@@ -27,6 +28,7 @@ class AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<AuthGate> {
   late bool _isSignedIn;
+  late bool _requiresTemporaryPasswordChange;
   StreamSubscription<bool>? _authSubscription;
   String? _errorMessage;
 
@@ -34,6 +36,8 @@ class _AuthGateState extends State<AuthGate> {
   void initState() {
     super.initState();
     _isSignedIn = widget.authRepository.isSignedIn;
+    _requiresTemporaryPasswordChange =
+        widget.authRepository.requiresTemporaryPasswordChange;
     _authSubscription = widget.authRepository.signedInChanges.listen(
       _handleAuthState,
       onError: _handleAuthError,
@@ -54,6 +58,8 @@ class _AuthGateState extends State<AuthGate> {
     setState(() {
       _errorMessage = null;
       _isSignedIn = isSignedIn;
+      _requiresTemporaryPasswordChange =
+          widget.authRepository.requiresTemporaryPasswordChange;
     });
   }
 
@@ -71,6 +77,8 @@ class _AuthGateState extends State<AuthGate> {
     setState(() {
       _errorMessage = null;
       _isSignedIn = widget.authRepository.isSignedIn;
+      _requiresTemporaryPasswordChange =
+          widget.authRepository.requiresTemporaryPasswordChange;
     });
   }
 
@@ -94,6 +102,13 @@ class _AuthGateState extends State<AuthGate> {
 
     if (!_isSignedIn) {
       return SignInPage(authRepository: widget.authRepository);
+    }
+
+    if (_requiresTemporaryPasswordChange) {
+      return TemporaryPasswordResetPage(
+        authRepository: widget.authRepository,
+        onSignOut: widget.authRepository.signOut,
+      );
     }
 
     return widget.authenticatedBuilder(context, widget.authRepository.signOut);
