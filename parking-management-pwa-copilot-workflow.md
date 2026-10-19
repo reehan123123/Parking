@@ -148,10 +148,27 @@ Use a single, tested duration-calculation service, separate from UI and database
 
 Create SQL migrations in source control. Do not rely on manually created undocumented database changes.
 
+### Tables: `tenants`, `tenant_memberships`, and `super_admins`
+
+- `tenants`: `id UUID PRIMARY KEY`, validated `name`, unique `slug`,
+  nullable `created_by UUID REFERENCES auth.users(id)`, and `created_at`.
+- `tenant_memberships`: `tenant_id UUID REFERENCES tenants(id)`,
+  `user_id UUID REFERENCES auth.users(id)`, and a constrained role of
+  `owner` or `member`, with `(tenant_id, user_id)` as the primary key.
+- `super_admins`: `user_id UUID PRIMARY KEY REFERENCES auth.users(id)` and
+  `created_at`. Authenticated clients must not have direct insert/update
+  privileges.
+
+When adding tenant support to an existing deployment, create one personal
+workspace and owner membership for each existing Auth user, then backfill that
+user's sessions without changing `created_by`, timestamps, expiry values, or
+photo paths.
+
 ### Table: `parking_sessions`
 
 Recommended fields:
 - `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
+- `tenant_id UUID NOT NULL REFERENCES public.tenants(id)`
 - `plate_number TEXT NOT NULL`
 - `photo_path TEXT NULL`
 - `entry_time TIMESTAMPTZ NOT NULL`
@@ -169,8 +186,10 @@ Keep the schema small. Add tables only when a concrete requirement needs them.
 ## 7. Security requirements
 
 - Enable RLS on every table accessible through the Supabase client.
-- Create explicit policies so authenticated users can only read/insert/update/delete the records they are allowed to manage. For this first private app, user-owned records (`created_by = auth.uid()`) are the default.
-- Ensure Storage policies protect photos and scope them to the authenticated user/session ownership. Avoid overly broad authenticated-user policies.
+- Create explicit policies so authenticated users can only read/insert/update/delete records in tenants where they have a membership. Inserts must bind `created_by` to `auth.uid()`, and regular members cannot transfer sessions between tenants or change their creator.
+- Keep Super Admin authorization database-backed. Never allow a client to grant itself the role; only a controlled administrative operation may provision the initial Super Admin.
+- Ensure Storage policies protect photos by checking the related session's creator path and tenant membership, with cross-tenant access reserved for a database-authorized Super Admin. Avoid overly broad authenticated-user policies.
+- Allow only a Super Admin to create a tenant, and assign its owner to an existing Supabase Auth account. Do not create Auth users from the browser or expose a service-role key.
 - The frontend may use only the Supabase project URL and publishable/anon key. Never use the service-role key in the client, GitHub, build artifacts, logs, or documentation.
 - Put local configuration/secrets in ignored environment/config files as appropriate. Commit an example configuration file with placeholders, not real secrets.
 - Validate user input in the client and use database constraints/RLS as the security boundary.
@@ -276,7 +295,9 @@ At minimum test:
 
 ### Security
 - Unauthenticated users cannot access parking data or private photos.
-- One user cannot access another user's sessions/photos.
+- A tenant member cannot access another tenant's sessions/photos.
+- A regular member cannot change a session's tenant or creator or grant a Super Admin role.
+- A database-provisioned Super Admin can access all tenant sessions/photos and create tenants for existing Auth accounts.
 - No service-role key appears in source, browser bundles, or logs.
 - RLS is enabled and tested.
 - Storage bucket is private.
@@ -317,7 +338,8 @@ Do not generate the entire app in a single uncontrolled change. Use the phases b
 
 ### Phase 3 — Supabase and security
 - Add Supabase initialization.
-- Create migrations for `parking_sessions`, constraints, indexes, RLS, and private storage policies.
+- Create migrations for `parking_sessions`, tenant workspaces/memberships, constraints, indexes, RLS, and private storage policies. Backfill existing users and sessions without changing session ownership or photo paths.
+- Add a database-backed Super Admin role and a guarded tenant-creation operation; keep Auth-user creation outside the browser.
 - Implement sign-in/sign-out and explain initial account setup.
 - Add repository tests or practical verification steps.
 - Never bypass RLS.
@@ -353,6 +375,7 @@ Do not generate the entire app in a single uncontrolled change. Use the phases b
 
 ### Phase 7 — Dashboard, history, edit/delete
 - Implement lists, search, status, detail view, editing, and deletion.
+- Add tenant selection and a role-gated Super Admin screen for creating tenants with existing Auth accounts as owners.
 - Handle loading, empty, and failure states.
 - Run quality gates.
 
@@ -382,7 +405,8 @@ Follow these rules throughout the project:
 4. Keep changes small and reviewable.
 5. Explain any new dependency and why Flutter built-ins are insufficient.
 6. Do not introduce paid services, custom servers, native mobile targets,
-   OCR/image uploads, image-processing services, or complex abstractions.
+   OCR or external image-recognition/processing services, or complex
+   abstractions. Preserve the existing private Supabase vehicle-photo flow.
 7. Never hardcode credentials or secrets.
 8. Never disable security controls to get a passing test.
 9. Run formatter, analyzer, and tests after meaningful changes.
@@ -398,7 +422,9 @@ The project is done when the authenticated PWA is hosted over HTTPS, can be
 added to an Android and iPhone home screen, captures/uploads a vehicle photo,
 accepts manually entered plate details and an allowed duration in
 minutes/hours/days/months, calculates expiry correctly, shows active/expired
-sessions, supports search and history, enforces Supabase security, passes
-documented tests, and includes setup/deployment/backup documentation.
+sessions, supports tenant-scoped search and history, provides a database-role
+gated Super Admin panel for tenant creation, enforces tenant and private-photo
+security in Supabase, passes documented tests, and includes
+setup/deployment/backup documentation.
 
 Begin with **Phase 1 only**. Inspect the repository and environment, propose the plan, and wait for approval before making substantial changes.

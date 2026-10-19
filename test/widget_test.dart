@@ -5,9 +5,29 @@ import 'package:parking_management/app.dart';
 import 'package:parking_management/shared/widgets/empty_state_view.dart';
 import 'package:parking_management/shared/widgets/error_state_view.dart';
 import 'package:parking_management/shared/widgets/loading_view.dart';
+import 'package:parking_management/features/tenants/domain/parking_tenant.dart';
+import 'package:parking_management/features/tenants/domain/parking_tenant_scope.dart';
+import 'package:parking_management/features/tenants/presentation/tenant_admin_page.dart';
+
+import 'features/tenants/test_tenant_repository.dart';
+import 'features/parking/presentation/parking_test_repository.dart';
 
 Widget _buildShell() {
-  return const MaterialApp(home: AppShell());
+  return const MaterialApp(
+    home: AppShell(
+      initialTenantAccess: ParkingTenantAccess(
+        isSuperAdmin: false,
+        tenants: [
+          ParkingTenant(
+            id: 'test-tenant',
+            name: 'Parking workspace',
+            slug: 'parking-workspace',
+            role: ParkingTenantRole.owner,
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 void main() {
@@ -52,6 +72,100 @@ void main() {
 
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
+  });
+
+  testWidgets('shows tenant administration only to a Super Admin', (
+    WidgetTester tester,
+  ) async {
+    const access = ParkingTenantAccess(isSuperAdmin: true, tenants: []);
+    final tenantRepository = TestTenantRepository(access: access);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppShell(
+          initialTenantAccess: access,
+          tenantRepository: tenantRepository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Admin'), findsOneWidget);
+    await tester.tap(find.text('Admin'));
+    await tester.pumpAndSettle();
+    expect(find.text('Super Admin'), findsOneWidget);
+    expect(find.text('Create tenant'), findsOneWidget);
+  });
+
+  testWidgets('switches the parking repository scope with the tenant', (
+    WidgetTester tester,
+  ) async {
+    const access = ParkingTenantAccess(
+      isSuperAdmin: true,
+      tenants: [
+        ParkingTenant(id: 'north-tenant', name: 'North lot', slug: 'north-lot'),
+        ParkingTenant(id: 'south-tenant', name: 'South lot', slug: 'south-lot'),
+      ],
+    );
+    final tenantRepository = TestTenantRepository(access: access);
+    final parkingRepository = TestParkingSessionRepository();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: AppShell(
+          initialTenantAccess: access,
+          tenantRepository: tenantRepository,
+          parkingSessionRepository: parkingRepository,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      parkingRepository.lastScope,
+      const ParkingTenantScope(isSuperAdmin: true, tenantId: null),
+    );
+    await tester.tap(find.byTooltip('Select tenant'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('North lot'));
+    await tester.pumpAndSettle();
+
+    expect(
+      parkingRepository.lastScope,
+      const ParkingTenantScope(isSuperAdmin: true, tenantId: 'north-tenant'),
+    );
+  });
+
+  testWidgets('renders the tenant Admin page at mobile width', (
+    WidgetTester tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    const access = ParkingTenantAccess(
+      isSuperAdmin: true,
+      tenants: [
+        ParkingTenant(id: 'north-tenant', name: 'North lot', slug: 'north-lot'),
+      ],
+    );
+    final repository = TestTenantRepository(access: access);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TenantAdminPage(
+            access: access,
+            repository: repository,
+            onTenantCreated: (_) async {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Super Admin'), findsOneWidget);
+    expect(find.text('North lot'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('shows configuration guidance without Supabase setup', (

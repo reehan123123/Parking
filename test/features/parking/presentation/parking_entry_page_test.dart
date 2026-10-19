@@ -12,6 +12,7 @@ import 'package:parking_management/features/parking/domain/parking_duration.dart
 import 'package:parking_management/features/parking/domain/parking_duration_unit.dart';
 import 'package:parking_management/features/parking/domain/parking_session.dart';
 import 'package:parking_management/features/parking/presentation/parking_entry_page.dart';
+import 'package:parking_management/features/tenants/domain/parking_tenant_scope.dart';
 
 void main() {
   testWidgets('calculates an expiry preview from the entered duration', (
@@ -293,12 +294,19 @@ class FakeParkingSessionRepository implements ParkingSessionRepository {
   }
 
   @override
-  Future<ParkingSessionListResult> list({String search = ''}) async {
+  Future<ParkingSessionListResult> list({
+    required ParkingTenantScope scope,
+    String search = '',
+    int offset = 0,
+    int pageSize = 50,
+  }) async {
     return const ParkingSessionListSuccess(sessions: []);
   }
 
   @override
-  Future<ParkingSessionSummaryResult> summary() async {
+  Future<ParkingSessionSummaryResult> summary({
+    required ParkingTenantScope scope,
+  }) async {
     return const ParkingSessionSummarySuccess(
       summary: ParkingSessionSummary(activeCount: 0, expiredCount: 0),
     );

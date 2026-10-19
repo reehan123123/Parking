@@ -6,9 +6,12 @@ using the free `pages.dev` hostname and the selected project name
 `https://parking-85u.pages.dev/`. The application continues to use Supabase
 for authentication, PostgreSQL, and private vehicle photo storage.
 
-The Pages project exists, but the last observed deployment served HTTP 404 for
-the root and expected Flutter assets. Treat production as unverified until a
-GitHub Actions deployment uploads `build/web` and the live asset checks pass.
+Static deployment verification on 2026-10-18 confirmed HTTP 200 for the root,
+manifest, Flutter bootstrap and loader, Dart bundle, and 192/512 app icons.
+This confirms static asset availability only; it does not verify
+authentication, Supabase, private photo storage, or device behavior. The
+current local performance-hardening and tenant-administration changes have
+not been deployed.
 
 ## Architecture and security boundary
 
@@ -18,7 +21,7 @@ GitHub Actions deployment uploads `build/web` and the live asset checks pass.
 - The browser receives public compile-time configuration: `SUPABASE_URL`,
   and `SUPABASE_PUBLISHABLE_KEY`. Flutter embeds these values in the public
   browser bundle.
-- Authentication, PostgreSQL grants/RLS, and the private
+- Authentication, tenant membership, PostgreSQL grants/RLS, and private
   `vehicle-photos` Storage policies remain the authorization boundary.
 - The Cloudflare token, account ID, GitHub credentials, passwords, and any
   Supabase secret/service-role key must remain in secret stores and must never
@@ -102,27 +105,33 @@ directory to Pages instead of asking Pages to install an SDK on every build.
 
 Before live testing:
 
-1. Review the source-controlled migration
-   `supabase/migrations/20261014160000_create_parking_sessions_security.sql`.
-2. Apply it to the intended Supabase project through the approved Supabase
-   workflow. Do not reset the project or run an unreviewed migration.
-3. Confirm `parking_sessions` has RLS enabled and the
-   `vehicle-photos` bucket is private.
-4. Confirm the owner-only table and Storage policies remain unchanged.
-5. Create the administrator-managed email/password test user. Public
-   registration is not part of this app.
-6. In Supabase Auth URL Configuration, set the Site URL to the actual
+1. Review both source-controlled migrations:
+   `supabase/migrations/20261014160000_create_parking_sessions_security.sql`
+   and `supabase/migrations/20261018185121_tenant_administration.sql`.
+2. Apply any pending migrations to the intended Supabase project through the
+   approved Supabase workflow. Do not reset the project or run an unreviewed
+   migration.
+3. Confirm `parking_sessions`, `tenants`, and `tenant_memberships` have RLS
+   enabled and the `vehicle-photos` bucket is private.
+4. Create or verify the private Auth account for
+   `dieselpetrol6@gmail.com`, then review and run
+   `supabase/operations/provision_initial_super_admin.sql`.
+5. Sign in and verify the Admin destination appears only for that
+   database-provisioned role. Create a tenant using an existing Auth account
+   as the owner.
+6. Use separate accounts to verify that one tenant cannot read or modify
+   another tenant's records/photos and the Super Admin can access both.
+7. In Supabase Auth URL Configuration, set the Site URL to the actual
    `https://<actual-project>.pages.dev/` URL after it exists. Add the exact
    production origin and any intentionally supported local URL to the allowed
    redirect list. This app currently uses password sign-in rather than an
    OAuth callback, but the URL configuration still matters for Auth email
    links and future password-reset behavior.
-7. Use two separate test accounts for RLS and private-photo checks where
-   possible. Do not use the privileged SQL Editor as proof of browser RLS.
+8. Do not use the privileged SQL Editor as proof of browser RLS.
 
 The frontend deployment alone does not prove hosted RLS or Storage isolation.
-User A must not be able to read, update, delete, sign, or replace User B's
-sessions or photos, including when IDs and paths are guessed.
+Tenant A members must not be able to read, update, delete, sign, or replace
+Tenant B's sessions or photos, including when IDs and paths are guessed.
 
 ## PWA, SPA, and cache behavior
 
@@ -143,17 +152,25 @@ cacheable. If Flutter stops copying `_headers` into `build/web`, configure the
 equivalent Pages rule in the dashboard instead and verify the resulting
 headers with `curl -I`.
 
-## Current 404 diagnosis
+## Live static deployment verification
 
-The Cloudflare project `parking` has a successful deployment record, but the
-last observed production and deployment-specific URLs returned 404 for
-`index.html`, `main.dart.js`, `flutter.js`, and `manifest.json`. The
-corresponding GitHub Actions run stopped before the release build because
-`SUPABASE_URL` was not configured, so it could not have uploaded the Flutter
-output. The corrected workflow now targets `parking`, removes the preview
-branch flag, and verifies the generated `build/web` directory before
-uploading it. Do not accept a deployment until those checks pass against the
-live hostname.
+On 2026-10-18, unauthenticated GET requests to the production hostname
+`https://parking-85u.pages.dev/` returned HTTP 200 for:
+
+- `/`
+- `/manifest.json`
+- `/flutter_bootstrap.js`
+- `/flutter.js`
+- `/main.dart.js`
+- `/icons/Icon-192.png`
+- `/icons/Icon-512.png`
+
+The root response included the configured
+`X-Content-Type-Options: nosniff` and
+`Referrer-Policy: strict-origin-when-cross-origin` headers. These responses
+show that the sampled static files are served; they do not establish that
+sign-in, parking CRUD, Supabase RLS, private Storage, camera, or mobile/PWA
+flows work. Recheck all relevant behavior after any new deployment.
 
 ## Local release validation
 
@@ -234,15 +251,12 @@ or PWA installation behavior across browsers.
 
 ## Current handover status
 
-As of the repository inspection for Phase 9:
+As of the 2026-10-18 static-host check:
 
 - Local Phase 4-8 code is committed and pushed.
-- Local release, analysis, test, and static security checks have passed.
-- Cloudflare Pages project `parking` exists at the expected hostname, but the
-  last observed deployment served 404 responses for the Flutter shell and
-  assets.
-- The corrected GitHub Actions workflow is ready to build `3.47.7`, verify
-  `build/web`, and deploy the production upload after the protected
-  environment secrets are configured.
+- The current local performance-hardening implementation is uncommitted and
+  has not been pushed or deployed.
+- The production hostname and the sampled Flutter/PWA assets returned HTTP
+  200. This verifies static delivery only.
 - Hosted Supabase migration/Auth/RLS/Storage behavior is not yet verified.
 - Android/iPhone production/PWA checks are not yet verified.

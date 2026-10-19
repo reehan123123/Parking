@@ -1,10 +1,18 @@
 import 'parking_photo.dart';
 import '../domain/parking_session.dart';
+import '../../tenants/domain/parking_tenant_scope.dart';
 
 abstract interface class ParkingSessionRepository {
-  Future<ParkingSessionListResult> list({String search = ''});
+  Future<ParkingSessionListResult> list({
+    required ParkingTenantScope scope,
+    String search = '',
+    int offset = 0,
+    int pageSize = 50,
+  });
 
-  Future<ParkingSessionSummaryResult> summary();
+  Future<ParkingSessionSummaryResult> summary({
+    required ParkingTenantScope scope,
+  });
 
   Future<ParkingSessionDetailResult> getById({required String sessionId});
 
@@ -40,16 +48,18 @@ abstract interface class ParkingSessionStore {
   Future<String> insert(Map<String, dynamic> values);
 
   Future<List<Map<String, dynamic>>> list({
-    required String userId,
+    required ParkingTenantScope scope,
+    required int offset,
+    required int limit,
     String? search,
   });
 
-  Future<List<Map<String, dynamic>>> summary({required String userId});
-
-  Future<Map<String, dynamic>?> find({
-    required String userId,
-    required String sessionId,
+  Future<ParkingSessionSummary> summary({
+    required ParkingTenantScope scope,
+    required DateTime asOf,
   });
+
+  Future<Map<String, dynamic>?> find({required String sessionId});
 
   Future<void> setPhotoPath({
     required String sessionId,
@@ -94,9 +104,13 @@ sealed class ParkingSessionListResult {
 }
 
 final class ParkingSessionListSuccess extends ParkingSessionListResult {
-  const ParkingSessionListSuccess({required this.sessions});
+  const ParkingSessionListSuccess({
+    required this.sessions,
+    this.hasMore = false,
+  });
 
   final List<ParkingSession> sessions;
+  final bool hasMore;
 }
 
 final class ParkingSessionListFailure extends ParkingSessionListResult {

@@ -1,12 +1,22 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:parking_management/features/parking/data/parking_photo.dart';
 import 'package:parking_management/features/parking/data/parking_session_repository.dart';
 import 'package:parking_management/features/parking/data/supabase_parking_session_repository.dart';
 import 'package:parking_management/features/parking/domain/parking_duration.dart';
 import 'package:parking_management/features/parking/domain/parking_duration_unit.dart';
 import 'package:parking_management/features/parking/domain/parking_session.dart';
+import 'package:parking_management/features/tenants/domain/parking_tenant_scope.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+const _tenantScope = ParkingTenantScope(
+  isSuperAdmin: false,
+  tenantId: 'tenant-1',
+);
 
 void main() {
   group('SupabaseParkingSessionRepository', () {
@@ -39,6 +49,7 @@ void main() {
       expect(store.insertedValues, {
         'plate_number': 'AB 123',
         'photo_path': null,
+        'tenant_id': 'tenant-1',
         'entry_time': '2026-10-14T10:30:00.000Z',
         'allowed_duration_value': 2,
         'allowed_duration_unit': 'hours',
@@ -128,33 +139,190 @@ void main() {
         ..rows = [_row(id: 'session-5', plateNumber: 'AB 123')];
       final repository = _repository(store: store);
 
-      final result = await repository.list(search: 'ab 12');
+      final result = await repository.list(
+        scope: _tenantScope,
+        search: 'ab 12',
+      );
 
       expect(result, isA<ParkingSessionListSuccess>());
       final success = result as ParkingSessionListSuccess;
       expect(success.sessions.single.id, 'session-5');
       expect(success.sessions.single.plateNumber, 'AB 123');
       expect(store.lastSearch, 'ab 12');
+      expect(store.lastListOffset, 0);
+      expect(store.lastListLimit, 51);
     });
 
-    test('calculates summary counts at the active expiry boundary', () async {
-      final store = FakeParkingSessionStore()
-        ..summaryRows = [
-          {'expires_at': '2026-10-14T10:30:01.000Z'},
-          {'expires_at': '2026-10-14T10:30:00.000Z'},
-        ];
-      final repository = _repository(
-        store: store,
-        now: () => DateTime.utc(2026, 10, 14, 10, 30),
+    test(
+      'requests a bounded page and reports when more sessions exist',
+      () async {
+        final store = FakeParkingSessionStore()
+          ..rows = [
+            _row(id: 'session-10'),
+            _row(id: 'session-11'),
+            _row(id: 'session-12'),
+          ];
+        final repository = _repository(store: store);
+
+        final result = await repository.list(
+          scope: _tenantScope,
+          offset: 20,
+          pageSize: 2,
+        );
+
+        expect(result, isA<ParkingSessionListSuccess>());
+        final success = result as ParkingSessionListSuccess;
+        expect(success.sessions.map((session) => session.id), [
+          'session-10',
+          'session-11',
+        ]);
+        expect(success.hasMore, isTrue);
+        expect(store.lastListOffset, 20);
+        expect(store.lastListLimit, 3);
+      },
+    );
+
+    test('rejects invalid page bounds before querying the store', () async {
+      final store = FakeParkingSessionStore();
+      final repository = _repository(store: store);
+
+      final result = await repository.list(
+        scope: _tenantScope,
+        offset: -1,
+        pageSize: 101,
       );
 
-      final result = await repository.summary();
+      expect(result, isA<ParkingSessionListFailure>());
+      expect(store.events, isEmpty);
+    });
+
+    test('passes one UTC expiry cutoff to the summary store', () async {
+      final asOf = DateTime.utc(2026, 10, 14, 10, 30);
+      final store = FakeParkingSessionStore()
+        ..summaryValue = const ParkingSessionSummary(
+          activeCount: 1,
+          expiredCount: 1,
+        );
+      final repository = _repository(store: store, now: () => asOf);
+
+      final result = await repository.summary(scope: _tenantScope);
 
       expect(result, isA<ParkingSessionSummarySuccess>());
       final summary = (result as ParkingSessionSummarySuccess).summary;
       expect(summary.activeCount, 1);
       expect(summary.expiredCount, 1);
+      expect(store.lastSummaryScope, _tenantScope);
+      expect(store.lastSummaryAsOf, asOf);
     });
+
+    test(
+      'uses tenant-filtered exact HEAD counts for the expiry summary',
+      () async {
+        final requests = <http.Request>[];
+        final mockClient = MockClient((request) async {
+          requests.add(request);
+          final expiryFilter = request.url.queryParameters['expires_at'];
+          final count = expiryFilter?.startsWith('gt.') == true ? 2 : 3;
+          return http.Response(
+            '',
+            200,
+            headers: {'content-range': '*/$count'},
+            request: request,
+          );
+        });
+        final client = SupabaseClient(
+          'https://parking-test.supabase.co',
+          'test-publishable-key',
+          httpClient: mockClient,
+        );
+        addTearDown(() async {
+          await client.dispose();
+          mockClient.close();
+        });
+        final asOf = DateTime.utc(2026, 10, 14, 10, 30);
+        final repository = SupabaseParkingSessionRepository(
+          client,
+          currentUserId: () => 'user-1',
+          now: () => asOf,
+        );
+
+        final result = await repository.summary(scope: _tenantScope);
+
+        expect(result, isA<ParkingSessionSummarySuccess>());
+        final summary = (result as ParkingSessionSummarySuccess).summary;
+        expect(summary.activeCount, 2);
+        expect(summary.expiredCount, 3);
+        expect(requests, hasLength(2));
+        expect(requests.map((request) => request.method), everyElement('HEAD'));
+        for (final request in requests) {
+          expect(request.url.path, '/rest/v1/parking_sessions');
+          expect(request.url.queryParameters['tenant_id'], 'eq.tenant-1');
+        }
+        expect(
+          requests
+              .map((request) => request.url.queryParameters['expires_at'])
+              .toSet(),
+          {'gt.2026-10-14T10:30:00.000Z', 'lte.2026-10-14T10:30:00.000Z'},
+        );
+      },
+    );
+
+    test(
+      'uses tenant-filtered stable ordering and bounded list ranges',
+      () async {
+        final requests = <http.Request>[];
+        final mockClient = MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            jsonEncode([
+              _row(id: 'session-20'),
+              _row(id: 'session-21'),
+              _row(id: 'session-22'),
+            ]),
+            200,
+            headers: {'content-type': 'application/json'},
+            request: request,
+          );
+        });
+        final client = SupabaseClient(
+          'https://parking-test.supabase.co',
+          'test-publishable-key',
+          httpClient: mockClient,
+        );
+        addTearDown(() async {
+          await client.dispose();
+          mockClient.close();
+        });
+        final repository = SupabaseParkingSessionRepository(
+          client,
+          currentUserId: () => 'user-1',
+        );
+
+        final result = await repository.list(
+          scope: _tenantScope,
+          search: ' AB 12 ',
+          offset: 50,
+          pageSize: 2,
+        );
+
+        expect(result, isA<ParkingSessionListSuccess>());
+        final success = result as ParkingSessionListSuccess;
+        expect(success.sessions, hasLength(2));
+        expect(success.hasMore, isTrue);
+        expect(requests, hasLength(1));
+        final request = requests.single;
+        expect(request.method, 'GET');
+        expect(request.url.queryParameters['tenant_id'], 'eq.tenant-1');
+        expect(
+          request.url.queryParameters['order'],
+          'entry_time.desc.nullslast,id.desc.nullslast',
+        );
+        expect(request.url.queryParameters['offset'], '50');
+        expect(request.url.queryParameters['limit'], '3');
+        expect(request.url.queryParameters['plate_number'], contains('ilike.'));
+        expect(request.url.queryParameters['plate_number'], contains('AB 12'));
+      },
+    );
 
     test('loads an owned session and creates a signed photo URL', () async {
       final store = FakeParkingSessionStore()
@@ -265,6 +433,7 @@ void main() {
 ParkingSession _session({String plateNumber = 'AB 123'}) {
   final entryTime = DateTime.utc(2026, 10, 14, 10, 30);
   return ParkingSession(
+    tenantId: 'tenant-1',
     plateNumber: plateNumber,
     entryTime: entryTime,
     allowedDuration: const ParkingDuration(
@@ -281,6 +450,8 @@ ParkingSession _sessionWithId({
 }) {
   return ParkingSession(
     id: id,
+    tenantId: 'tenant-1',
+    createdBy: 'user-1',
     plateNumber: plateNumber,
     entryTime: DateTime.utc(2026, 10, 14, 10, 30),
     allowedDuration: const ParkingDuration(
@@ -298,6 +469,8 @@ Map<String, dynamic> _row({
 }) {
   return {
     'id': id,
+    'tenant_id': 'tenant-1',
+    'created_by': 'user-1',
     'plate_number': plateNumber,
     'photo_path': photoPath,
     'entry_time': '2026-10-14T10:30:00.000Z',
@@ -339,8 +512,15 @@ class FakeParkingSessionStore implements ParkingSessionStore {
   final List<String> events = [];
   Map<String, dynamic>? insertedValues;
   List<Map<String, dynamic>> rows = [];
-  List<Map<String, dynamic>> summaryRows = [];
+  ParkingSessionSummary summaryValue = const ParkingSessionSummary(
+    activeCount: 0,
+    expiredCount: 0,
+  );
   String? lastSearch;
+  int? lastListOffset;
+  int? lastListLimit;
+  ParkingTenantScope? lastSummaryScope;
+  DateTime? lastSummaryAsOf;
   Map<String, dynamic>? lastUpdatedValues;
   Exception? updateError;
 
@@ -353,25 +533,31 @@ class FakeParkingSessionStore implements ParkingSessionStore {
 
   @override
   Future<List<Map<String, dynamic>>> list({
-    required String userId,
+    required ParkingTenantScope scope,
+    required int offset,
+    required int limit,
     String? search,
   }) async {
     events.add('list');
     lastSearch = search;
+    lastListOffset = offset;
+    lastListLimit = limit;
     return rows;
   }
 
   @override
-  Future<List<Map<String, dynamic>>> summary({required String userId}) async {
+  Future<ParkingSessionSummary> summary({
+    required ParkingTenantScope scope,
+    required DateTime asOf,
+  }) async {
     events.add('summary');
-    return summaryRows.isEmpty ? rows : summaryRows;
+    lastSummaryScope = scope;
+    lastSummaryAsOf = asOf;
+    return summaryValue;
   }
 
   @override
-  Future<Map<String, dynamic>?> find({
-    required String userId,
-    required String sessionId,
-  }) async {
+  Future<Map<String, dynamic>?> find({required String sessionId}) async {
     events.add('find');
     for (final row in rows) {
       if (row['id'] == sessionId) {

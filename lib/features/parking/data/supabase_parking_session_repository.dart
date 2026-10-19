@@ -5,10 +5,12 @@ import '../domain/parking_duration_unit.dart';
 import '../domain/parking_session.dart';
 import 'parking_photo.dart';
 import 'parking_session_repository.dart';
+import '../../tenants/domain/parking_tenant_scope.dart';
 
 const _parkingSessionColumns =
-    'id,plate_number,photo_path,entry_time,allowed_duration_value,'
+    'id,tenant_id,plate_number,photo_path,entry_time,allowed_duration_value,'
     'allowed_duration_unit,expires_at,created_by,created_at,updated_at';
+const _maximumParkingSessionPageSize = 100;
 
 class SupabaseParkingSessionRepository implements ParkingSessionRepository {
   SupabaseParkingSessionRepository(
@@ -30,7 +32,12 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
   final DateTime Function() _now;
 
   @override
-  Future<ParkingSessionListResult> list({String search = ''}) async {
+  Future<ParkingSessionListResult> list({
+    required ParkingTenantScope scope,
+    String search = '',
+    int offset = 0,
+    int pageSize = 50,
+  }) async {
     final userId = _authenticatedUserId();
     if (userId == null) {
       return const ParkingSessionListFailure(
@@ -38,14 +45,33 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       );
     }
 
+    if (!scope.isValid) {
+      return const ParkingSessionListFailure(
+        message: 'Choose a tenant before loading parking sessions.',
+      );
+    }
+
+    if (offset < 0 ||
+        pageSize < 1 ||
+        pageSize > _maximumParkingSessionPageSize) {
+      return const ParkingSessionListFailure(
+        message: 'The requested parking-session page is invalid.',
+      );
+    }
+
     try {
       final normalizedSearch = search.trim();
       final rows = await _sessionStore.list(
-        userId: userId,
+        scope: scope,
+        offset: offset,
+        limit: pageSize + 1,
         search: normalizedSearch.isEmpty ? null : normalizedSearch,
       );
+      final hasMore = rows.length > pageSize;
+      final pageRows = hasMore ? rows.take(pageSize) : rows;
       return ParkingSessionListSuccess(
-        sessions: rows.map(_sessionFromRow).toList(growable: false),
+        sessions: pageRows.map(_sessionFromRow).toList(growable: false),
+        hasMore: hasMore,
       );
     } on Exception catch (error) {
       return ParkingSessionListFailure(message: _messageForReadError(error));
@@ -53,7 +79,9 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
   }
 
   @override
-  Future<ParkingSessionSummaryResult> summary() async {
+  Future<ParkingSessionSummaryResult> summary({
+    required ParkingTenantScope scope,
+  }) async {
     final userId = _authenticatedUserId();
     if (userId == null) {
       return const ParkingSessionSummaryFailure(
@@ -61,26 +89,18 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       );
     }
 
-    try {
-      final rows = await _sessionStore.summary(userId: userId);
-      var activeCount = 0;
-      var expiredCount = 0;
-      final now = _now();
-      for (final row in rows) {
-        final expiresAt = _parseDateTime(row['expires_at'], 'expires_at');
-        if (now.isBefore(expiresAt)) {
-          activeCount++;
-        } else {
-          expiredCount++;
-        }
-      }
-
-      return ParkingSessionSummarySuccess(
-        summary: ParkingSessionSummary(
-          activeCount: activeCount,
-          expiredCount: expiredCount,
-        ),
+    if (!scope.isValid) {
+      return const ParkingSessionSummaryFailure(
+        message: 'Choose a tenant before loading parking statistics.',
       );
+    }
+
+    try {
+      final summary = await _sessionStore.summary(
+        scope: scope,
+        asOf: _now().toUtc(),
+      );
+      return ParkingSessionSummarySuccess(summary: summary);
     } on Exception catch (error) {
       return ParkingSessionSummaryFailure(message: _messageForReadError(error));
     }
@@ -98,10 +118,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
     }
 
     try {
-      final row = await _sessionStore.find(
-        userId: userId,
-        sessionId: sessionId,
-      );
+      final row = await _sessionStore.find(sessionId: sessionId);
       if (row == null) {
         return const ParkingSessionDetailFailure(
           message: 'That parking session could not be found.',
@@ -134,10 +151,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
     }
 
     try {
-      final row = await _sessionStore.find(
-        userId: userId,
-        sessionId: sessionId,
-      );
+      final row = await _sessionStore.find(sessionId: sessionId);
       if (row == null || row['photo_path'] != photoPath) {
         return const ParkingSessionPhotoUrlFailure(
           message: 'The private vehicle photo is no longer available.',
@@ -173,11 +187,18 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
     if (validationMessage != null) {
       return ParkingSessionSaveFailure(message: validationMessage);
     }
+    final tenantId = session.tenantId?.trim();
+    if (tenantId == null || tenantId.isEmpty) {
+      return const ParkingSessionSaveFailure(
+        message: 'Choose a tenant before saving the parking entry.',
+      );
+    }
 
     final values = _sessionInsertValues(
       session: session,
       plateNumber: plateNumber,
       userId: userId,
+      tenantId: tenantId,
     );
 
     late final String sessionId;
@@ -192,6 +213,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       id: sessionId,
       plateNumber: plateNumber,
       photoPath: null,
+      createdBy: userId,
     );
 
     if (photo == null) {
@@ -199,7 +221,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
     }
 
     final photoPath = _buildPhotoPath(
-      userId: userId,
+      userId: session.createdBy ?? userId,
       sessionId: sessionId,
       photo: photo,
     );
@@ -254,10 +276,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
     }
 
     try {
-      final currentRow = await _sessionStore.find(
-        userId: userId,
-        sessionId: sessionId,
-      );
+      final currentRow = await _sessionStore.find(sessionId: sessionId);
       if (currentRow == null) {
         return ParkingSessionUpdateFailure(
           message: 'That parking session could not be found.',
@@ -301,7 +320,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
       }
 
       final newPhotoPath = _buildPhotoPath(
-        userId: userId,
+        userId: session.createdBy ?? userId,
         sessionId: sessionId,
         photo: replacementPhoto,
       );
@@ -370,10 +389,7 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
     }
 
     try {
-      final currentRow = await _sessionStore.find(
-        userId: userId,
-        sessionId: sessionId,
-      );
+      final currentRow = await _sessionStore.find(sessionId: sessionId);
       if (currentRow == null) {
         return ParkingSessionDeleteFailure(
           message: 'That parking session could not be found.',
@@ -497,8 +513,10 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
     required ParkingSession session,
     required String plateNumber,
     required String userId,
+    required String tenantId,
   }) {
     return {
+      'tenant_id': tenantId,
       'plate_number': plateNumber,
       'photo_path': null,
       'entry_time': session.entryTime.toUtc().toIso8601String(),
@@ -524,6 +542,8 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
 
   ParkingSession _sessionFromRow(Map<String, dynamic> row) {
     final id = _requiredString(row['id'], 'id');
+    final tenantId = _optionalString(row['tenant_id']);
+    final createdBy = _optionalString(row['created_by']);
     final plateNumber = _requiredString(row['plate_number'], 'plate_number');
     final photoPath = _optionalString(row['photo_path']);
     final entryTime = _parseDateTime(row['entry_time'], 'entry_time');
@@ -538,6 +558,8 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
 
     return ParkingSession(
       id: id,
+      tenantId: tenantId,
+      createdBy: createdBy,
       plateNumber: plateNumber,
       photoPath: photoPath,
       entryTime: entryTime,
@@ -552,11 +574,15 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
   ParkingSession _sessionWith(
     ParkingSession session, {
     String? id,
+    String? tenantId,
+    String? createdBy,
     String? plateNumber,
     String? photoPath,
   }) {
     return ParkingSession(
       id: id ?? session.id,
+      tenantId: tenantId ?? session.tenantId,
+      createdBy: createdBy ?? session.createdBy,
       plateNumber: plateNumber ?? session.plateNumber,
       photoPath: photoPath,
       entryTime: session.entryTime,
@@ -807,42 +833,62 @@ class _SupabaseParkingSessionStore implements ParkingSessionStore {
 
   @override
   Future<List<Map<String, dynamic>>> list({
-    required String userId,
+    required ParkingTenantScope scope,
+    required int offset,
+    required int limit,
     String? search,
   }) async {
-    if (search == null || search.isEmpty) {
-      return _client
-          .from('parking_sessions')
-          .select(_parkingSessionColumns)
-          .eq('created_by', userId)
-          .order('entry_time', ascending: false);
+    var query = _client.from('parking_sessions').select(_parkingSessionColumns);
+    if (scope.tenantId != null) {
+      query = query.eq('tenant_id', scope.tenantId!);
+    }
+    if (search != null && search.isNotEmpty) {
+      query = query.ilike('plate_number', '%${_escapeIlike(search)}%');
     }
 
-    return _client
-        .from('parking_sessions')
-        .select(_parkingSessionColumns)
-        .eq('created_by', userId)
-        .ilike('plate_number', '%${_escapeIlike(search)}%')
-        .order('entry_time', ascending: false);
+    return query
+        .order('entry_time', ascending: false)
+        .order('id', ascending: false)
+        .range(offset, offset + limit - 1);
   }
 
   @override
-  Future<List<Map<String, dynamic>>> summary({required String userId}) async {
-    return _client
-        .from('parking_sessions')
-        .select('expires_at')
-        .eq('created_by', userId);
-  }
-
-  @override
-  Future<Map<String, dynamic>?> find({
-    required String userId,
-    required String sessionId,
+  Future<ParkingSessionSummary> summary({
+    required ParkingTenantScope scope,
+    required DateTime asOf,
   }) async {
+    final cutoff = asOf.toUtc().toIso8601String();
+    final counts = await Future.wait<int>([
+      _countForExpiry(scope: scope, cutoff: cutoff, active: true),
+      _countForExpiry(scope: scope, cutoff: cutoff, active: false),
+    ]);
+
+    return ParkingSessionSummary(
+      activeCount: counts[0],
+      expiredCount: counts[1],
+    );
+  }
+
+  Future<int> _countForExpiry({
+    required ParkingTenantScope scope,
+    required String cutoff,
+    required bool active,
+  }) {
+    var query = _client.from('parking_sessions').count(CountOption.exact);
+    if (scope.tenantId != null) {
+      query = query.eq('tenant_id', scope.tenantId!);
+    }
+
+    return active
+        ? query.gt('expires_at', cutoff)
+        : query.lte('expires_at', cutoff);
+  }
+
+  @override
+  Future<Map<String, dynamic>?> find({required String sessionId}) async {
     return _client
         .from('parking_sessions')
         .select(_parkingSessionColumns)
-        .eq('created_by', userId)
         .eq('id', sessionId)
         .maybeSingle();
   }

@@ -5,6 +5,8 @@ enum ParkingSessionStatus { active, expired }
 class ParkingSession {
   const ParkingSession({
     this.id,
+    this.tenantId,
+    this.createdBy,
     required this.plateNumber,
     this.photoPath,
     required this.entryTime,
@@ -13,6 +15,8 @@ class ParkingSession {
   });
 
   final String? id;
+  final String? tenantId;
+  final String? createdBy;
   final String plateNumber;
   final String? photoPath;
   final DateTime entryTime;

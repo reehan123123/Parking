@@ -1,130 +1,118 @@
 # Security model and verification
 
-Phase 3 establishes the authorization boundary before any parking CRUD or
-photo workflow is added.
+The application uses Supabase Auth, PostgreSQL row-level security (RLS), and
+private Storage. Tenant isolation and the global Super Admin role are
+enforced by the database, not by Flutter navigation or client-supplied IDs.
 
 ## Client boundary
 
-The Flutter Web bundle contains only:
+The Flutter Web bundle contains only the Supabase project URL and public
+publishable/anon key. Those values identify a public client; they do not
+replace authorization. Never expose a service-role key, database password,
+JWT signing secret, or other privileged credential in Dart code, browser
+configuration, Git, generated assets, or logs.
 
-- The Supabase project URL.
-- The public publishable/anon key.
+The app validates compile-time configuration before initializing Supabase.
+Missing configuration produces an explicit setup page instead of an
+unauthenticated fallback.
 
-Those values identify the project but do not replace authorization. The
-database and Storage policies are the security boundary. Never expose a
-service-role key, database password, JWT signing secret, or other privileged
-credential to the browser, GitHub, generated web assets, or logs.
+## Authentication and role assignment
 
-Configuration is supplied with `--dart-define` and validated before
-`Supabase.initialize` runs. Missing configuration produces an explicit setup
-page instead of a fake client or a silent unauthenticated mode.
+The UI supports email/password sign-in and sign-out. Public registration is
+not implemented. Auth accounts must be created through the intended Supabase
+administration process.
 
-The production GitHub Actions workflow reads `SUPABASE_URL` and
-`SUPABASE_PUBLISHABLE_KEY` from GitHub secret settings and passes them to the
-same compile-time defines. These values are intentionally visible in the
-browser release because the URL and publishable/anon key identify a public
-client; the workflow must never receive or embed a Supabase secret/service-role
-key. Cloudflare deployment credentials are used only by the workflow and are
-not application configuration.
+`public.super_admins` is database-backed and has no authenticated-client
+table privileges or user-facing insert path. The `is_super_admin()` function
+returns the current user's role for RLS and tenant loading. A reviewed
+one-time SQL operation at
+`supabase/operations/provision_initial_super_admin.sql` assigns
+`dieselpetrol6@gmail.com` after that Auth account and the tenant migration
+exist. That operation has not been run against the hosted project.
 
-## Authentication
+The application Super Admin can view and manage parking records and private
+photos across tenants and create tenant workspaces. This is not access to
+Supabase project settings, passwords, or service-role credentials.
 
-The current UI supports only email/password sign-in and local sign-out. There
-is no public registration flow. The first user must be created by an
-administrator in the Supabase Dashboard.
+## Tenant and database authorization
 
-The auth repository keeps Supabase calls out of widgets and exposes only the
-session state needed by the auth gate. Authentication errors are displayed to
-the user without logging credentials.
+`public.tenants` identifies parking workspaces.
+`public.tenant_memberships` maps Auth users to workspaces with `owner` or
+`member` role. Both roles currently have the same parking-session permissions;
+granular role management is not part of this implementation.
 
-## Database authorization
+The tenant migration creates a `Personal workspace` and owner membership for
+each existing Auth user, then assigns that user's existing parking sessions
+to it. It preserves `created_by`, timestamps, expiry values, and photo paths.
+The migration has not been applied to the hosted database.
 
-`public.parking_sessions` has `created_by uuid not null` referencing
-`auth.users`. RLS is enabled, `anon` has no table privileges, and the
-`authenticated` role receives only the required table operations.
+`public.parking_sessions` retains `created_by` for audit and photo path
+compatibility and has a required `tenant_id`. RLS enforces:
 
-Each operation has its own owner policy:
+- Select, update, and delete are allowed only for a member of the row's
+  tenant or a database-recognized Super Admin.
+- Inserts must use the caller's Auth user ID as `created_by` and a tenant the
+  caller belongs to, unless the caller is a Super Admin.
+- Non-admin users cannot change a session's `tenant_id` or `created_by`.
+- Authenticated users cannot insert or update rows in `public.super_admins`.
+- The `create_tenant` RPC is restricted to Super Admins, validates its inputs,
+  and assigns an existing Auth user as tenant owner in the same transaction.
 
-- Select: `created_by = auth.uid()`.
-- Insert: the inserted `created_by` must equal `auth.uid()`.
-- Update: the existing and new owner must equal `auth.uid()`, preventing
-  ownership transfer.
-- Delete: the existing owner must equal `auth.uid()`.
+The Flutter repository sends an explicit selected-tenant filter for list and
+summary queries. A global Super Admin view omits that filter; RLS still
+enforces the caller's real role in both cases. Direct-ID lookups and mutations
+also rely on RLS rather than trusting client-side ownership filters.
 
-The migration also validates positive duration values, a supported duration
-unit, and a trimmed plate number length. The maximum allowed duration is
-deliberately deferred to the Phase 4 domain service.
+## Private vehicle-photo authorization
 
-## Storage authorization
-
-The `vehicle-photos` bucket is private. It is not made public as a fallback.
-The expected object path is:
+The `vehicle-photos` bucket remains private. The object path remains:
 
 ```text
-{auth.uid()}/{parking_session_id}/{filename}
+{session-created-by-user-id}/{parking-session-id}/{filename}
 ```
 
-Each Storage policy checks all of the following:
+Each Storage operation verifies that the second path component identifies a
+parking session, that the first component matches that row's `created_by`,
+and that the current user is a member of the session tenant or a Super Admin.
+This preserves existing object paths while granting access at the tenant
+boundary. Signed URLs are created only after the associated session and photo
+path are verified through the authenticated client.
 
-1. The bucket is `vehicle-photos`.
-2. The first path folder equals the current authenticated user's ID.
-3. The second path folder identifies a `parking_sessions` row owned by that
-   user.
+The save sequence remains row first, Storage upload second, with cleanup on
+failure. Photo deletion precedes session deletion; cleanup failures remain
+visible and retryable. Lists do not download photo bytes.
 
-This avoids granting access to arbitrary objects under a user's folder and
-prevents cross-user access through a guessed session ID. The future upload
-sequence is row first, upload second, and row cleanup on upload failure.
+## Verification
 
-## Verification checklist
-
-Run the source-level Flutter checks:
+Run the local Flutter checks:
 
 ```powershell
 dart format .
 flutter analyze
 flutter test
 flutter build web --release
+git diff --check
 ```
 
-Inspect the built output and source tree for privileged credentials:
+The source-controlled database tests are
+`supabase/tests/parking_sessions_rls.test.sql` and
+`supabase/tests/vehicle_photos_rls.test.sql`. Run them with Supabase CLI and
+Docker against a local or non-production project:
+
+```powershell
+supabase test db
+```
+
+The SQL tests have not been executed in this environment. Hosted RLS, two-user
+tenant isolation, private-photo access, live Super Admin provisioning, and
+production migration state remain unverified.
+
+Inspect for privileged credential patterns:
 
 ```powershell
 rg -n -i "service[-_ ]?role|sb_secret|jwt secret|database password" `
   lib web build README.md docs supabase
 ```
 
-The expected result is no real credential. Placeholder names and
-documentation references are acceptable.
-
-When the Supabase CLI and Docker are installed, run:
-
-```powershell
-supabase test db
-```
-
-The repository contains:
-
-- `supabase/tests/parking_sessions_rls.test.sql`
-- `supabase/tests/vehicle_photos_rls.test.sql`
-
-These checks are source-controlled but were not executed in the current
-environment because Supabase CLI and Docker were unavailable. No hosted
-project, bucket, migration, user, or policy is claimed as verified until the
-manual checklist is completed.
-
-After deployment, verify the actual Pages origin in Supabase Auth URL
-Configuration and run the two-account database and private-Storage checks
-from [deployment.md](deployment.md). A successful frontend build is not proof
-of hosted RLS or Storage isolation.
-
-## Review requirements for later phases
-
-Before adding CRUD or photo UI, confirm that:
-
-- Every database query runs through the authenticated Supabase client.
-- No service-role credential or custom bypass endpoint is introduced.
-- The row is created before a photo upload.
-- Failed uploads remove the row and any partial object.
-- Photo deletion occurs before deleting its database row.
-- User-visible errors do not include access tokens, passwords, or raw
-  privileged responses.
+Documentation references and placeholder variable names are expected; no real
+privileged values may appear in source, release assets, or logs.

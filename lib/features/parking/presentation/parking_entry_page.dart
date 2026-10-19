@@ -20,6 +20,7 @@ import 'parking_entry_limits.dart';
 class ParkingEntryPage extends StatefulWidget {
   const ParkingEntryPage({
     required this.repository,
+    this.tenantId,
     this.initialSession,
     this.photoSource,
     this.cameraSource,
@@ -28,6 +29,7 @@ class ParkingEntryPage extends StatefulWidget {
   });
 
   final ParkingSessionRepository repository;
+  final String? tenantId;
   final ParkingSession? initialSession;
   final ParkingPhotoSource? photoSource;
   final ParkingCameraSource? cameraSource;
@@ -340,6 +342,8 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
 
     final session = ParkingSession(
       id: widget.initialSession?.id,
+      tenantId: widget.initialSession?.tenantId ?? widget.tenantId,
+      createdBy: widget.initialSession?.createdBy,
       plateNumber: ParkingPlateNormalizer.normalize(_plateController.text),
       photoPath: _existingPhotoPath,
       entryTime: _entryDateTime,

@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:parking_management/features/parking/data/parking_photo.dart';
 import 'package:parking_management/features/parking/data/parking_session_repository.dart';
 import 'package:parking_management/features/parking/domain/parking_session.dart';
+import 'package:parking_management/features/tenants/domain/parking_tenant_scope.dart';
 
 class TestParkingSessionRepository implements ParkingSessionRepository {
   TestParkingSessionRepository({
@@ -21,6 +24,7 @@ class TestParkingSessionRepository implements ParkingSessionRepository {
   List<ParkingSession> sessions;
   ParkingSessionSummary summaryValue;
   ParkingSessionListResult? listResult;
+  Completer<ParkingSessionListResult>? nextListCompleter;
   ParkingSessionSummaryResult? summaryResult;
   ParkingSessionDetailResult? detailResult;
   ParkingSessionPhotoUrlResult? photoUrlResult;
@@ -32,20 +36,48 @@ class TestParkingSessionRepository implements ParkingSessionRepository {
   int summaryCalls = 0;
   int detailCalls = 0;
   int deleteCalls = 0;
+  int lastOffset = 0;
+  int lastPageSize = 50;
+  ParkingTenantScope? lastScope;
   ParkingSession? updatedSession;
   ParkingPhoto? replacementPhoto;
 
   @override
-  Future<ParkingSessionListResult> list({String search = ''}) async {
+  Future<ParkingSessionListResult> list({
+    required ParkingTenantScope scope,
+    String search = '',
+    int offset = 0,
+    int pageSize = 50,
+  }) async {
     listCalls++;
+    lastScope = scope;
     lastSearch = search;
-    return listResult ??
-        ParkingSessionListSuccess(sessions: List.unmodifiable(sessions));
+    lastOffset = offset;
+    lastPageSize = pageSize;
+    final configuredResult = listResult;
+    if (configuredResult != null) {
+      return configuredResult;
+    }
+
+    final completer = nextListCompleter;
+    if (completer != null) {
+      nextListCompleter = null;
+      return completer.future;
+    }
+
+    final page = sessions.skip(offset).take(pageSize).toList(growable: false);
+    return ParkingSessionListSuccess(
+      sessions: List.unmodifiable(page),
+      hasMore: sessions.length > offset + pageSize,
+    );
   }
 
   @override
-  Future<ParkingSessionSummaryResult> summary() async {
+  Future<ParkingSessionSummaryResult> summary({
+    required ParkingTenantScope scope,
+  }) async {
     summaryCalls++;
+    lastScope = scope;
     return summaryResult ?? ParkingSessionSummarySuccess(summary: summaryValue);
   }
 

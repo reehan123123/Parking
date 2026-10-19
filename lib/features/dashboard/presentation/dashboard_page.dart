@@ -9,18 +9,23 @@ import '../../parking/data/parking_session_repository.dart';
 import '../../parking/domain/parking_session.dart';
 import '../../parking/presentation/parking_session_details_page.dart';
 import '../../parking/presentation/parking_session_list_view.dart';
+import '../../tenants/domain/parking_tenant_scope.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({
+    required this.scope,
     this.repository,
     this.onNewParkingEntry,
+    this.onViewHistory,
     this.onDataChanged,
     this.refreshToken = 0,
     super.key,
   });
 
+  final ParkingTenantScope scope;
   final ParkingSessionRepository? repository;
   final VoidCallback? onNewParkingEntry;
+  final VoidCallback? onViewHistory;
   final VoidCallback? onDataChanged;
   final int refreshToken;
 
@@ -30,6 +35,8 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage>
     with WidgetsBindingObserver {
+  static const _recentSessionPageSize = 10;
+
   final _searchController = TextEditingController();
   Timer? _searchTimer;
   List<ParkingSession> _sessions = const [];
@@ -37,10 +44,14 @@ class _DashboardPageState extends State<DashboardPage>
     activeCount: 0,
     expiredCount: 0,
   );
-  String? _errorMessage;
+  String? _listErrorMessage;
+  String? _summaryErrorMessage;
   String _search = '';
   int _requestVersion = 0;
+  int _summaryRequestVersion = 0;
+  int _dataChangeVersion = 0;
   bool _isLoading = false;
+  bool _hasMore = false;
 
   @override
   void initState() {
@@ -54,7 +65,8 @@ class _DashboardPageState extends State<DashboardPage>
   @override
   void didUpdateWidget(covariant DashboardPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.refreshToken != widget.refreshToken &&
+    if ((oldWidget.refreshToken != widget.refreshToken ||
+            oldWidget.scope != widget.scope) &&
         widget.repository != null) {
       unawaited(_load(showLoading: false));
     }
@@ -75,7 +87,10 @@ class _DashboardPageState extends State<DashboardPage>
     super.dispose();
   }
 
-  Future<void> _load({bool showLoading = true}) async {
+  Future<void> _load({
+    bool showLoading = true,
+    bool includeSummary = true,
+  }) async {
     final repository = widget.repository;
     if (repository == null) {
       return;
@@ -85,40 +100,58 @@ class _DashboardPageState extends State<DashboardPage>
     if (showLoading && mounted) {
       setState(() {
         _isLoading = true;
-        _errorMessage = null;
+        _listErrorMessage = null;
       });
     }
 
-    final summaryFuture = repository.summary();
-    final sessionsFuture = repository.list(search: _search);
-    final summaryResult = await summaryFuture;
+    if (includeSummary) {
+      unawaited(_loadSummary(repository));
+    }
+    final sessionsFuture = repository.list(
+      scope: widget.scope,
+      search: _search,
+      pageSize: _recentSessionPageSize,
+    );
     final sessionsResult = await sessionsFuture;
 
     if (!mounted || requestVersion != _requestVersion) {
       return;
     }
 
-    if (summaryResult is ParkingSessionSummaryFailure) {
-      setState(() {
-        _isLoading = false;
-        _errorMessage = summaryResult.message;
-      });
-      return;
-    }
-
     if (sessionsResult is ParkingSessionListFailure) {
       setState(() {
         _isLoading = false;
-        _errorMessage = sessionsResult.message;
+        _listErrorMessage = sessionsResult.message;
       });
       return;
     }
 
     setState(() {
       _isLoading = false;
-      _errorMessage = null;
-      _summary = (summaryResult as ParkingSessionSummarySuccess).summary;
-      _sessions = (sessionsResult as ParkingSessionListSuccess).sessions;
+      _listErrorMessage = null;
+      final sessionPage = sessionsResult as ParkingSessionListSuccess;
+      _sessions = sessionPage.sessions;
+      _hasMore = sessionPage.hasMore;
+    });
+  }
+
+  Future<void> _loadSummary(ParkingSessionRepository repository) async {
+    final requestVersion = ++_summaryRequestVersion;
+    final result = await repository.summary(scope: widget.scope);
+    if (!mounted || requestVersion != _summaryRequestVersion) {
+      return;
+    }
+
+    if (result is ParkingSessionSummaryFailure) {
+      setState(() {
+        _summaryErrorMessage = result.message;
+      });
+      return;
+    }
+
+    setState(() {
+      _summary = (result as ParkingSessionSummarySuccess).summary;
+      _summaryErrorMessage = null;
     });
   }
 
@@ -126,7 +159,7 @@ class _DashboardPageState extends State<DashboardPage>
     _search = value.trim();
     _searchTimer?.cancel();
     _searchTimer = Timer(const Duration(milliseconds: 350), () {
-      unawaited(_load(showLoading: false));
+      unawaited(_load(showLoading: false, includeSummary: false));
     });
     setState(() {});
   }
@@ -137,44 +170,59 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Future<void> _openSession(ParkingSession session) async {
+    final previousRefreshToken = widget.refreshToken;
+    final previousDataChangeVersion = _dataChangeVersion;
     await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (context) => ParkingSessionDetailsPage(
           repository: widget.repository!,
           session: session,
-          onDataChanged: widget.onDataChanged,
+          onDataChanged: _handleDataChanged,
         ),
       ),
     );
-    if (mounted) {
+    if (mounted &&
+        widget.refreshToken == previousRefreshToken &&
+        _dataChangeVersion == previousDataChangeVersion) {
       await _load(showLoading: false);
     }
   }
 
+  void _handleDataChanged() {
+    final onDataChanged = widget.onDataChanged;
+    if (onDataChanged == null) {
+      return;
+    }
+
+    _dataChangeVersion++;
+    onDataChanged();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final errorMessage = _listErrorMessage ?? _summaryErrorMessage;
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 960),
+        constraints: const BoxConstraints(maxWidth: 1120),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildHeader(context),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
               if (_isLoading && _sessions.isEmpty)
                 const SizedBox(height: 320, child: LoadingView())
-              else if (_errorMessage != null && _sessions.isEmpty)
-                ErrorStateView(message: _errorMessage!, onRetry: () => _load())
+              else if (errorMessage != null && _sessions.isEmpty)
+                ErrorStateView(message: errorMessage, onRetry: () => _load())
               else ...[
                 _buildSummary(context),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 _buildSearchField(),
-                const SizedBox(height: 20),
-                if (_errorMessage != null) ...[
+                const SizedBox(height: 28),
+                if (errorMessage != null) ...[
                   ErrorStateView(
-                    message: _errorMessage!,
+                    message: errorMessage,
                     onRetry: () => _load(showLoading: false),
                   ),
                   const SizedBox(height: 20),
@@ -197,9 +245,21 @@ class _DashboardPageState extends State<DashboardPage>
                         : null,
                   )
                 else ...[
-                  Text(
-                    'Recent sessions',
-                    style: Theme.of(context).textTheme.titleLarge,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Recent sessions',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      if (_hasMore && widget.onViewHistory != null)
+                        TextButton.icon(
+                          onPressed: widget.onViewHistory,
+                          icon: const Icon(Icons.history),
+                          label: const Text('View all'),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   ParkingSessionListView(
@@ -216,19 +276,42 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Widget _buildHeader(BuildContext context) {
+    final theme = Theme.of(context);
     return Wrap(
       alignment: WrapAlignment.spaceBetween,
       crossAxisAlignment: WrapCrossAlignment.center,
-      runSpacing: 12,
+      runSpacing: 16,
+      spacing: 20,
       children: [
-        Text('Dashboard', style: Theme.of(context).textTheme.headlineMedium),
+        ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 240),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Parking overview',
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Monitor current activity and manage vehicle entries.',
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
         Wrap(
-          spacing: 8,
+          spacing: 10,
           children: [
-            IconButton(
+            OutlinedButton.icon(
               onPressed: _isLoading ? null : () => _load(),
-              tooltip: 'Refresh sessions',
               icon: const Icon(Icons.refresh),
+              label: const Text('Refresh'),
             ),
             if (widget.onNewParkingEntry != null)
               FilledButton.icon(
@@ -258,7 +341,8 @@ class _DashboardPageState extends State<DashboardPage>
                 label: 'Active',
                 count: _summary.activeCount,
                 icon: Icons.check_circle_outline,
-                color: Theme.of(context).colorScheme.secondaryContainer,
+                accent: Theme.of(context).colorScheme.primary,
+                message: 'Currently within the allowed duration',
               ),
             ),
             SizedBox(
@@ -267,7 +351,8 @@ class _DashboardPageState extends State<DashboardPage>
                 label: 'Expired',
                 count: _summary.expiredCount,
                 icon: Icons.history,
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                accent: Theme.of(context).colorScheme.tertiary,
+                message: 'Past the recorded expiry time',
               ),
             ),
           ],
@@ -295,7 +380,7 @@ class _DashboardPageState extends State<DashboardPage>
       onChanged: _handleSearchChanged,
       onSubmitted: (_) {
         _searchTimer?.cancel();
-        unawaited(_load(showLoading: false));
+        unawaited(_load(showLoading: false, includeSummary: false));
       },
     );
   }
@@ -306,24 +391,62 @@ class _SummaryCard extends StatelessWidget {
     required this.label,
     required this.count,
     required this.icon,
-    required this.color,
+    required this.accent,
+    required this.message,
   });
 
   final String label;
   final int count;
   final IconData icon;
-  final Color color;
+  final Color accent;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Card(
-      color: color,
-      child: ListTile(
-        leading: Icon(icon),
-        title: Text(label),
-        trailing: Text(
-          count.toString(),
-          style: Theme.of(context).textTheme.headlineSmall,
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(icon, color: accent),
+                ),
+                const Spacer(),
+                Text(
+                  label.toUpperCase(),
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    letterSpacing: 0.8,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Text(
+              count.toString(),
+              style: theme.textTheme.displaySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              message,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ),
       ),
     );

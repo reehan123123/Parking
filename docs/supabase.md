@@ -1,69 +1,68 @@
 # Supabase setup
 
-This document describes the manual setup for Phase 3. It is intentionally
-written so that a developer can apply and verify the source-controlled
-configuration without putting credentials in the Flutter project.
+This document describes how to configure and verify the Parking Management
+PWA's Supabase project without placing privileged credentials in the Flutter
+client.
 
-## 1. Create the project
+## 1. Create or select the project
 
-1. Create a Supabase project in the intended account and region.
-2. In **Project Settings > API**, copy the project URL and the publishable key
-   (called the anon key in older Supabase projects).
-3. Keep the service-role key private. It is not required by this Flutter app
+1. Create or select the Supabase project that will host the application.
+2. In **Project Settings > API**, copy the project URL and publishable key
+   (called the anon key in older projects).
+3. Keep the service-role key private. It is not required by the Flutter client
    and must never be placed in Dart code, browser configuration, Git, or logs.
-4. In **Authentication > Providers**, enable Email. For a private
-   administrator-created account, disable public sign-ups if that is enabled
-   for the project.
+4. In **Authentication > Providers**, enable Email. Keep public sign-ups
+   disabled for this private application.
 
-This repository has not created or inspected a hosted project. Replace the
-placeholder values below only in your local shell:
+The Flutter app reads the two public values through compile-time defines:
 
 ```powershell
 $env:SUPABASE_URL = "https://your-project-ref.supabase.co"
 $env:SUPABASE_PUBLISHABLE_KEY = "sb_publishable_replace_me"
-```
 
-The Flutter app receives these values through compile-time defines rather than
-from a runtime `.env` asset:
-
-```powershell
 flutter run -d chrome `
   --dart-define=SUPABASE_URL=$env:SUPABASE_URL `
   --dart-define=SUPABASE_PUBLISHABLE_KEY=$env:SUPABASE_PUBLISHABLE_KEY
 ```
 
-PowerShell expands the values before Flutter embeds them. Do not record the
-command in a shared log or commit a script containing real values.
+PowerShell expands the values before Flutter embeds them. Do not record real
+values in shared logs or commit them. Production builds use the same two
+public values from GitHub settings; no Supabase secret/service-role key is
+needed by the build workflow.
 
-For production, configure the same two public values as GitHub Actions secrets
-named `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. The deployment workflow
-passes them to Flutter with `--dart-define`; it does not read `.env` files and
-must never receive a secret/service-role key.
+## 2. Apply the migrations
 
-## 2. Apply the migration
-
-The migration file is:
+The migrations are applied in timestamp order:
 
 ```text
 supabase/migrations/20261014160000_create_parking_sessions_security.sql
+supabase/migrations/20261018185121_tenant_administration.sql
 ```
 
-It creates:
+The first migration creates the initial `parking_sessions` table, private
+`vehicle-photos` bucket, and owner-only policies. The tenant-administration
+migration:
 
-- `public.parking_sessions` with ownership, duration, timestamp, and
-  non-blank plate constraints.
-- Indexes for `plate_number`, `expires_at`, and `created_by`.
-- An `updated_at` trigger.
-- Authenticated-only table grants and owner-only select, insert, update, and
-  delete policies.
-- A private `vehicle-photos` Storage bucket.
-- Storage policies requiring both the authenticated-user folder and an owned
-  `parking_sessions` row.
+- Creates `public.tenants`, `public.tenant_memberships`, and the
+  database-backed `public.super_admins` table.
+- Creates a `Personal workspace` and owner membership for every existing
+  Auth user, then backfills that user's parking sessions without changing
+  ownership, duration, or photo paths.
+- Adds `tenant_id` to every parking session and replaces owner-only policies
+  with tenant-membership and Super Admin RLS.
+- Keeps vehicle photos private and authorizes access through the related
+  session's tenant membership or the Super Admin role.
+- Adds `public.create_tenant`, which checks the caller's database-backed role
+  and atomically assigns an existing Auth account as the new tenant owner.
+
+The tenant migration has not been applied to the hosted project. Review it
+and get explicit approval before applying it to production. It preserves
+existing parking rows but changes their authorization boundary.
 
 ### Supabase CLI path
 
 Install the Supabase CLI using the official instructions, authenticate, and
-link the local directory to the intended project. Then apply migrations:
+link this directory to the intended project:
 
 ```powershell
 supabase login
@@ -71,14 +70,19 @@ supabase link --project-ref your-project-ref
 supabase db push
 ```
 
-The CLI and Docker were not available in the development environment used for
-this phase, so these commands have not been executed here. Do not treat a
-successful local Flutter build as proof that the migration reached Supabase.
+The CLI and Docker were unavailable in the development environment, so these
+commands have not been executed here. Do not treat a successful Flutter build
+as proof that the migration reached Supabase.
+
+Use one migration-application path per environment. If a migration was
+applied manually in the SQL Editor, reconcile Supabase's migration history
+before using `supabase db push`; do not blindly apply the same file again.
 
 ### SQL Editor path
 
-Alternatively, open the Supabase Dashboard SQL Editor, review the migration,
-and run it against the intended project. Confirm that:
+If the initial parking migration is already applied, review and run only
+`20261018185121_tenant_administration.sql` exactly once. Do not rerun the
+initial migration. Confirm that the bucket remains private and RLS is enabled:
 
 ```sql
 select id, name, public
@@ -88,66 +92,86 @@ where id = 'vehicle-photos';
 select relrowsecurity
 from pg_class
 where oid = 'public.parking_sessions'::regclass;
+
+select relrowsecurity
+from pg_class
+where oid = 'public.tenant_memberships'::regclass;
 ```
 
-The bucket query must show `public = false`, and the table query must show
+The bucket must show `public = false`, and both table checks must show
 `relrowsecurity = true`.
 
-## 3. Create the initial private user
+## 3. Provision the initial Super Admin
 
-1. Open **Authentication > Users**.
-2. Choose **Add user**.
-3. Create the administrator's email/password account.
-4. Use that account only through the private sign-in page.
-5. Do not add a public sign-up button to the application.
+1. In **Authentication > Users**, create or verify the private
+   `dieselpetrol6@gmail.com` account.
+2. Apply the tenant-administration migration.
+3. Review and run
+   `supabase/operations/provision_initial_super_admin.sql` in the SQL Editor.
+   This operation grants the application Super Admin role only; it does not
+   create or change the Auth account.
+4. Sign in to the app. The Admin destination is shown only when the database
+   recognizes the role.
 
-Email confirmation behavior depends on the project's Auth settings. If email
-confirmation is enabled, complete the confirmation flow before testing the
-Flutter sign-in page.
+If the account does not exist, the SQL operation stops without granting the
+role. The provisioning script has not been run against the hosted project.
+Authenticated users cannot read or write `public.super_admins` directly.
 
-After the Cloudflare Pages URL is known, set that exact HTTPS origin as the
-Supabase Auth Site URL and add only the required exact redirect URLs. Keep
-local development URLs separate from the production origin. The current app
-uses password sign-in rather than an OAuth callback, but Auth URL settings also
-affect email confirmation and future password-reset links.
+## 4. Create tenant workspaces
 
-## 4. Verify the policies
+Only a Super Admin can use the app's **Admin > Create tenant** form. Enter a
+tenant name and the email address of an account that already exists in
+Supabase Authentication. The database function validates the role and
+atomically creates the workspace and owner membership.
 
-The repository includes pgTAP-oriented checks:
+The app does not create Auth users, send invitations, or use a service-role
+key. Create or invite an owner through the intended Supabase Auth process
+first, then create the tenant in the app. Tenant `owner` and `member` roles
+currently share the same parking-session access; granular member-management
+permissions are not implemented.
+
+## 5. Test the policies
+
+The source-controlled database tests are:
 
 ```text
 supabase/tests/parking_sessions_rls.test.sql
 supabase/tests/vehicle_photos_rls.test.sql
 ```
 
-With the Supabase CLI and Docker available, run:
+With the Supabase CLI and Docker available, run them against a local or
+non-production project:
 
 ```powershell
 supabase test db
 ```
 
-The tests cover anonymous denial, owner visibility, cross-owner denial,
-ownership-transfer prevention, and the private Storage bucket policy
-presence. Hosted project verification still requires running the checks
-against the linked project or inspecting the resulting catalog state.
+The tests cover anonymous denial, tenant-scoped reads and writes,
+cross-tenant transfer denial, prevention of client-side Super Admin grants,
+Super Admin access, tenant-creation authorization, and private Storage policy
+definitions. They have not been executed in this environment. Hosted RLS and
+photo access still require a safe project and separate test accounts.
 
-## 5. Local troubleshooting
+## 6. Authentication URLs and troubleshooting
+
+After the Cloudflare Pages URL is known, set that exact HTTPS origin as the
+Supabase Auth Site URL and add only required redirect URLs. Keep local
+development URLs separate.
 
 - A build without `SUPABASE_URL` or `SUPABASE_PUBLISHABLE_KEY` intentionally
   shows **Supabase configuration required**.
-- A valid URL with an invalid key shows an initialization error; check the
-  project and key copied from the same Supabase project.
-- Authentication failures are shown in the sign-in page without logging the
-  password or token.
-- The Phase 5 photo flow creates the owned database row before uploading to
-  `{user-id}/{parking-session-id}/{filename}`. If the upload fails, it removes
-  the Storage object before deleting the database row because the Storage
-  policy checks the row's ownership. If cleanup fails, the row is retained and
-  the form exposes a retry action.
-- The Phase 5 form supports one optional photo, accepts JPEG/PNG/WebP images,
-  uses the official `camera: 0.12.1` package for an on-demand live browser
-  preview, and keeps `image_picker` for normal file selection. File-picker
-  images request an approximately 1600-pixel/quality-85 transform where
-  supported; captured and selected images larger than 10 MB are rejected.
-  Camera behavior still depends on localhost/HTTPS, browser support, and user
-  permissions; file selection remains the fallback.
+- A successful sign-in before the tenant migration is not sufficient; the
+  current client displays a setup error rather than bypassing tenant
+  authorization.
+- **No workspace assigned** means the account has no `tenant_memberships`
+  row. The migration creates workspaces for existing Auth users; a new owner
+  must be assigned to a tenant by a Super Admin.
+- The parking-entry flow inserts the tenant-owned session row before photo
+  upload to
+  `{created-by-user-id}/{parking-session-id}/{filename}`. On upload failure,
+  it removes the Storage object before deleting the row. If cleanup fails,
+  the row is retained and the form exposes a retry action.
+- Photo input supports JPEG/PNG/WebP, uses the on-demand `camera` package,
+  and rejects images larger than 10 MB. Camera access depends on localhost or
+  HTTPS, browser support, and user permissions; file selection remains the
+  fallback.
