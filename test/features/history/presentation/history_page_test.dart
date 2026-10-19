@@ -8,6 +8,7 @@ import 'package:parking_management/features/parking/domain/parking_duration.dart
 import 'package:parking_management/features/parking/domain/parking_duration_unit.dart';
 import 'package:parking_management/features/parking/domain/parking_session.dart';
 import 'package:parking_management/features/tenants/domain/parking_tenant_scope.dart';
+import 'package:parking_management/l10n/app_localizations.dart';
 
 import '../../parking/presentation/parking_test_repository.dart';
 
@@ -226,6 +227,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: StatefulBuilder(
           builder: (context, setState) => Scaffold(
             body: HistoryPage(
@@ -278,6 +282,9 @@ Future<void> _pumpHistory(
 ) async {
   await tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: HistoryPage(scope: _tenantScope, repository: repository),
       ),

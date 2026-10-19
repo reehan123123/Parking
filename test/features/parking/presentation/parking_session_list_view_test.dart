@@ -4,6 +4,7 @@ import 'package:parking_management/features/parking/domain/parking_duration.dart
 import 'package:parking_management/features/parking/domain/parking_duration_unit.dart';
 import 'package:parking_management/features/parking/domain/parking_session.dart';
 import 'package:parking_management/features/parking/presentation/parking_session_list_view.dart';
+import 'package:parking_management/l10n/app_localizations.dart';
 
 ParkingSession _sessionOverHours(int hours) {
   final entryTime = DateTime(2026, 1, 1, 0, 0);
@@ -123,6 +124,9 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: SizedBox(
               width: 360,
@@ -160,6 +164,9 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: ParkingPaymentStatusChip(session: session)),
         ),
       );

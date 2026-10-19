@@ -31,8 +31,11 @@ dependencies:
   camera: 0.12.1
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
   http: 1.6.0
   image_picker: 1.2.4
+  intl: 0.20.3
   shared_preferences: 2.5.6
   supabase_flutter: 2.18.3
 
@@ -52,6 +55,9 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  # Enables Flutter's gen-l10n code generation from lib/l10n/*.arb files,
+  # configured via l10n.yaml.
+  generate: true
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

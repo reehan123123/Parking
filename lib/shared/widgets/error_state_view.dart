@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/app_localizations.dart';
+
 class ErrorStateView extends StatelessWidget {
   const ErrorStateView({required this.message, this.onRetry, super.key});
 
@@ -8,6 +10,7 @@ class ErrorStateView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -21,7 +24,7 @@ class ErrorStateView extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'Something went wrong',
+              l10n.commonSomethingWentWrong,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
@@ -31,7 +34,7 @@ class ErrorStateView extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Try again'),
+                label: Text(l10n.commonTryAgain),
               ),
             ],
           ],

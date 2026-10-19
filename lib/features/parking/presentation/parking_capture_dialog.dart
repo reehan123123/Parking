@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../data/parking_camera_source.dart';
 import '../data/parking_photo.dart';
 import '../data/parking_photo_codec.dart';
@@ -67,15 +68,17 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
       if (pendingOpen != null) {
         unawaited(_disposeLateSession(pendingOpen));
       }
-      _setError(
-        'The camera took too long to initialize. Check permissions and try again.',
-      );
+      if (!mounted) {
+        return;
+      }
+      _setError(AppLocalizations.of(context).cameraTimeoutError);
     } on ParkingCameraException catch (error) {
       _setError(error.message);
     } on Exception {
-      _setError(
-        'The camera could not be initialized. Check browser permissions and try again.',
-      );
+      if (!mounted) {
+        return;
+      }
+      _setError(AppLocalizations.of(context).cameraInitError);
     }
   }
 
@@ -111,18 +114,24 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
         _capturedPhoto = photo;
       });
     } on TimeoutException {
+      if (!mounted) {
+        return;
+      }
       await _handleSessionFailure(
         session,
-        'The camera capture took too long. Try again or choose a file instead.',
+        AppLocalizations.of(context).captureTimeoutError,
       );
     } on ParkingPhotoException catch (error) {
       await _handleSessionFailure(session, error.message);
     } on ParkingCameraException catch (error) {
       await _handleSessionFailure(session, error.message);
     } on Exception {
+      if (!mounted) {
+        return;
+      }
       await _handleSessionFailure(
         session,
-        'The photo could not be captured. Try again.',
+        AppLocalizations.of(context).captureGenericError,
       );
     } finally {
       if (mounted) {
@@ -185,16 +194,22 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
         widget.cameraOperationTimeout,
       );
     } on TimeoutException {
+      if (!mounted) {
+        return;
+      }
       await _handleSessionFailure(
         cameraSession,
-        'Switching cameras took too long. Try again or choose a file instead.',
+        AppLocalizations.of(context).switchTimeoutError,
       );
     } on ParkingCameraException catch (error) {
       await _handleSessionFailure(cameraSession, error.message);
     } on Exception {
+      if (!mounted) {
+        return;
+      }
       await _handleSessionFailure(
         cameraSession,
-        'The selected camera could not be opened. Try another camera or choose a file instead.',
+        AppLocalizations.of(context).switchGenericError,
       );
     } finally {
       if (mounted) {
@@ -280,25 +295,26 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('Take vehicle photo'),
+      title: Text(l10n.captureDialogTitle),
       content: SizedBox(
         width: (MediaQuery.sizeOf(context).width - 64)
             .clamp(240.0, 520.0)
             .toDouble(),
-        child: _buildContent(context),
+        child: _buildContent(context, l10n),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(l10n.commonCancel),
         ),
         if (_errorMessage != null)
           OutlinedButton(
             onPressed: _isInitializing || _isCapturing || _isSwitching
                 ? null
                 : _retryCamera,
-            child: const Text('Retry'),
+            child: Text(l10n.commonRetry),
           ),
         if (_capturedPhoto == null &&
             _cameraSession is ParkingCameraSwitchingSession &&
@@ -316,7 +332,9 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.cameraswitch_outlined),
-            label: Text(_isSwitching ? 'Switching...' : 'Switch camera'),
+            label: Text(
+              _isSwitching ? l10n.switchingCamera : l10n.switchCameraButton,
+            ),
           ),
         if (_capturedPhoto == null &&
             _cameraSession != null &&
@@ -330,17 +348,22 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.camera_alt_outlined),
-            label: Text(_isCapturing ? 'Capturing...' : 'Capture'),
+            label: Text(
+              _isCapturing ? l10n.capturingButton : l10n.captureButton,
+            ),
           ),
         if (_capturedPhoto != null) ...[
-          OutlinedButton(onPressed: _retakePhoto, child: const Text('Retake')),
-          FilledButton(onPressed: _usePhoto, child: const Text('Use Photo')),
+          OutlinedButton(
+            onPressed: _retakePhoto,
+            child: Text(l10n.retakeButton),
+          ),
+          FilledButton(onPressed: _usePhoto, child: Text(l10n.usePhotoButton)),
         ],
       ],
     );
   }
 
-  Widget _buildContent(BuildContext context) {
+  Widget _buildContent(BuildContext context, AppLocalizations l10n) {
     if (_isInitializing) {
       return const SizedBox(
         height: 280,
@@ -366,11 +389,9 @@ class _ParkingCaptureDialogState extends State<ParkingCaptureDialog> {
 
     final session = _cameraSession;
     if (session == null) {
-      return const SizedBox(
+      return SizedBox(
         height: 220,
-        child: Center(
-          child: Text('The camera is unavailable. Choose an existing photo.'),
-        ),
+        child: Center(child: Text(l10n.cameraUnavailableMessage)),
       );
     }
 

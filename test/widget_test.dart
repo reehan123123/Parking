@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:parking_management/app.dart';
 import 'package:parking_management/shared/widgets/empty_state_view.dart';
@@ -9,12 +10,19 @@ import 'package:parking_management/features/parking/presentation/parking_entry_p
 import 'package:parking_management/features/tenants/domain/parking_tenant.dart';
 import 'package:parking_management/features/tenants/domain/parking_tenant_scope.dart';
 import 'package:parking_management/features/tenants/presentation/tenant_admin_page.dart';
+import 'package:parking_management/l10n/app_localizations.dart';
+
+import 'support/localization_test_support.dart';
 
 import 'features/tenants/test_tenant_repository.dart';
 import 'features/parking/presentation/parking_test_repository.dart';
 
 Widget _buildShell() {
-  return const MaterialApp(
+  return MaterialApp(
+    locale: const Locale('en'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    builder: testLocalizationBuilder,
     home: AppShell(
       initialTenantAccess: ParkingTenantAccess(
         isSuperAdmin: false,
@@ -32,6 +40,9 @@ Widget _buildShell() {
 }
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
   testWidgets('renders the dashboard shell', (WidgetTester tester) async {
     await tester.pumpWidget(_buildShell());
 
@@ -83,6 +94,10 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: testLocalizationBuilder,
         home: AppShell(
           initialTenantAccess: access,
           tenantRepository: tenantRepository,
@@ -113,6 +128,10 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: testLocalizationBuilder,
         home: AppShell(
           initialTenantAccess: access,
           tenantRepository: tenantRepository,
@@ -161,6 +180,10 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: testLocalizationBuilder,
           home: AppShell(
             initialTenantAccess: access,
             tenantRepository: tenantRepository,
@@ -202,6 +225,10 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: testLocalizationBuilder,
         home: Scaffold(
           body: TenantAdminPage(
             access: access,
@@ -230,7 +257,11 @@ void main() {
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
-      const MaterialApp(
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: testLocalizationBuilder,
         home: Column(
           children: [
             LoadingView(message: 'Loading sessions'),

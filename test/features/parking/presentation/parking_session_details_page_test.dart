@@ -5,6 +5,7 @@ import 'package:parking_management/features/parking/domain/parking_duration.dart
 import 'package:parking_management/features/parking/domain/parking_duration_unit.dart';
 import 'package:parking_management/features/parking/domain/parking_session.dart';
 import 'package:parking_management/features/parking/presentation/parking_session_details_page.dart';
+import 'package:parking_management/l10n/app_localizations.dart';
 
 import 'parking_test_repository.dart';
 
@@ -86,6 +87,9 @@ Future<void> _pumpDetails(
 ) async {
   await tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: ParkingSessionDetailsPage(repository: repository, session: session),
     ),
   );

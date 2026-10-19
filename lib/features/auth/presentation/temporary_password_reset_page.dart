@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../data/auth_repository.dart';
 
 class TemporaryPasswordResetPage extends StatefulWidget {
@@ -56,7 +57,8 @@ class _TemporaryPasswordResetPageState
     } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage = 'The password could not be changed. Check your connection and retry.';
+          _errorMessage = AppLocalizations.of(context)
+              .temporaryPasswordGenericError;
         });
       }
     } finally {
@@ -78,7 +80,7 @@ class _TemporaryPasswordResetPageState
     } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage = 'You could not be signed out. Please retry.';
+          _errorMessage = AppLocalizations.of(context).signOutFailedError;
         });
       }
     }
@@ -87,15 +89,16 @@ class _TemporaryPasswordResetPageState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Parking Management'),
+        title: Text(l10n.appTitle),
         actions: [
           TextButton.icon(
             onPressed: _isSubmitting ? null : _signOut,
             icon: const Icon(Icons.logout),
-            label: const Text('Sign out'),
+            label: Text(l10n.navSignOut),
           ),
           const SizedBox(width: 12),
         ],
@@ -121,14 +124,13 @@ class _TemporaryPasswordResetPageState
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Set a new password',
+                        l10n.temporaryPasswordSetTitle,
                         style: theme.textTheme.headlineSmall,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Your administrator created a temporary password. '
-                        'Choose a new password before accessing parking data.',
+                        l10n.temporaryPasswordInstructions,
                         style: theme.textTheme.bodyMedium,
                         textAlign: TextAlign.center,
                       ),
@@ -140,12 +142,12 @@ class _TemporaryPasswordResetPageState
                         autofillHints: const [AutofillHints.newPassword],
                         textInputAction: TextInputAction.next,
                         decoration: InputDecoration(
-                          labelText: 'New password',
-                          helperText: 'Use 12 to 128 characters.',
+                          labelText: l10n.newPasswordLabel,
+                          helperText: l10n.newPasswordHelper,
                           suffixIcon: IconButton(
                             tooltip: _obscurePassword
-                                ? 'Show password'
-                                : 'Hide password',
+                                ? l10n.showPasswordTooltip
+                                : l10n.hidePasswordTooltip,
                             onPressed: () {
                               setState(() {
                                 _obscurePassword = !_obscurePassword;
@@ -161,10 +163,10 @@ class _TemporaryPasswordResetPageState
                         validator: (value) {
                           final password = value ?? '';
                           if (password.length < 12) {
-                            return 'Use at least 12 characters.';
+                            return l10n.passwordTooShort;
                           }
                           if (password.length > 128) {
-                            return 'Use 128 characters or fewer.';
+                            return l10n.passwordTooLong;
                           }
                           return null;
                         },
@@ -176,12 +178,12 @@ class _TemporaryPasswordResetPageState
                         obscureText: _obscurePassword,
                         autofillHints: const [AutofillHints.newPassword],
                         textInputAction: TextInputAction.done,
-                        decoration: const InputDecoration(
-                          labelText: 'Confirm new password',
+                        decoration: InputDecoration(
+                          labelText: l10n.confirmNewPasswordLabel,
                         ),
                         validator: (value) {
                           if (value != _passwordController.text) {
-                            return 'The passwords do not match.';
+                            return l10n.passwordsDoNotMatch;
                           }
                           return null;
                         },
@@ -205,7 +207,7 @@ class _TemporaryPasswordResetPageState
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Text('Change password'),
+                            : Text(l10n.changePasswordButton),
                       ),
                     ],
                   ),

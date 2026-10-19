@@ -1,8 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show SupabaseClient;
 
 import 'core/config/configuration_required_page.dart';
+import 'core/locale/locale_controller.dart';
+import 'l10n/app_localizations.dart';
 import 'shared/widgets/empty_state_view.dart';
 import 'shared/widgets/error_state_view.dart';
 import 'shared/widgets/loading_view.dart';
@@ -20,21 +24,85 @@ import 'features/tenants/domain/parking_tenant.dart';
 import 'features/tenants/domain/parking_tenant_scope.dart';
 import 'features/tenants/presentation/tenant_admin_page.dart';
 
-class ParkingManagementApp extends StatelessWidget {
+class ParkingManagementApp extends StatefulWidget {
   const ParkingManagementApp({
     this.authRepository,
     this.parkingSessionRepository,
     this.tenantRepository,
     this.configurationError,
+    this.supabaseClient,
     super.key,
   });
-
-  static const _primaryColor = Color(0xFF176B4D);
 
   final AuthRepository? authRepository;
   final ParkingSessionRepository? parkingSessionRepository;
   final TenantRepository? tenantRepository;
   final String? configurationError;
+  final SupabaseClient? supabaseClient;
+
+  @override
+  State<ParkingManagementApp> createState() => _ParkingManagementAppState();
+}
+
+class _ParkingManagementAppState extends State<ParkingManagementApp> {
+  static const _primaryColor = Color(0xFF176B4D);
+
+  late final LocaleController _localeController = LocaleController(
+    authClient: widget.supabaseClient,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadSavedLocale());
+  }
+
+  Future<void> _loadSavedLocale() async {
+    try {
+      await _localeController.loadSaved();
+    } on LocalePreferenceException catch (error, stackTrace) {
+      _reportLocalePreferenceFailure(
+        error,
+        stackTrace,
+        'while loading the saved app language',
+      );
+    }
+  }
+
+  Future<void> _applyUserLocalePreference(
+    Map<String, dynamic>? userMetadata,
+  ) async {
+    try {
+      await _localeController.applyUserPreference(userMetadata);
+    } on LocalePreferenceException catch (error, stackTrace) {
+      _reportLocalePreferenceFailure(
+        error,
+        stackTrace,
+        'while applying the signed-in user language',
+      );
+    }
+  }
+
+  void _reportLocalePreferenceFailure(
+    LocalePreferenceException error,
+    StackTrace stackTrace,
+    String contextDescription,
+  ) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'parking_management',
+        context: ErrorDescription(contextDescription),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _localeController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,77 +111,99 @@ class ParkingManagementApp extends StatelessWidget {
       brightness: Brightness.light,
     );
 
-    return MaterialApp(
-      title: 'Parking Management',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: colorScheme,
-        useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF4F7F5),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFF4F7F5),
-          foregroundColor: Color(0xFF17231D),
-          elevation: 0,
-          scrolledUnderElevation: 0,
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          filled: true,
-          fillColor: colorScheme.surface,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: colorScheme.outlineVariant),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: colorScheme.outlineVariant),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
-        ),
-        cardTheme: CardThemeData(
-          elevation: 0,
-          color: colorScheme.surface,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: BorderSide(color: colorScheme.outlineVariant),
-          ),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+    return LocaleScope(
+      controller: _localeController,
+      child: ListenableBuilder(
+        listenable: _localeController,
+        builder: (context, _) => MaterialApp(
+          onGenerateTitle: (context) => AppLocalizations.of(context).appTitle,
+          debugShowCheckedModeBanner: false,
+          locale: _localeController.locale,
+          supportedLocales: supportedAppLocales,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          theme: ThemeData(
+            colorScheme: colorScheme,
+            useMaterial3: true,
+            scaffoldBackgroundColor: const Color(0xFFF4F7F5),
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Color(0xFFF4F7F5),
+              foregroundColor: Color(0xFF17231D),
+              elevation: 0,
+              scrolledUnderElevation: 0,
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: colorScheme.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: colorScheme.outlineVariant),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: colorScheme.outlineVariant),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(color: colorScheme.primary, width: 1.5),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 16,
+              ),
+            ),
+            cardTheme: CardThemeData(
+              elevation: 0,
+              color: colorScheme.surface,
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+                side: BorderSide(color: colorScheme.outlineVariant),
+              ),
+            ),
+            filledButtonTheme: FilledButtonThemeData(
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 15,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
             ),
           ),
+          home: _buildHome(),
         ),
       ),
-      home: _buildHome(),
     );
   }
 
   Widget _buildHome() {
-    final error = configurationError;
-    final repository = authRepository;
+    final error = widget.configurationError;
+    final repository = widget.authRepository;
     if (error != null || repository == null) {
-      return ConfigurationRequiredPage(
-        message: error ?? 'Supabase is not configured for this build.',
-      );
+      return ConfigurationRequiredPage(message: error);
     }
 
     return AuthGate(
       authRepository: repository,
-      authenticatedBuilder: (context, onSignOut) => AppShell(
-        onSignOut: onSignOut,
-        parkingSessionRepository: parkingSessionRepository,
-        tenantRepository: tenantRepository,
-      ),
+      authenticatedBuilder: (context, onSignOut) {
+        unawaited(
+          _applyUserLocalePreference(
+            widget.supabaseClient?.auth.currentUser?.userMetadata,
+          ),
+        );
+        return AppShell(
+          onSignOut: onSignOut,
+          parkingSessionRepository: widget.parkingSessionRepository,
+          tenantRepository: widget.tenantRepository,
+        );
+      },
     );
   }
 }
@@ -144,6 +234,8 @@ class _AppShellState extends State<AppShell> {
   ParkingTenantAccess? _tenantAccess;
   String? _selectedTenantId;
   String? _tenantAccessError;
+  bool _tenantAccessErrorIsMigrationMissing = false;
+  bool _tenantAccessErrorIsGeneric = false;
   bool _isLoadingTenantAccess = false;
 
   static const _allTenantsValue = '__all_tenants__';
@@ -162,9 +254,7 @@ class _AppShellState extends State<AppShell> {
       unawaited(_loadTenantAccess());
     } else if (widget.parkingSessionRepository != null &&
         _tenantAccess == null) {
-      _tenantAccessError =
-          'Tenant access is not configured. Apply all tenant migrations '
-          'before using this version.';
+      _tenantAccessErrorIsMigrationMissing = true;
     }
   }
 
@@ -177,6 +267,8 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _isLoadingTenantAccess = true;
       _tenantAccessError = null;
+      _tenantAccessErrorIsMigrationMissing = false;
+      _tenantAccessErrorIsGeneric = false;
     });
 
     try {
@@ -225,7 +317,9 @@ class _AppShellState extends State<AppShell> {
       if (mounted) {
         setState(() {
           _isLoadingTenantAccess = false;
-          _tenantAccessError = 'Tenant access could not be loaded. Check your connection and retry.';
+          _tenantAccessError = null;
+          _tenantAccessErrorIsMigrationMissing = false;
+          _tenantAccessErrorIsGeneric = true;
         });
       }
     }
@@ -260,6 +354,7 @@ class _AppShellState extends State<AppShell> {
     BuildContext context,
     ParkingTenantAccess access,
   ) async {
+    final l10n = AppLocalizations.of(context);
     final repository = widget.parkingSessionRepository;
     if (repository == null) {
       return;
@@ -267,11 +362,9 @@ class _AppShellState extends State<AppShell> {
     var tenantId = _selectedTenantId;
     if (tenantId == null) {
       if (!access.isSuperAdmin) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Select a tenant before adding a vehicle.'),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.selectTenantBeforeVehicle)));
         return;
       }
 
@@ -279,20 +372,16 @@ class _AppShellState extends State<AppShell> {
           .where((tenant) => !tenant.isArchived)
           .toList(growable: false);
       if (activeTenants.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Create or restore a tenant before adding a vehicle.',
-            ),
-          ),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.createTenantBeforeVehicle)));
         return;
       }
 
       final selectedTenant = await showDialog<ParkingTenant>(
         context: context,
         builder: (context) => SimpleDialog(
-          title: const Text('Select a tenant'),
+          title: Text(l10n.selectTenantDialogTitle),
           children: [
             for (final tenant in activeTenants)
               SimpleDialogOption(
@@ -321,9 +410,7 @@ class _AppShellState extends State<AppShell> {
     _notifyDataChanged();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(
-          'Parking entry for ${session.plateNumber} was saved successfully.',
-        ),
+        content: Text(l10n.parkingEntrySavedMessage(session.plateNumber)),
       ),
     );
   }
@@ -340,20 +427,28 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final access = _tenantAccess;
     if (_isLoadingTenantAccess) {
-      return const Scaffold(
-        body: LoadingView(message: 'Loading workspace access…'),
+      return Scaffold(
+        body: LoadingView(message: l10n.workspaceAccessLoadingMessage),
       );
     }
-    if (_tenantAccessError != null) {
+    if (_tenantAccessError != null ||
+        _tenantAccessErrorIsMigrationMissing ||
+        _tenantAccessErrorIsGeneric) {
+      final message = _tenantAccessErrorIsMigrationMissing
+          ? l10n.tenantAccessMigrationError
+          : _tenantAccessErrorIsGeneric
+          ? l10n.tenantAccessLoadError
+          : _tenantAccessError!;
       return Scaffold(
-        appBar: AppBar(title: const Text('Parking Management')),
+        appBar: AppBar(title: Text(l10n.appTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: ErrorStateView(
-              message: _tenantAccessError!,
+              message: message,
               onRetry: () => unawaited(_loadTenantAccess()),
             ),
           ),
@@ -361,26 +456,24 @@ class _AppShellState extends State<AppShell> {
       );
     }
     if (access == null) {
-      return const Scaffold(
-        body: LoadingView(message: 'Preparing your workspace…'),
-      );
+      return Scaffold(body: LoadingView(message: l10n.workspaceLoadingMessage));
     }
     if (!access.isSuperAdmin && access.tenants.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Parking Management')),
+        appBar: AppBar(title: Text(l10n.appTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: EmptyStateView(
               icon: Icons.domain_disabled_outlined,
-              title: 'No workspace assigned',
-              message: 'Ask your administrator to assign your account to a parking tenant.',
+              title: l10n.noWorkspaceTitle,
+              message: l10n.noWorkspaceMessage,
               action: widget.onSignOut == null
                   ? null
                   : OutlinedButton.icon(
                       onPressed: widget.onSignOut,
                       icon: const Icon(Icons.logout),
-                      label: const Text('Sign out'),
+                      label: Text(l10n.navSignOut),
                     ),
             ),
           ),
@@ -400,7 +493,7 @@ class _AppShellState extends State<AppShell> {
         (_selectedTenantId != null ||
             (access.isSuperAdmin && activeTenants.isNotEmpty));
     final showAdmin = access.isSuperAdmin && widget.tenantRepository != null;
-    final destinations = _destinations(showAdmin: showAdmin);
+    final destinations = _destinations(context, showAdmin: showAdmin);
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 700;
@@ -435,8 +528,8 @@ class _AppShellState extends State<AppShell> {
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Parking Management'),
-            actions: [_buildTenantSelector(access)],
+            title: Text(l10n.appTitle),
+            actions: [_buildTenantSelector(context, access)],
           ),
           body: isWide
               ? Row(
@@ -478,33 +571,41 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
-  List<_AppDestination> _destinations({required bool showAdmin}) {
+  List<_AppDestination> _destinations(
+    BuildContext context, {
+    required bool showAdmin,
+  }) {
+    final l10n = AppLocalizations.of(context);
     return [
-      const _AppDestination(
-        label: 'Dashboard',
+      _AppDestination(
+        label: l10n.navDashboard,
         icon: Icons.dashboard_outlined,
         selectedIcon: Icons.dashboard,
       ),
-      const _AppDestination(
-        label: 'History',
+      _AppDestination(
+        label: l10n.navHistory,
         icon: Icons.history_outlined,
         selectedIcon: Icons.history,
       ),
       if (showAdmin)
-        const _AppDestination(
-          label: 'Admin',
+        _AppDestination(
+          label: l10n.navAdmin,
           icon: Icons.admin_panel_settings_outlined,
           selectedIcon: Icons.admin_panel_settings,
         ),
-      const _AppDestination(
-        label: 'Settings',
+      _AppDestination(
+        label: l10n.navSettings,
         icon: Icons.settings_outlined,
         selectedIcon: Icons.settings,
       ),
     ];
   }
 
-  Widget _buildTenantSelector(ParkingTenantAccess access) {
+  Widget _buildTenantSelector(
+    BuildContext context,
+    ParkingTenantAccess access,
+  ) {
+    final l10n = AppLocalizations.of(context);
     final activeTenants = access.tenants
         .where((tenant) => !tenant.isArchived)
         .toList(growable: false);
@@ -516,8 +617,8 @@ class _AppShellState extends State<AppShell> {
       }
     }
     final label = _selectedTenantId == null
-        ? 'All tenants'
-        : tenant?.name ?? 'Workspace';
+        ? l10n.navAllTenants
+        : tenant?.name ?? l10n.workspaceChipLabel;
     final canChoose = access.isSuperAdmin || activeTenants.length > 1;
     if (!canChoose) {
       return Padding(
@@ -530,15 +631,15 @@ class _AppShellState extends State<AppShell> {
     }
 
     return PopupMenuButton<String>(
-      tooltip: 'Select tenant',
+      tooltip: l10n.tenantSelectorTooltip,
       initialValue: _selectedTenantId ?? _allTenantsValue,
       onSelected: (value) =>
           _selectTenant(value == _allTenantsValue ? null : value),
       itemBuilder: (context) => [
         if (access.isSuperAdmin)
-          const PopupMenuItem(
+          PopupMenuItem(
             value: _allTenantsValue,
-            child: Text('All tenants'),
+            child: Text(l10n.navAllTenants),
           ),
         for (final tenant in activeTenants)
           PopupMenuItem(value: tenant.id, child: Text(tenant.name)),

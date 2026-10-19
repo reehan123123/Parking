@@ -9,6 +9,9 @@ import 'package:parking_management/features/auth/data/local_auth_repository.dart
 import 'package:parking_management/features/auth/presentation/auth_gate.dart';
 import 'package:parking_management/features/auth/presentation/sign_in_page.dart';
 import 'package:parking_management/features/auth/presentation/temporary_password_reset_page.dart';
+import 'package:parking_management/l10n/app_localizations.dart';
+
+import '../../support/localization_test_support.dart';
 
 void main() {
   testWidgets(
@@ -47,6 +50,10 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: testLocalizationBuilder,
           home: AuthGate(
             authRepository: repository,
             authenticatedBuilder: (context, onSignOut) =>

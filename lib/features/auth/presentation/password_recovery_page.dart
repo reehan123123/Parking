@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../data/auth_repository.dart';
 
 /// Shown whenever the app detects an active Supabase password-recovery
@@ -68,7 +69,8 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
     } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage = 'The password could not be updated. Check your connection and retry.';
+          _errorMessage = AppLocalizations.of(context)
+              .passwordRecoveryGenericError;
         });
       }
     } finally {
@@ -90,14 +92,15 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Parking Management'),
+        title: Text(l10n.appTitle),
         actions: [
           TextButton(
             onPressed: _isSubmitting ? null : _cancel,
-            child: const Text('Back to sign in'),
+            child: Text(l10n.passwordRecoveryBackToSignIn),
           ),
           const SizedBox(width: 12),
         ],
@@ -123,13 +126,13 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Choose a new password',
+                        l10n.passwordRecoveryChooseTitle,
                         style: theme.textTheme.headlineSmall,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
-                      const Text(
-                        'Enter a new password to finish resetting your account.',
+                      Text(
+                        l10n.passwordRecoveryInstructions,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 24),
@@ -141,12 +144,12 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                         autofillHints: const [AutofillHints.newPassword],
                         textInputAction: TextInputAction.next,
                         decoration: InputDecoration(
-                          labelText: 'New password',
-                          helperText: 'Use 12 to 128 characters.',
+                          labelText: l10n.newPasswordLabel,
+                          helperText: l10n.newPasswordHelper,
                           suffixIcon: IconButton(
                             tooltip: _obscurePassword
-                                ? 'Show password'
-                                : 'Hide password',
+                                ? l10n.showPasswordTooltip
+                                : l10n.hidePasswordTooltip,
                             onPressed: () {
                               setState(() {
                                 _obscurePassword = !_obscurePassword;
@@ -162,10 +165,10 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                         validator: (value) {
                           final password = value ?? '';
                           if (password.length < 12) {
-                            return 'Use at least 12 characters.';
+                            return l10n.passwordTooShort;
                           }
                           if (password.length > 128) {
-                            return 'Use 128 characters or fewer.';
+                            return l10n.passwordTooLong;
                           }
                           return null;
                         },
@@ -178,12 +181,12 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                         obscureText: _obscurePassword,
                         autofillHints: const [AutofillHints.newPassword],
                         textInputAction: TextInputAction.done,
-                        decoration: const InputDecoration(
-                          labelText: 'Confirm new password',
+                        decoration: InputDecoration(
+                          labelText: l10n.confirmNewPasswordLabel,
                         ),
                         validator: (value) {
                           if (value != _passwordController.text) {
-                            return 'The passwords do not match.';
+                            return l10n.passwordsDoNotMatch;
                           }
                           return null;
                         },
@@ -209,7 +212,7 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Text('Update password'),
+                            : Text(l10n.updatePasswordButton),
                       ),
                     ],
                   ),

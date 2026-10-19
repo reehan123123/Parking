@@ -22,6 +22,7 @@ Future<void> main() async {
   AuthRepository? authRepository;
   ParkingSessionRepository? parkingSessionRepository;
   TenantRepository? tenantRepository;
+  SupabaseClient? supabaseClient;
 
   String? configurationError = backendConfig.validationError;
   if (configurationError == null && backendConfig.usesLocalApi) {
@@ -49,6 +50,7 @@ Future<void> main() async {
         authRepository = SupabaseAuthRepository(client);
         parkingSessionRepository = SupabaseParkingSessionRepository(client);
         tenantRepository = SupabaseTenantRepository(client);
+        supabaseClient = client;
       } on Exception {
         configurationError =
             'Supabase could not be initialized. Check the public URL and '
@@ -69,6 +71,7 @@ Future<void> main() async {
       parkingSessionRepository: parkingSessionRepository,
       tenantRepository: tenantRepository,
       configurationError: configurationError,
+      supabaseClient: supabaseClient,
     ),
   );
 }

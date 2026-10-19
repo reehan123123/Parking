@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parking_management/features/auth/presentation/forgot_password_dialog.dart';
+import 'package:parking_management/l10n/app_localizations.dart';
 
 import 'fake_auth_repository.dart';
 
@@ -13,6 +14,9 @@ Future<void> _openDialog(
 }) async {
   await tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: Builder(
           builder: (context) => TextButton(

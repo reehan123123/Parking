@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/locale/language_switch.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/empty_state_view.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -38,8 +40,7 @@ class _SettingsPageState extends State<SettingsPage> {
     } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage =
-              'Unable to sign out. Check your connection and try again.';
+          _errorMessage = AppLocalizations.of(context).settingsSignOutError;
         });
       }
     } finally {
@@ -53,6 +54,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 960),
@@ -62,16 +64,43 @@ class _SettingsPageState extends State<SettingsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Settings',
+                l10n.settingsTitle,
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 24),
-              const SizedBox(
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              l10n.settingsLanguageTitle,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              l10n.settingsLanguageDescription,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const LanguageSwitch(),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
                 width: double.infinity,
                 child: EmptyStateView(
                   icon: Icons.settings_outlined,
-                  title: 'Settings are coming later',
-                  message: 'Account and application settings will be added in a later phase.',
+                  title: l10n.settingsComingLaterTitle,
+                  message: l10n.settingsComingLaterMessage,
                 ),
               ),
               if (_errorMessage != null) ...[
@@ -86,7 +115,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 FilledButton.icon(
                   onPressed: _isSigningOut ? null : _signOut,
                   icon: const Icon(Icons.logout),
-                  label: Text(_isSigningOut ? 'Signing out…' : 'Sign out'),
+                  label: Text(
+                    _isSigningOut ? l10n.settingsSigningOut : l10n.navSignOut,
+                  ),
                 ),
               ],
             ],

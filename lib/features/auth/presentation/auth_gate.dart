@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/error_state_view.dart';
 import '../data/auth_repository.dart';
 import 'password_recovery_page.dart';
@@ -33,7 +34,7 @@ class _AuthGateState extends State<AuthGate> {
   bool _isRecoveringPassword = false;
   StreamSubscription<bool>? _authSubscription;
   StreamSubscription<void>? _recoverySubscription;
-  String? _errorMessage;
+  bool _hasAuthError = false;
 
   @override
   void initState() {
@@ -63,7 +64,7 @@ class _AuthGateState extends State<AuthGate> {
     }
 
     setState(() {
-      _errorMessage = null;
+      _hasAuthError = false;
       _isSignedIn = isSignedIn;
       _requiresTemporaryPasswordChange =
           widget.authRepository.requiresTemporaryPasswordChange;
@@ -101,13 +102,13 @@ class _AuthGateState extends State<AuthGate> {
     }
 
     setState(() {
-      _errorMessage = 'Unable to read the authentication state. Try again.';
+      _hasAuthError = true;
     });
   }
 
   void _retryAuthState() {
     setState(() {
-      _errorMessage = null;
+      _hasAuthError = false;
       _isSignedIn = widget.authRepository.isSignedIn;
       _requiresTemporaryPasswordChange =
           widget.authRepository.requiresTemporaryPasswordChange;
@@ -116,15 +117,15 @@ class _AuthGateState extends State<AuthGate> {
 
   @override
   Widget build(BuildContext context) {
-    final errorMessage = _errorMessage;
-    if (errorMessage != null) {
+    if (_hasAuthError) {
+      final l10n = AppLocalizations.of(context);
       return Scaffold(
-        appBar: AppBar(title: const Text('Parking Management')),
+        appBar: AppBar(title: Text(l10n.appTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: ErrorStateView(
-              message: errorMessage,
+              message: l10n.authStateError,
               onRetry: _retryAuthState,
             ),
           ),

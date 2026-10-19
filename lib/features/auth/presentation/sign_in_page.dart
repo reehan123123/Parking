@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/locale/language_switch.dart';
+import '../../../l10n/app_localizations.dart';
 import '../data/auth_repository.dart';
 import '../data/remembered_email_store.dart';
 import 'email_validation.dart';
@@ -86,8 +88,7 @@ class _SignInPageState extends State<SignInPage> {
     } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage =
-              'Unable to sign in. Check your connection and try again.';
+          _errorMessage = AppLocalizations.of(context).signInGenericError;
         });
       }
     } finally {
@@ -111,9 +112,9 @@ class _SignInPageState extends State<SignInPage> {
     );
   }
 
-  String? _validatePassword(String? value) {
+  String? _validatePassword(String? value, AppLocalizations l10n) {
     if ((value ?? '').isEmpty) {
-      return 'Enter your password.';
+      return l10n.signInPasswordRequired;
     }
 
     return null;
@@ -121,8 +122,17 @@ class _SignInPageState extends State<SignInPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Parking Management')),
+      appBar: AppBar(
+        title: Text(l10n.appTitle),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: Center(child: LanguageSwitch()),
+          ),
+        ],
+      ),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -137,21 +147,19 @@ class _SignInPageState extends State<SignInPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'Sign in',
+                        l10n.signInTitle,
                         style: Theme.of(context).textTheme.headlineSmall,
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Use the private account created by your administrator.',
-                      ),
+                      Text(l10n.signInSubtitle),
                       const SizedBox(height: 24),
                       TextFormField(
                         controller: _emailController,
                         enabled: !_isSubmitting,
                         keyboardType: TextInputType.emailAddress,
                         autofillHints: const [AutofillHints.username],
-                        decoration: const InputDecoration(
-                          labelText: 'Email address',
+                        decoration: InputDecoration(
+                          labelText: l10n.signInEmailLabel,
                         ),
                         validator: validateEmailAddress,
                       ),
@@ -161,10 +169,10 @@ class _SignInPageState extends State<SignInPage> {
                         enabled: !_isSubmitting,
                         obscureText: true,
                         autofillHints: const [AutofillHints.password],
-                        decoration: const InputDecoration(
-                          labelText: 'Password',
+                        decoration: InputDecoration(
+                          labelText: l10n.signInPasswordLabel,
                         ),
-                        validator: _validatePassword,
+                        validator: (value) => _validatePassword(value, l10n),
                         onFieldSubmitted: _isSubmitting
                             ? null
                             : (_) => _signIn(),
@@ -183,15 +191,14 @@ class _SignInPageState extends State<SignInPage> {
                                     },
                               contentPadding: EdgeInsets.zero,
                               controlAffinity: ListTileControlAffinity.leading,
-                              title: const Text('Remember me'),
+                              title: Text(l10n.signInRememberMe),
                             ),
                           ),
                           Tooltip(
                             message:
                                 widget.authRepository.supportsPasswordRecovery
                                 ? ''
-                                : 'Password reset email is not available in '
-                                      'local development mode.',
+                                : l10n.signInForgotPasswordUnavailableTooltip,
                             child: TextButton(
                               onPressed:
                                   _isSubmitting ||
@@ -200,7 +207,7 @@ class _SignInPageState extends State<SignInPage> {
                                           .supportsPasswordRecovery
                                   ? null
                                   : _showForgotPasswordDialog,
-                              child: const Text('Forgot password?'),
+                              child: Text(l10n.signInForgotPassword),
                             ),
                           ),
                         ],
@@ -225,7 +232,7 @@ class _SignInPageState extends State<SignInPage> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Text('Sign in'),
+                            : Text(l10n.signInButton),
                       ),
                     ],
                   ),

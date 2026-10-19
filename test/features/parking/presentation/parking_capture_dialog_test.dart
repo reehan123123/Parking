@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:parking_management/features/parking/data/parking_camera_source.dart';
 import 'package:parking_management/features/parking/data/parking_photo.dart';
 import 'package:parking_management/features/parking/presentation/parking_capture_dialog.dart';
+import 'package:parking_management/l10n/app_localizations.dart';
 
 void main() {
   testWidgets('shows a loading state until the camera is ready', (
@@ -17,7 +18,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     final dialogFuture = showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,
@@ -52,7 +59,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     final dialogFuture = showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,
@@ -80,7 +93,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     final dialogFuture = showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,
@@ -119,7 +138,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     final dialogFuture = showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,
@@ -159,7 +184,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     final dialogFuture = showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,
@@ -195,7 +226,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     final dialogFuture = showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,
@@ -232,7 +269,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     final dialogFuture = showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,
@@ -273,7 +316,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     final dialogFuture = showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,
@@ -308,7 +357,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     final dialogFuture = showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,
@@ -350,7 +405,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     final dialogFuture = showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,
@@ -377,7 +438,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,
@@ -406,7 +473,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,
@@ -432,7 +505,13 @@ void main() {
     final navigatorKey = GlobalKey<NavigatorState>();
 
     await tester.pumpWidget(
-      MaterialApp(navigatorKey: navigatorKey, home: const SizedBox.shrink()),
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        navigatorKey: navigatorKey,
+        home: const SizedBox.shrink(),
+      ),
     );
     final dialogFuture = showDialog<ParkingPhoto?>(
       context: navigatorKey.currentState!.context,

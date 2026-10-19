@@ -13,6 +13,7 @@ import 'package:parking_management/features/parking/domain/parking_duration_unit
 import 'package:parking_management/features/parking/domain/parking_session.dart';
 import 'package:parking_management/features/parking/presentation/parking_entry_page.dart';
 import 'package:parking_management/features/tenants/domain/parking_tenant_scope.dart';
+import 'package:parking_management/l10n/app_localizations.dart';
 
 void main() {
   testWidgets('calculates an expiry preview from the entered duration', (
@@ -229,6 +230,9 @@ Future<void> _pumpEntryPage(
   });
   await tester.pumpWidget(
     MaterialApp(
+      locale: const Locale('en'),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: ParkingEntryPage(
         repository: repository,
         photoSource: photoSource,

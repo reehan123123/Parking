@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/error_state_view.dart';
 import '../../../shared/widgets/loading_view.dart';
 import '../data/parking_session_repository.dart';
@@ -63,7 +64,7 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
     if (sessionId == null || sessionId.isEmpty) {
       setState(() {
         _isLoading = false;
-        _errorMessage = 'This parking session has no identifier.';
+        _errorMessage = AppLocalizations.of(context).sessionNoIdError;
       });
       return;
     }
@@ -139,22 +140,20 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
       return;
     }
 
+    final l10n = AppLocalizations.of(context);
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete parking session?'),
-        content: Text(
-          'Delete the parking session for ${_session.plateNumber}? '
-          'This action cannot be undone.',
-        ),
+        title: Text(l10n.deleteSessionDialogTitle),
+        content: Text(l10n.deleteSessionDialogMessage(_session.plateNumber)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton.tonal(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
+            child: Text(l10n.commonDelete),
           ),
         ],
       ),
@@ -192,18 +191,19 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Parking Session'),
+        title: Text(l10n.sessionDetailsTitle),
         actions: [
           IconButton(
             onPressed: _isLoading || _isDeleting ? null : _edit,
-            tooltip: 'Edit session',
+            tooltip: l10n.editSessionTooltip,
             icon: const Icon(Icons.edit_outlined),
           ),
           IconButton(
             onPressed: _isLoading || _isDeleting ? null : _confirmDelete,
-            tooltip: 'Delete session',
+            tooltip: l10n.deleteSessionTooltip,
             icon: const Icon(Icons.delete_outline),
           ),
         ],
@@ -213,14 +213,14 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
           constraints: const BoxConstraints(maxWidth: 760),
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
-            child: _buildBody(context),
+            child: _buildBody(context, l10n),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildBody(BuildContext context) {
+  Widget _buildBody(BuildContext context, AppLocalizations l10n) {
     if (_isLoading) {
       return const SizedBox(height: 320, child: LoadingView());
     }
@@ -241,9 +241,9 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
         ],
         _buildHeader(context),
         const SizedBox(height: 16),
-        _buildDetailsCard(context),
+        _buildDetailsCard(context, l10n),
         const SizedBox(height: 16),
-        _buildPhotoCard(context),
+        _buildPhotoCard(context, l10n),
       ],
     );
   }
@@ -272,14 +272,14 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
     );
   }
 
-  Widget _buildDetailsCard(BuildContext context) {
+  Widget _buildDetailsCard(BuildContext context, AppLocalizations l10n) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
             _DetailRow(
-              label: 'Entry time',
+              label: l10n.detailEntryTime,
               value: ParkingSessionFormatters.dateTime(
                 context,
                 _session.entryTime,
@@ -287,19 +287,19 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
             ),
             const Divider(height: 24),
             _DetailRow(
-              label: 'Contact number',
-              value: _session.contactNumber ?? 'Not provided',
+              label: l10n.detailContactNumber,
+              value: _session.contactNumber ?? l10n.detailNotProvided,
             ),
             const Divider(height: 24),
             _DetailRow(
-              label: 'Allowed duration',
+              label: l10n.detailAllowedDuration,
               value:
                   '${_session.allowedDuration.value} '
-                  '${_durationUnitLabel(_session.allowedDuration.unit)}',
+                  '${_durationUnitLabel(_session.allowedDuration.unit, l10n)}',
             ),
             const Divider(height: 24),
             _DetailRow(
-              label: 'Expiry',
+              label: l10n.detailExpiry,
               value: ParkingSessionFormatters.dateTime(
                 context,
                 _session.expiresAt,
@@ -308,17 +308,17 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
             if (_session.totalCharge > 0) ...[
               const Divider(height: 24),
               _DetailRow(
-                label: 'Total charge',
+                label: l10n.detailTotalCharge,
                 value: ParkingSessionFormatters.currency(_session.totalCharge),
               ),
               const Divider(height: 24),
               _DetailRow(
-                label: 'Amount paid',
+                label: l10n.detailAmountPaid,
                 value: ParkingSessionFormatters.currency(_session.paidAmount),
               ),
               const Divider(height: 24),
               _DetailRow(
-                label: 'Remaining balance',
+                label: l10n.detailRemainingBalance,
                 value: ParkingSessionFormatters.currency(
                   _session.remainingBalance,
                 ),
@@ -330,28 +330,24 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
     );
   }
 
-  Widget _buildPhotoCard(BuildContext context) {
+  Widget _buildPhotoCard(BuildContext context, AppLocalizations l10n) {
     final photoUrl = _photoUrl;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: photoUrl == null
-            ? const Row(
+            ? Row(
                 children: [
-                  Icon(Icons.photo_outlined),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'No vehicle photo is attached to this session.',
-                    ),
-                  ),
+                  const Icon(Icons.photo_outlined),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(l10n.noVehiclePhotoMessage)),
                 ],
               )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Vehicle photo',
+                    l10n.vehiclePhotoTitle,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 12),
@@ -360,13 +356,10 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
                     child: Image.network(
                       photoUrl,
                       fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Padding(
-                            padding: EdgeInsets.all(24),
-                            child: Text(
-                              'The private vehicle photo could not be displayed.',
-                            ),
-                          ),
+                      errorBuilder: (context, error, stackTrace) => Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(l10n.photoDisplayError),
+                      ),
                       loadingBuilder: (context, child, progress) {
                         if (progress == null) {
                           return child;
@@ -384,12 +377,12 @@ class _ParkingSessionDetailsPageState extends State<ParkingSessionDetailsPage>
     );
   }
 
-  String _durationUnitLabel(ParkingDurationUnit unit) {
+  String _durationUnitLabel(ParkingDurationUnit unit, AppLocalizations l10n) {
     return switch (unit) {
-      ParkingDurationUnit.minutes => 'minutes',
-      ParkingDurationUnit.hours => 'hours',
-      ParkingDurationUnit.days => 'days',
-      ParkingDurationUnit.months => 'months',
+      ParkingDurationUnit.minutes => l10n.durationUnitMinutes,
+      ParkingDurationUnit.hours => l10n.durationUnitHours,
+      ParkingDurationUnit.days => l10n.durationUnitDays,
+      ParkingDurationUnit.months => l10n.durationUnitMonths,
     };
   }
 }

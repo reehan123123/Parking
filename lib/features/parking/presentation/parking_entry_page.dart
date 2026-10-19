@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/validation/indian_mobile_normalizer.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/error_state_view.dart';
 import '../data/parking_camera_source.dart';
 import '../data/parking_photo.dart';
@@ -200,8 +201,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     } on Exception {
       if (mounted) {
         setState(() {
-          _photoError =
-              'The camera could not be opened. Choose a file instead.';
+          _photoError = AppLocalizations.of(context).cameraOpenError;
         });
       }
     } finally {
@@ -242,7 +242,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     } on Exception {
       if (mounted) {
         setState(() {
-          _photoError = 'The image could not be selected. Try again or choose a file instead.';
+          _photoError = AppLocalizations.of(context).imageSelectError;
         });
       }
     } finally {
@@ -282,50 +282,53 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     });
   }
 
-  String? _validatePlate(String? value) {
+  String? _validatePlate(String? value, AppLocalizations l10n) {
     final plateNumber = value?.trim() ?? '';
     if (plateNumber.isEmpty) {
-      return 'Enter a vehicle registration number.';
+      return l10n.plateRequired;
     }
 
     if (plateNumber.length > 64) {
-      return 'Use 64 characters or fewer.';
+      return l10n.plateTooLong;
     }
 
     return null;
   }
 
-  String? _validateContact(String? value) {
+  String? _validateContact(String? value, AppLocalizations l10n) {
     final contact = value?.trim() ?? '';
     if (contact.isEmpty) {
-      return 'Enter a contact mobile number.';
+      return l10n.contactRequired;
     }
 
     if (IndianMobileNormalizer.tryNormalize(contact) == null) {
-      return 'Enter a valid 10-digit mobile number, with or without +91.';
+      return l10n.contactInvalid;
     }
 
     return null;
   }
 
-  String? _validateDuration(String? value) {
+  String? _validateDuration(String? value, AppLocalizations l10n) {
     final durationValue = value?.trim() ?? '';
     if (durationValue.isEmpty) {
-      return 'Enter a parking duration.';
+      return l10n.durationRequired;
     }
 
     if (!RegExp(r'^\d+$').hasMatch(durationValue)) {
-      return 'Enter a positive whole number.';
+      return l10n.durationPositiveInteger;
     }
 
     final parsedValue = int.tryParse(durationValue);
     if (parsedValue == null || parsedValue <= 0) {
-      return 'Enter a positive whole number.';
+      return l10n.durationPositiveInteger;
     }
 
     final maximum = ParkingEntryLimits.maximumFor(_durationUnit);
     if (parsedValue > maximum) {
-      return 'The maximum for ${_durationUnit.label} is $maximum.';
+      return l10n.durationMaxExceeded(
+        _durationUnit.lowercaseLabel(l10n),
+        maximum,
+      );
     }
 
     final calculation = _calculator.calculateExpiry(
@@ -333,7 +336,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       duration: ParkingDuration(value: parsedValue, unit: _durationUnit),
     );
     if (calculation is DurationCalculationFailure) {
-      return 'The expiry time could not be calculated.';
+      return l10n.expiryCalculationError;
     }
 
     return null;
@@ -369,22 +372,22 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     return double.tryParse(text);
   }
 
-  String? _validateTotalCharge(String? value) {
+  String? _validateTotalCharge(String? value, AppLocalizations l10n) {
     final text = (value ?? '').trim();
     if (text.isEmpty) {
       return null;
     }
     final amount = double.tryParse(text);
     if (amount == null) {
-      return 'Enter a valid amount.';
+      return l10n.amountInvalid;
     }
     if (amount < 0) {
-      return 'The charge cannot be negative.';
+      return l10n.chargeNegative;
     }
     return null;
   }
 
-  String? _validatePaidAmount(String? value) {
+  String? _validatePaidAmount(String? value, AppLocalizations l10n) {
     if (_isFullyPaid) {
       return null;
     }
@@ -394,14 +397,14 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     }
     final amount = double.tryParse(text);
     if (amount == null) {
-      return 'Enter a valid amount.';
+      return l10n.amountInvalid;
     }
     if (amount < 0) {
-      return 'The amount paid cannot be negative.';
+      return l10n.paidNegative;
     }
     final total = _enteredTotalCharge ?? 0;
     if (amount > total) {
-      return 'The amount paid cannot exceed the total charge.';
+      return l10n.paidExceedsTotal;
     }
     return null;
   }
@@ -414,6 +417,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
   }
 
   Future<void> _save() async {
+    final l10n = AppLocalizations.of(context);
     FocusScope.of(context).unfocus();
     final form = _formKey.currentState;
     if (form == null || !form.validate()) {
@@ -429,7 +433,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     final duration = _enteredDuration;
     if (calculation is! DurationCalculationSuccess || duration == null) {
       setState(() {
-        _saveError = 'Enter a valid duration before saving.';
+        _saveError = l10n.durationBeforeSaving;
       });
       return;
     }
@@ -438,7 +442,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     final paidAmount = _enteredPaidAmount;
     if (totalCharge == null || paidAmount == null) {
       setState(() {
-        _saveError = 'Enter a valid parking charge before saving.';
+        _saveError = l10n.chargeBeforeSaving;
       });
       return;
     }
@@ -483,7 +487,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       if (mounted) {
         setState(() {
           _isSaving = false;
-          _saveError = 'The parking entry could not be saved. Check your connection and try again.';
+          _saveError = l10n.saveGenericError;
         });
       }
       return;
@@ -536,8 +540,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     }
 
     setState(() {
-      _photoError =
-          'Select a vehicle photo or explicitly choose Continue without photo.';
+      _photoError = AppLocalizations.of(context).photoSelectionRequired;
     });
     return false;
   }
@@ -552,6 +555,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       return;
     }
 
+    final l10n = AppLocalizations.of(context);
     setState(() {
       _isCleaningUp = true;
       _saveError = null;
@@ -567,8 +571,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       if (mounted) {
         setState(() {
           _isCleaningUp = false;
-          _saveError =
-              'Cleanup could not complete. Check your connection and retry.';
+          _saveError = l10n.cleanupGenericError;
         });
       }
       return;
@@ -581,7 +584,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       setState(() {
         _isCleaningUp = false;
         _saveFailure = null;
-        _saveError = 'Cleanup completed. The incomplete session was removed. You can try again.';
+        _saveError = l10n.cleanupSuccessMessage;
       });
       return;
     }
@@ -602,6 +605,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       return;
     }
 
+    final l10n = AppLocalizations.of(context);
     setState(() {
       _isCleaningUp = true;
       _saveError = null;
@@ -616,7 +620,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       if (mounted) {
         setState(() {
           _isCleaningUp = false;
-          _saveError = 'Photo cleanup could not complete. Check your connection and retry.';
+          _saveError = l10n.photoCleanupGenericError;
         });
       }
       return;
@@ -629,8 +633,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
       setState(() {
         _isCleaningUp = false;
         _updateFailure = null;
-        _saveError =
-            'Photo cleanup completed. Review the changes and try saving again.';
+        _saveError = l10n.photoCleanupSuccessMessage;
       });
       return;
     }
@@ -642,25 +645,28 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     });
   }
 
-  String _formatDateTime(DateTime value) {
+  String _formatDateTime(DateTime value, AppLocalizations l10n) {
     final localizations = MaterialLocalizations.of(context);
     final date = localizations.formatMediumDate(value);
     final time = localizations.formatTimeOfDay(
       TimeOfDay.fromDateTime(value),
       alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
     );
-    return '$date at $time';
+    return l10n.dateTimeAtTemplate(date, time);
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Parking Entry' : 'New Parking Entry'),
+        title: Text(
+          _isEditing ? l10n.entryPageEditTitle : l10n.entryPageNewTitle,
+        ),
         actions: [
           TextButton(
             onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
         ],
       ),
@@ -676,15 +682,15 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _buildIntro(context),
+                      _buildIntro(context, l10n),
                       const SizedBox(height: 16),
-                      _buildDetailsCard(context),
+                      _buildDetailsCard(context, l10n),
                       const SizedBox(height: 16),
-                      _buildChargeCard(context),
+                      _buildChargeCard(context, l10n),
                       const SizedBox(height: 16),
-                      _buildPhotoCard(context),
+                      _buildPhotoCard(context, l10n),
                       const SizedBox(height: 16),
-                      _buildSaveError(context),
+                      _buildSaveError(context, l10n),
                       const SizedBox(height: 24),
                       FilledButton.icon(
                         onPressed: _isSaving ? null : _save,
@@ -699,10 +705,12 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                             : const Icon(Icons.save_outlined),
                         label: Text(
                           _isSaving
-                              ? (_isEditing ? 'Updating...' : 'Saving...')
+                              ? (_isEditing
+                                    ? l10n.updatingButton
+                                    : l10n.savingButton)
                               : (_isEditing
-                                    ? 'Update parking entry'
-                                    : 'Save parking entry'),
+                                    ? l10n.updateEntryButton
+                                    : l10n.saveEntryButton),
                         ),
                       ),
                     ],
@@ -716,16 +724,14 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     );
   }
 
-  Widget _buildIntro(BuildContext context) {
+  Widget _buildIntro(BuildContext context, AppLocalizations l10n) {
     return Text(
-      _isEditing
-          ? 'Update the vehicle details and confirm the expiry time before saving.'
-          : 'Enter the vehicle details and confirm the expiry time before saving.',
+      _isEditing ? l10n.introEditing : l10n.introCreating,
       style: Theme.of(context).textTheme.bodyLarge,
     );
   }
 
-  Widget _buildDetailsCard(BuildContext context) {
+  Widget _buildDetailsCard(BuildContext context, AppLocalizations l10n) {
     final calculation = _expiryCalculation;
     return Card(
       child: Padding(
@@ -734,7 +740,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Parking details',
+              l10n.parkingDetailsTitle,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 20),
@@ -746,11 +752,11 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
               inputFormatters: [
                 FilteringTextInputFormatter.singleLineFormatter,
               ],
-              decoration: const InputDecoration(
-                labelText: 'Vehicle registration',
-                hintText: 'For example, ABC 123',
+              decoration: InputDecoration(
+                labelText: l10n.vehicleRegistrationLabel,
+                hintText: l10n.vehicleRegistrationHint,
               ),
-              validator: _validatePlate,
+              validator: (value) => _validatePlate(value, l10n),
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -761,14 +767,14 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^[0-9+ ]*$')),
               ],
-              decoration: const InputDecoration(
-                labelText: 'Contact number',
-                hintText: 'For example, 9876543210 or +919876543210',
+              decoration: InputDecoration(
+                labelText: l10n.detailContactNumber,
+                hintText: l10n.contactNumberHint,
               ),
-              validator: _validateContact,
+              validator: (value) => _validateContact(value, l10n),
             ),
             const SizedBox(height: 16),
-            _buildDateTimeButtons(context),
+            _buildDateTimeButtons(context, l10n),
             const SizedBox(height: 16),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -779,10 +785,10 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                     enabled: !_isSaving,
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(
-                      labelText: 'Allowed duration',
+                    decoration: InputDecoration(
+                      labelText: l10n.detailAllowedDuration,
                     ),
-                    validator: _validateDuration,
+                    validator: (value) => _validateDuration(value, l10n),
                     onChanged: (_) => setState(() {}),
                   ),
                 ),
@@ -790,10 +796,13 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                 Expanded(
                   child: DropdownButtonFormField<ParkingDurationUnit>(
                     initialValue: _durationUnit,
-                    decoration: const InputDecoration(labelText: 'Unit'),
+                    decoration: InputDecoration(labelText: l10n.unitLabel),
                     items: [
                       for (final unit in ParkingDurationUnit.values)
-                        DropdownMenuItem(value: unit, child: Text(unit.label)),
+                        DropdownMenuItem(
+                          value: unit,
+                          child: Text(unit.capitalizedLabel(l10n)),
+                        ),
                     ],
                     onChanged: _isSaving ? null : _handleDurationUnitChanged,
                   ),
@@ -801,14 +810,14 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
               ],
             ),
             const SizedBox(height: 16),
-            _buildExpiryPreview(context, calculation),
+            _buildExpiryPreview(context, l10n, calculation),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildChargeCard(BuildContext context) {
+  Widget _buildChargeCard(BuildContext context, AppLocalizations l10n) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -816,7 +825,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Parking charge',
+              l10n.parkingChargeTitle,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 20),
@@ -829,12 +838,12 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
               ],
-              decoration: const InputDecoration(
-                labelText: 'Total charge',
-                hintText: 'For example, 50.00',
+              decoration: InputDecoration(
+                labelText: l10n.totalChargeLabel,
+                hintText: l10n.totalChargeHint,
                 prefixText: '₹ ',
               ),
-              validator: _validateTotalCharge,
+              validator: (value) => _validateTotalCharge(value, l10n),
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 8),
@@ -843,10 +852,8 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
               controlAffinity: ListTileControlAffinity.leading,
               value: _isFullyPaid,
               onChanged: _isSaving ? null : _handleFullyPaidChanged,
-              title: const Text('Fully paid'),
-              subtitle: const Text(
-                'Leave unchecked to record a partial payment.',
-              ),
+              title: Text(l10n.fullyPaidLabel),
+              subtitle: Text(l10n.fullyPaidSubtitle),
             ),
             if (!_isFullyPaid) ...[
               const SizedBox(height: 8),
@@ -859,12 +866,12 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
                 ],
-                decoration: const InputDecoration(
-                  labelText: 'Amount paid',
-                  hintText: 'For example, 20.00',
+                decoration: InputDecoration(
+                  labelText: l10n.detailAmountPaid,
+                  hintText: l10n.amountPaidHint,
                   prefixText: '₹ ',
                 ),
-                validator: _validatePaidAmount,
+                validator: (value) => _validatePaidAmount(value, l10n),
               ),
             ],
           ],
@@ -873,12 +880,12 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     );
   }
 
-  Widget _buildDateTimeButtons(BuildContext context) {
+  Widget _buildDateTimeButtons(BuildContext context, AppLocalizations l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Entry date and time',
+          l10n.entryDateTimeLabel,
           style: Theme.of(context).textTheme.labelLarge,
         ),
         const SizedBox(height: 8),
@@ -913,6 +920,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
 
   Widget _buildExpiryPreview(
     BuildContext context,
+    AppLocalizations l10n,
     DurationCalculationResult? calculation,
   ) {
     if (calculation is DurationCalculationSuccess) {
@@ -920,22 +928,22 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
         color: Theme.of(context).colorScheme.primaryContainer,
         child: ListTile(
           leading: const Icon(Icons.event_available_outlined),
-          title: const Text('Calculated expiry'),
-          subtitle: Text(_formatDateTime(calculation.expiresAt)),
+          title: Text(l10n.calculatedExpiryTitle),
+          subtitle: Text(_formatDateTime(calculation.expiresAt, l10n)),
         ),
       );
     }
 
-    return const Card(
+    return Card(
       child: ListTile(
-        leading: Icon(Icons.info_outline),
-        title: Text('Expiry preview'),
-        subtitle: Text('Enter a valid duration to calculate the expiry.'),
+        leading: const Icon(Icons.info_outline),
+        title: Text(l10n.expiryPreviewTitle),
+        subtitle: Text(l10n.expiryPreviewMessage),
       ),
     );
   }
 
-  Widget _buildPhotoCard(BuildContext context) {
+  Widget _buildPhotoCard(BuildContext context, AppLocalizations l10n) {
     final photo = _selectedPhoto;
     final hasExistingPhoto = _existingPhotoPath != null;
     return Card(
@@ -945,13 +953,11 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Vehicle photo',
+              l10n.vehiclePhotoTitle,
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Use the camera when supported, or choose an existing JPEG, PNG, or WebP image.',
-            ),
+            Text(l10n.vehiclePhotoInstructions),
             const SizedBox(height: 16),
             if (photo != null) ...[
               ClipRRect(
@@ -960,11 +966,9 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                   photo.bytes,
                   height: 220,
                   fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const SizedBox(
+                  errorBuilder: (context, error, stackTrace) => SizedBox(
                     height: 220,
-                    child: ErrorStateView(
-                      message: 'This image cannot be previewed in the browser.',
-                    ),
+                    child: ErrorStateView(message: l10n.imagePreviewError),
                   ),
                 ),
               ),
@@ -978,12 +982,10 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
             if (photo == null && hasExistingPhoto) ...[
               Card(
                 color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                child: const ListTile(
-                  leading: Icon(Icons.photo_outlined),
-                  title: Text('Existing private photo will be kept'),
-                  subtitle: Text(
-                    'Choose a new photo only if you want to replace it.',
-                  ),
+                child: ListTile(
+                  leading: const Icon(Icons.photo_outlined),
+                  title: Text(l10n.existingPhotoKeptTitle),
+                  subtitle: Text(l10n.existingPhotoKeptSubtitle),
                 ),
               ),
               const SizedBox(height: 12),
@@ -1003,10 +1005,10 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                       : const Icon(Icons.camera_alt_outlined),
                   label: Text(
                     photo == null && hasExistingPhoto
-                        ? 'Replace with camera'
+                        ? l10n.replaceWithCamera
                         : photo == null
-                        ? 'Take photo'
-                        : 'Retake photo',
+                        ? l10n.takePhoto
+                        : l10n.retakePhoto,
                   ),
                 ),
                 OutlinedButton.icon(
@@ -1014,7 +1016,9 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                       ? null
                       : () => _pickPhoto(ImageSource.gallery),
                   icon: const Icon(Icons.photo_library_outlined),
-                  label: Text(photo == null ? 'Choose file' : 'Replace photo'),
+                  label: Text(
+                    photo == null ? l10n.chooseFile : l10n.replacePhoto,
+                  ),
                 ),
                 if (photo != null)
                   TextButton.icon(
@@ -1022,8 +1026,8 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                     icon: const Icon(Icons.delete_outline),
                     label: Text(
                       _isEditing && hasExistingPhoto
-                          ? 'Discard replacement'
-                          : 'Remove',
+                          ? l10n.discardReplacement
+                          : l10n.removeButton,
                     ),
                   ),
               ],
@@ -1033,10 +1037,8 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                 contentPadding: EdgeInsets.zero,
                 value: _continueWithoutPhoto,
                 onChanged: _isSaving ? null : _setContinueWithoutPhoto,
-                title: const Text('Continue without photo'),
-                subtitle: const Text(
-                  'Choose this explicitly if no photo is available.',
-                ),
+                title: Text(l10n.continueWithoutPhoto),
+                subtitle: Text(l10n.continueWithoutPhotoSubtitle),
                 controlAffinity: ListTileControlAffinity.leading,
               ),
             if (_photoError != null) ...[
@@ -1052,7 +1054,7 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
     );
   }
 
-  Widget _buildSaveError(BuildContext context) {
+  Widget _buildSaveError(BuildContext context, AppLocalizations l10n) {
     final saveError = _saveError;
     if (saveError == null) {
       return const SizedBox.shrink();
@@ -1078,7 +1080,9 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
               OutlinedButton(
                 onPressed: _isCleaningUp ? null : _retryCleanup,
                 child: Text(
-                  _isCleaningUp ? 'Retrying cleanup...' : 'Retry cleanup',
+                  _isCleaningUp
+                      ? l10n.retryingCleanup
+                      : l10n.retryCleanupButton,
                 ),
               ),
             ],
@@ -1088,8 +1092,8 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
                 onPressed: _isCleaningUp ? null : _retryPhotoCleanup,
                 child: Text(
                   _isCleaningUp
-                      ? 'Retrying photo cleanup...'
-                      : 'Retry photo cleanup',
+                      ? l10n.retryingPhotoCleanup
+                      : l10n.retryPhotoCleanupButton,
                 ),
               ),
             ],
@@ -1109,12 +1113,21 @@ class _ParkingEntryPageState extends State<ParkingEntryPage> {
 }
 
 extension on ParkingDurationUnit {
-  String get label {
+  String capitalizedLabel(AppLocalizations l10n) {
     return switch (this) {
-      ParkingDurationUnit.minutes => 'Minutes',
-      ParkingDurationUnit.hours => 'Hours',
-      ParkingDurationUnit.days => 'Days',
-      ParkingDurationUnit.months => 'Months',
+      ParkingDurationUnit.minutes => l10n.durationUnitMinutesCap,
+      ParkingDurationUnit.hours => l10n.durationUnitHoursCap,
+      ParkingDurationUnit.days => l10n.durationUnitDaysCap,
+      ParkingDurationUnit.months => l10n.durationUnitMonthsCap,
+    };
+  }
+
+  String lowercaseLabel(AppLocalizations l10n) {
+    return switch (this) {
+      ParkingDurationUnit.minutes => l10n.durationUnitMinutes,
+      ParkingDurationUnit.hours => l10n.durationUnitHours,
+      ParkingDurationUnit.days => l10n.durationUnitDays,
+      ParkingDurationUnit.months => l10n.durationUnitMonths,
     };
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parking_management/features/auth/data/auth_repository.dart';
 import 'package:parking_management/features/auth/presentation/password_recovery_page.dart';
+import 'package:parking_management/l10n/app_localizations.dart';
 
 import 'fake_auth_repository.dart';
 
@@ -11,6 +12,9 @@ Widget _buildPage(
   required Future<void> Function() onCancel,
 }) {
   return MaterialApp(
+    locale: const Locale('en'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
     home: PasswordRecoveryPage(
       authRepository: repository,
       onRecoveryComplete: onRecoveryComplete,

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:parking_management/features/tenants/data/supabase_tenant_repository.dart';
 import 'package:parking_management/features/tenants/domain/parking_tenant.dart';
 import 'package:parking_management/features/tenants/presentation/tenant_admin_page.dart';
+import 'package:parking_management/l10n/app_localizations.dart';
 
 import '../test_tenant_repository.dart';
 
@@ -17,6 +18,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: TenantAdminPage(
             access: repository.access,
@@ -61,6 +65,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: TenantAdminPage(
             access: repository.access,
@@ -111,6 +118,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: TenantAdminPage(
             access: repository.access,
@@ -156,6 +166,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: TenantAdminPage(
             access: repository.access,
@@ -209,6 +222,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: TenantAdminPage(
             access: repository.access,
@@ -245,6 +261,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: TenantAdminPage(
             access: repository.access,
@@ -292,6 +311,9 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: TenantAdminPage(
             access: repository.access,

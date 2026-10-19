@@ -3,11 +3,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parking_management/features/auth/presentation/sign_in_page.dart';
+import 'package:parking_management/l10n/app_localizations.dart';
+
+import '../../support/localization_test_support.dart';
 
 import 'fake_auth_repository.dart';
 
 Widget _buildSignInPage(FakeAuthRepository repository) {
-  return MaterialApp(home: SignInPage(authRepository: repository));
+  return MaterialApp(
+    locale: const Locale('en'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    builder: testLocalizationBuilder,
+    home: SignInPage(authRepository: repository),
+  );
 }
 
 void main() {

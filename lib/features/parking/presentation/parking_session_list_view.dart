@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../domain/parking_session.dart';
 
 class ParkingSessionListView extends StatelessWidget {
@@ -14,6 +15,7 @@ class ParkingSessionListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ListView.separated(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
@@ -47,13 +49,21 @@ class ParkingSessionListView extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Entry: ${ParkingSessionFormatters.dateTime(context, session.entryTime)}\n'
-                          'Expiry: ${ParkingSessionFormatters.dateTime(context, session.expiresAt)}',
+                          l10n.sessionEntryExpiryTemplate(
+                            ParkingSessionFormatters.dateTime(
+                              context,
+                              session.entryTime,
+                            ),
+                            ParkingSessionFormatters.dateTime(
+                              context,
+                              session.expiresAt,
+                            ),
+                          ),
                         ),
                         if (session.contactNumber != null) ...[
                           const SizedBox(height: 4),
                           Text(
-                            'Contact: ${session.contactNumber}',
+                            l10n.contactLineTemplate(session.contactNumber!),
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -121,6 +131,7 @@ class ParkingSessionStatusChip extends StatelessWidget {
     final activeColor = isActive
         ? activeBandColor(elapsedFraction(session, resolvedNow))
         : null;
+    final l10n = AppLocalizations.of(context);
     return Chip(
       avatar: Icon(
         isActive ? Icons.check_circle_outline : Icons.history,
@@ -128,7 +139,7 @@ class ParkingSessionStatusChip extends StatelessWidget {
         color: isActive ? Colors.white : colorScheme.onSurfaceVariant,
       ),
       label: Text(
-        isActive ? 'Active' : 'Expired',
+        isActive ? l10n.commonActive : l10n.commonExpired,
         style: isActive ? const TextStyle(color: Colors.white) : null,
       ),
       backgroundColor: isActive
@@ -147,13 +158,20 @@ class ParkingPaymentStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = session.paymentStatus;
     final colorScheme = Theme.of(context).colorScheme;
+    final l10n = AppLocalizations.of(context);
     final (label, icon) = switch (status) {
-      ParkingPaymentStatus.paid => ('Paid', Icons.check_circle_outline),
+      ParkingPaymentStatus.paid => (
+        l10n.historyFilterPaid,
+        Icons.check_circle_outline,
+      ),
       ParkingPaymentStatus.partiallyPaid => (
-        'Partially paid',
+        l10n.historyFilterPartiallyPaid,
         Icons.hourglass_bottom_outlined,
       ),
-      ParkingPaymentStatus.unpaid => ('Unpaid', Icons.error_outline),
+      ParkingPaymentStatus.unpaid => (
+        l10n.historyFilterUnpaid,
+        Icons.error_outline,
+      ),
     };
     final backgroundColor = switch (status) {
       ParkingPaymentStatus.paid => colorScheme.secondaryContainer,
@@ -161,10 +179,11 @@ class ParkingPaymentStatusChip extends StatelessWidget {
       ParkingPaymentStatus.unpaid => colorScheme.errorContainer,
     };
     return Tooltip(
-      message:
-          'Total: ${ParkingSessionFormatters.currency(session.totalCharge)}\n'
-          'Paid: ${ParkingSessionFormatters.currency(session.paidAmount)}\n'
-          'Remaining: ${ParkingSessionFormatters.currency(session.remainingBalance)}',
+      message: l10n.paymentTooltipTemplate(
+        ParkingSessionFormatters.currency(session.totalCharge),
+        ParkingSessionFormatters.currency(session.paidAmount),
+        ParkingSessionFormatters.currency(session.remainingBalance),
+      ),
       child: Chip(
         avatar: Icon(icon, size: 18),
         label: Text(label),
@@ -185,7 +204,7 @@ class ParkingSessionFormatters {
       TimeOfDay.fromDateTime(localValue),
       alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
     );
-    return '$date at $time';
+    return AppLocalizations.of(context).dateTimeAtTemplate(date, time);
   }
 
   static String currency(double value) {

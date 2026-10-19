@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../data/auth_repository.dart';
 import 'email_validation.dart';
 
@@ -64,7 +65,8 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
     } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage = 'The reset email could not be sent right now. Check your connection and try again.';
+          _errorMessage = AppLocalizations.of(context)
+              .forgotPasswordGenericError;
         });
       }
     } finally {
@@ -79,26 +81,21 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
 
     return AlertDialog(
-      title: const Text('Reset your password'),
+      title: Text(l10n.forgotPasswordTitle),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 360),
         child: _requestSucceeded
-            ? const Text(
-                'If an account exists for that email address, a password '
-                'reset link has been sent. Check your inbox and spam folder.',
-              )
+            ? Text(l10n.forgotPasswordSuccessMessage)
             : Form(
                 key: _formKey,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Enter your account email address. We will send a '
-                      'password reset link if an account exists for it.',
-                    ),
+                    Text(l10n.forgotPasswordInstructions),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _emailController,
@@ -106,8 +103,8 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
                       autofocus: true,
                       keyboardType: TextInputType.emailAddress,
                       autofillHints: const [AutofillHints.username],
-                      decoration: const InputDecoration(
-                        labelText: 'Email address',
+                      decoration: InputDecoration(
+                        labelText: l10n.signInEmailLabel,
                       ),
                       validator: validateEmailAddress,
                       onFieldSubmitted: _isSubmitting ? null : (_) => _submit(),
@@ -126,7 +123,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(_requestSucceeded ? 'Close' : 'Cancel'),
+          child: Text(_requestSucceeded ? l10n.commonClose : l10n.commonCancel),
         ),
         if (!_requestSucceeded)
           FilledButton(
@@ -137,7 +134,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
                     width: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Send reset link'),
+                : Text(l10n.forgotPasswordSendButton),
           ),
       ],
     );

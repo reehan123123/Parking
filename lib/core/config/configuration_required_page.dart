@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
-class ConfigurationRequiredPage extends StatelessWidget {
-  const ConfigurationRequiredPage({required this.message, super.key});
+import '../../l10n/app_localizations.dart';
 
-  final String message;
+class ConfigurationRequiredPage extends StatelessWidget {
+  const ConfigurationRequiredPage({this.message, super.key});
+
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Parking Management')),
+      appBar: AppBar(title: Text(l10n.appTitle)),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),
@@ -27,16 +30,18 @@ class ConfigurationRequiredPage extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Supabase configuration required',
+                      l10n.configurationRequiredTitle,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 12),
-                    Text(message, textAlign: TextAlign.center),
+                    Text(
+                      message ?? l10n.configurationMissingMessage,
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 24),
-                    const SelectableText(
-                      'Run with --dart-define=SUPABASE_URL=... '
-                      '--dart-define=SUPABASE_PUBLISHABLE_KEY=...',
+                    SelectableText(
+                      l10n.configurationRequiredHint,
                       textAlign: TextAlign.center,
                     ),
                   ],

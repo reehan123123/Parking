@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/validation/indian_mobile_normalizer.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/empty_state_view.dart';
 import '../../../shared/widgets/error_state_view.dart';
 import '../data/supabase_tenant_repository.dart';
@@ -32,6 +33,7 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
   String? _errorMessage;
 
   Future<void> _createTenant() async {
+    final l10n = AppLocalizations.of(context);
     final result = await showDialog<TenantCreationResult>(
       context: context,
       barrierDismissible: false,
@@ -54,9 +56,8 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
           SnackBar(
             content: Text(
               result.temporaryPassword == null
-                  ? '${tenant.name} was created.'
-                  : '${tenant.name} was created. The temporary password '
-                        'was shown once.',
+                  ? l10n.tenantCreatedMessage(tenant.name)
+                  : l10n.tenantCreatedWithPasswordMessage(tenant.name),
             ),
           ),
         );
@@ -70,7 +71,7 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
     } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage = 'The tenant could not be created. Check your connection and retry.';
+          _errorMessage = l10n.tenantCreateGenericError;
         });
       }
     } finally {
@@ -83,6 +84,7 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
   }
 
   Future<void> _editTenant(ParkingTenant tenant) async {
+    final l10n = AppLocalizations.of(context);
     final result = await showDialog<_TenantEditResult>(
       context: context,
       builder: (context) => _EditTenantDialog(tenant: tenant),
@@ -92,7 +94,7 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
     }
 
     await _runTenantAction(
-      successMessage: '${tenant.name} was updated.',
+      successMessage: l10n.tenantUpdatedMessage(tenant.name),
       action: () async {
         await widget.repository.updateTenant(
           tenantId: tenant.id,
@@ -107,23 +109,20 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
   }
 
   Future<void> _archiveTenant(ParkingTenant tenant) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Archive tenant?'),
-        content: Text(
-          '${tenant.name} will no longer be available to its members. '
-          'Parking records and photos will be retained, and this tenant can '
-          'be restored later.',
-        ),
+        title: Text(l10n.archiveTenantTitle),
+        content: Text(l10n.archiveTenantMessage(tenant.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Archive'),
+            child: Text(l10n.archiveButton),
           ),
         ],
       ),
@@ -133,7 +132,7 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
     }
 
     await _runTenantAction(
-      successMessage: '${tenant.name} was archived. Its data was retained.',
+      successMessage: l10n.tenantArchivedMessage(tenant.name),
       action: () async {
         await widget.repository.archiveTenant(tenantId: tenant.id);
       },
@@ -141,8 +140,9 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
   }
 
   Future<void> _restoreTenant(ParkingTenant tenant) {
+    final l10n = AppLocalizations.of(context);
     return _runTenantAction(
-      successMessage: '${tenant.name} was restored.',
+      successMessage: l10n.tenantRestoredMessage(tenant.name),
       action: () async {
         await widget.repository.restoreTenant(tenantId: tenant.id);
       },
@@ -208,7 +208,7 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
     } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage = 'The tenant could not be updated. Check your connection and retry.';
+          _errorMessage = AppLocalizations.of(context).tenantUpdateGenericError;
         });
       }
     } finally {
@@ -235,6 +235,7 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final tenants = widget.access.tenants;
     final theme = Theme.of(context);
 
@@ -244,7 +245,7 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
         child: ListView(
           padding: const EdgeInsets.all(28),
           children: [
-            _buildHeader(theme),
+            _buildHeader(theme, l10n),
             const SizedBox(height: 24),
             Card(
               child: Padding(
@@ -262,12 +263,12 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Tenant workspaces',
+                            l10n.tenantWorkspacesTitle,
                             style: theme.textTheme.titleMedium,
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Each workspace keeps its parking records and photos isolated.',
+                            l10n.tenantWorkspacesSubtitle,
                             style: theme.textTheme.bodyMedium?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
@@ -285,12 +286,15 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
             Row(
               children: [
                 Expanded(
-                  child: Text('All tenants', style: theme.textTheme.titleLarge),
+                  child: Text(
+                    l10n.allTenantsTitle,
+                    style: theme.textTheme.titleLarge,
+                  ),
                 ),
                 FilledButton.icon(
                   onPressed: _isCreating ? null : _createTenant,
                   icon: const Icon(Icons.add),
-                  label: const Text('Create tenant'),
+                  label: Text(l10n.createTenantButton),
                 ),
               ],
             ),
@@ -304,10 +308,10 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
             ],
             const SizedBox(height: 16),
             if (tenants.isEmpty)
-              const EmptyStateView(
+              EmptyStateView(
                 icon: Icons.apartment_outlined,
-                title: 'No tenant workspaces yet',
-                message: 'Create a workspace and assign an existing Supabase account as its owner.',
+                title: l10n.noTenantsTitle,
+                message: l10n.noTenantsMessage,
               )
             else
               ...tenants.map(
@@ -331,32 +335,34 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
                         [
                           tenant.slug,
                           if (tenant.validUntil != null)
-                            'Valid until ${_formatDate(tenant.validUntil!)}',
+                            l10n.validUntilTemplate(
+                              _formatDate(tenant.validUntil!),
+                            ),
                           if (tenant.contactMobile != null)
-                            'Contact: ${tenant.contactMobile}',
+                            l10n.contactLineTemplate(tenant.contactMobile!),
                         ].join(' • '),
                       ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (tenant.isArchived)
-                            const Chip(label: Text('Inactive'))
+                            Chip(label: Text(l10n.commonInactive))
                           else if (_isExpired(tenant.validUntil))
-                            const Chip(label: Text('Expired'))
+                            Chip(label: Text(l10n.commonExpired))
                           else
-                            const Chip(label: Text('Active')),
+                            Chip(label: Text(l10n.commonActive)),
                           PopupMenuButton<_TenantAction>(
-                            tooltip: 'Manage ${tenant.name}',
+                            tooltip: l10n.manageTenantTooltip(tenant.name),
                             onSelected: (action) =>
                                 _handleTenantAction(tenant, action),
                             itemBuilder: (context) => [
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: _TenantAction.edit,
-                                child: Text('Edit'),
+                                child: Text(l10n.commonEdit),
                               ),
-                              const PopupMenuItem(
+                              PopupMenuItem(
                                 value: _TenantAction.members,
-                                child: Text('Manage members'),
+                                child: Text(l10n.manageMembersMenuItem),
                               ),
                               PopupMenuItem(
                                 value: tenant.isArchived
@@ -364,8 +370,8 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
                                     : _TenantAction.archive,
                                 child: Text(
                                   tenant.isArchived
-                                      ? 'Restore tenant'
-                                      : 'Archive tenant',
+                                      ? l10n.restoreTenantMenuItem
+                                      : l10n.archiveTenantMenuItem,
                                 ),
                               ),
                             ],
@@ -382,7 +388,7 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
     );
   }
 
-  Widget _buildHeader(ThemeData theme) {
+  Widget _buildHeader(ThemeData theme, AppLocalizations l10n) {
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
@@ -409,7 +415,7 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Super Admin',
+                  l10n.superAdminTitle,
                   style: theme.textTheme.headlineSmall?.copyWith(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -417,7 +423,7 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Manage parking workspaces across the platform.',
+                  l10n.superAdminSubtitle,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: Colors.white.withValues(alpha: 0.9),
                   ),
@@ -567,7 +573,7 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
     } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage = 'The tenant could not be created. Check your connection and retry.';
+          _errorMessage = AppLocalizations.of(context).tenantCreateGenericError;
         });
       }
     } finally {
@@ -611,13 +617,10 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
       await Clipboard.setData(ClipboardData(text: password));
     } on Exception {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Could not copy the password. Select it and copy it manually.',
-            ),
-          ),
-        );
+        final l10n = AppLocalizations.of(context);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.copyPasswordFailedMessage)));
       }
       return;
     }
@@ -625,9 +628,9 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
     if (!mounted) {
       return;
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Temporary password copied.')));
+    final l10n = AppLocalizations.of(context);
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(l10n.passwordCopiedMessage)));
   }
 
   void _closeDialog(TenantCreationResult? result) {
@@ -648,24 +651,27 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return PopScope<TenantCreationResult?>(
       canPop: _temporaryPassword == null || _allowCredentialDismiss,
       child: AlertDialog(
         title: Text(
-          _creationResult == null ? 'Create tenant' : 'Tenant created',
+          _creationResult == null
+              ? l10n.createTenantDialogTitle
+              : l10n.tenantCreatedDialogTitle,
         ),
         content: SizedBox(
           width: 440,
           child: _creationResult == null
-              ? _buildCreateForm(context)
-              : _buildCredentialResult(context),
+              ? _buildCreateForm(context, l10n)
+              : _buildCredentialResult(context, l10n),
         ),
-        actions: _buildActions(),
+        actions: _buildActions(l10n),
       ),
     );
   }
 
-  Widget _buildCreateForm(BuildContext context) {
+  Widget _buildCreateForm(BuildContext context, AppLocalizations l10n) {
     final theme = Theme.of(context);
 
     return SingleChildScrollView(
@@ -678,17 +684,17 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
               controller: _nameController,
               autofocus: true,
               maxLength: 120,
-              decoration: const InputDecoration(
-                labelText: 'Tenant name',
-                hintText: 'Example: Central Parking',
+              decoration: InputDecoration(
+                labelText: l10n.tenantNameLabel,
+                hintText: l10n.tenantNameHint,
               ),
               validator: (value) {
                 final name = value?.trim() ?? '';
                 if (name.isEmpty) {
-                  return 'Enter a tenant name.';
+                  return l10n.tenantNameRequired;
                 }
                 if (name.length > 120) {
-                  return 'Use 120 characters or fewer.';
+                  return l10n.tenantNameTooLong;
                 }
                 return null;
               },
@@ -699,14 +705,14 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
               controller: _ownerEmailController,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(
-                labelText: 'Owner email',
-                hintText: 'owner@example.com',
+              decoration: InputDecoration(
+                labelText: l10n.ownerEmailLabel,
+                hintText: l10n.ownerEmailHint,
               ),
               validator: (value) {
                 final email = value?.trim() ?? '';
                 if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-                  return 'Enter a valid email address.';
+                  return l10n.emailInvalid;
                 }
                 return null;
               },
@@ -715,16 +721,14 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
             const SizedBox(height: 12),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Active'),
-              subtitle: const Text(
-                'Inactive tenants cannot sign in until reactivated.',
-              ),
+              title: Text(l10n.commonActive),
+              subtitle: Text(l10n.activeSubtitle),
               value: _isActive,
               onChanged: (value) => setState(() => _isActive = value),
             ),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Valid until'),
+              title: Text(l10n.validUntilTitle),
               subtitle: Text(_TenantAdminPageState._formatDate(_validUntil)),
               trailing: const Icon(Icons.calendar_today),
               onTap: _pickValidUntil,
@@ -732,17 +736,17 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
             const SizedBox(height: 8),
             TextFormField(
               controller: _contactNameController,
-              decoration: const InputDecoration(
-                labelText: 'Contact person name (optional)',
+              decoration: InputDecoration(
+                labelText: l10n.contactPersonNameLabel,
               ),
             ),
             const SizedBox(height: 8),
             TextFormField(
               controller: _contactMobileController,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Contact mobile (optional)',
-                hintText: '9876543210 or +919876543210',
+              decoration: InputDecoration(
+                labelText: l10n.contactMobileLabel,
+                hintText: l10n.contactMobileHint,
               ),
               validator: (value) {
                 final mobile = value?.trim() ?? '';
@@ -750,7 +754,7 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
                   return null;
                 }
                 if (IndianMobileNormalizer.tryNormalize(mobile) == null) {
-                  return 'Enter a valid 10-digit Indian mobile number.';
+                  return l10n.contactMobileInvalid;
                 }
                 return null;
               },
@@ -759,34 +763,27 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
             TextFormField(
               controller: _contactEmailController,
               keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'Contact email (optional)',
-              ),
+              decoration: InputDecoration(labelText: l10n.contactEmailLabel),
               validator: (value) {
                 final email = value?.trim() ?? '';
                 if (email.isEmpty) {
                   return null;
                 }
                 if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-                  return 'Enter a valid email address.';
+                  return l10n.emailInvalid;
                 }
                 return null;
               },
             ),
             const SizedBox(height: 12),
-            Text(
-              'An existing account keeps its current password. A new account '
-              'receives a temporary password that must be changed before it '
-              'can access parking data.',
-              style: theme.textTheme.bodySmall,
-            ),
+            Text(l10n.accountPasswordNote, style: theme.textTheme.bodySmall),
             if (_errorMessage != null) ...[
               const SizedBox(height: 12),
               _errorContainer(context, _errorMessage!),
             ],
             if (_temporaryPassword != null) ...[
               const SizedBox(height: 12),
-              _temporaryPasswordView(context),
+              _temporaryPasswordView(context, l10n),
             ],
           ],
         ),
@@ -794,7 +791,7 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
     );
   }
 
-  Widget _buildCredentialResult(BuildContext context) {
+  Widget _buildCredentialResult(BuildContext context, AppLocalizations l10n) {
     final theme = Theme.of(context);
     final password = _temporaryPassword!;
 
@@ -810,22 +807,21 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
           ),
           const SizedBox(height: 12),
           Text(
-            '${_creationResult!.tenant.name} is ready.',
+            l10n.tenantReadyMessage(_creationResult!.tenant.name),
             style: theme.textTheme.titleMedium,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 12),
-          _temporaryPasswordView(context, password: password),
+          _temporaryPasswordView(context, l10n, password: password),
           const SizedBox(height: 12),
           Text(
-            'The owner must change this password before accessing tenant data.',
+            l10n.ownerMustChangePassword,
             style: theme.textTheme.bodySmall,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
-            'Share this password with the owner through a secure channel. '
-            'It will not be shown again after closing this dialog.',
+            l10n.sharePasswordSecurely,
             style: theme.textTheme.bodySmall,
             textAlign: TextAlign.center,
           ),
@@ -834,7 +830,11 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
     );
   }
 
-  Widget _temporaryPasswordView(BuildContext context, {String? password}) {
+  Widget _temporaryPasswordView(
+    BuildContext context,
+    AppLocalizations l10n, {
+    String? password,
+  }) {
     final shownPassword = password ?? _temporaryPassword!;
     final theme = Theme.of(context);
 
@@ -848,7 +848,7 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Temporary password', style: theme.textTheme.labelLarge),
+          Text(l10n.temporaryPasswordLabel, style: theme.textTheme.labelLarge),
           const SizedBox(height: 8),
           SelectableText(
             shownPassword,
@@ -857,16 +857,13 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            'If you retry setup, use the latest password shown here.',
-            style: theme.textTheme.bodySmall,
-          ),
+          Text(l10n.retrySetupNote, style: theme.textTheme.bodySmall),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               onPressed: _copyTemporaryPassword,
               icon: const Icon(Icons.copy),
-              label: const Text('Copy'),
+              label: Text(l10n.copyButton),
             ),
           ),
         ],
@@ -891,13 +888,13 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
     );
   }
 
-  List<Widget> _buildActions() {
+  List<Widget> _buildActions(AppLocalizations l10n) {
     final creationResult = _creationResult;
     if (creationResult != null) {
       return [
         FilledButton(
           onPressed: () => _closeDialog(creationResult),
-          child: const Text('Done'),
+          child: Text(l10n.doneButton),
         ),
       ];
     }
@@ -907,8 +904,8 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
         onPressed: _isCreating ? null : () => _closeDialog(null),
         child: Text(
           _temporaryPassword == null
-              ? 'Cancel'
-              : "Close (I've saved the password)",
+              ? l10n.commonCancel
+              : l10n.closeWithPasswordSavedButton,
         ),
       ),
       FilledButton(
@@ -921,8 +918,8 @@ class _CreateTenantDialogState extends State<_CreateTenantDialog> {
               )
             : Text(
                 _temporaryPassword == null
-                    ? 'Create tenant'
-                    : 'Retry tenant setup',
+                    ? l10n.createTenantButton
+                    : l10n.retryTenantSetupButton,
               ),
       ),
     ];
@@ -1027,8 +1024,9 @@ class _EditTenantDialogState extends State<_EditTenantDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('Edit tenant'),
+      title: Text(l10n.editTenantDialogTitle),
       content: SizedBox(
         width: 440,
         child: SingleChildScrollView(
@@ -1041,14 +1039,14 @@ class _EditTenantDialogState extends State<_EditTenantDialog> {
                   controller: _nameController,
                   autofocus: true,
                   maxLength: 120,
-                  decoration: const InputDecoration(labelText: 'Tenant name'),
+                  decoration: InputDecoration(labelText: l10n.tenantNameLabel),
                   validator: (value) {
                     final name = value?.trim() ?? '';
                     if (name.isEmpty) {
-                      return 'Enter a tenant name.';
+                      return l10n.tenantNameRequired;
                     }
                     if (name.length > 120) {
-                      return 'Use 120 characters or fewer.';
+                      return l10n.tenantNameTooLong;
                     }
                     return null;
                   },
@@ -1056,7 +1054,7 @@ class _EditTenantDialogState extends State<_EditTenantDialog> {
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Valid until'),
+                  title: Text(l10n.validUntilTitle),
                   subtitle: Text(
                     _TenantAdminPageState._formatDate(_validUntil),
                   ),
@@ -1066,17 +1064,17 @@ class _EditTenantDialogState extends State<_EditTenantDialog> {
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _contactNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Contact person name (optional)',
+                  decoration: InputDecoration(
+                    labelText: l10n.contactPersonNameLabel,
                   ),
                 ),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _contactMobileController,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Contact mobile (optional)',
-                    hintText: '9876543210 or +919876543210',
+                  decoration: InputDecoration(
+                    labelText: l10n.contactMobileLabel,
+                    hintText: l10n.contactMobileHint,
                   ),
                   validator: (value) {
                     final mobile = value?.trim() ?? '';
@@ -1084,7 +1082,7 @@ class _EditTenantDialogState extends State<_EditTenantDialog> {
                       return null;
                     }
                     if (IndianMobileNormalizer.tryNormalize(mobile) == null) {
-                      return 'Enter a valid 10-digit Indian mobile number.';
+                      return l10n.contactMobileInvalid;
                     }
                     return null;
                   },
@@ -1093,8 +1091,8 @@ class _EditTenantDialogState extends State<_EditTenantDialog> {
                 TextFormField(
                   controller: _contactEmailController,
                   keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Contact email (optional)',
+                  decoration: InputDecoration(
+                    labelText: l10n.contactEmailLabel,
                   ),
                   validator: (value) {
                     final email = value?.trim() ?? '';
@@ -1103,7 +1101,7 @@ class _EditTenantDialogState extends State<_EditTenantDialog> {
                     }
                     if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
                         .hasMatch(email)) {
-                      return 'Enter a valid email address.';
+                      return l10n.emailInvalid;
                     }
                     return null;
                   },
@@ -1116,9 +1114,9 @@ class _EditTenantDialogState extends State<_EditTenantDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(l10n.commonCancel),
         ),
-        FilledButton(onPressed: _submit, child: const Text('Save')),
+        FilledButton(onPressed: _submit, child: Text(l10n.commonSave)),
       ],
     );
   }
@@ -1177,8 +1175,7 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
     } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage =
-              'Tenant members could not be loaded. Retry the request.';
+          _errorMessage = AppLocalizations.of(context).membersLoadGenericError;
           _isLoading = false;
         });
       }
@@ -1216,8 +1213,7 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
     } on Exception {
       if (mounted) {
         setState(() {
-          _errorMessage =
-              'The member change failed. Check your connection and retry.';
+          _errorMessage = AppLocalizations.of(context).memberActionGenericError;
         });
       }
       return false;
@@ -1267,22 +1263,22 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
   }
 
   Future<void> _removeMember(ParkingTenantMember member) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Remove tenant member?'),
+        title: Text(l10n.removeTenantMemberTitle),
         content: Text(
-          'Remove ${member.email} from ${widget.tenant.name}? Their Auth '
-          'account and parking records will not be deleted.',
+          l10n.removeTenantMemberMessage(member.email, widget.tenant.name),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+            child: Text(l10n.commonCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Remove'),
+            child: Text(l10n.removeButton),
           ),
         ],
       ),
@@ -1318,8 +1314,9 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return AlertDialog(
-      title: Text('Members: ${widget.tenant.name}'),
+      title: Text(l10n.membersDialogTitle(widget.tenant.name)),
       content: SizedBox(
         width: 560,
         height: 470,
@@ -1327,9 +1324,9 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             if (widget.tenant.isArchived)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 12),
-                child: Text('Restore this tenant before adding members.'),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(l10n.restoreBeforeAddingMembers),
               )
             else
               Form(
@@ -1340,14 +1337,14 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.done,
-                      decoration: const InputDecoration(
-                        labelText: 'Existing Supabase account email',
+                      decoration: InputDecoration(
+                        labelText: l10n.existingAccountEmailLabel,
                       ),
                       validator: (value) {
                         final email = value?.trim() ?? '';
                         if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
                             .hasMatch(email)) {
-                          return 'Enter a valid email address.';
+                          return l10n.emailInvalid;
                         }
                         return null;
                       },
@@ -1359,14 +1356,14 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
                         Expanded(
                           child: DropdownButtonFormField<ParkingTenantRole>(
                             initialValue: _newMemberRole,
-                            decoration: const InputDecoration(
-                              labelText: 'Role',
+                            decoration: InputDecoration(
+                              labelText: l10n.roleLabel,
                             ),
                             items: [
                               for (final role in ParkingTenantRole.values)
                                 DropdownMenuItem(
                                   value: role,
-                                  child: Text(_roleLabel(role)),
+                                  child: Text(_roleLabel(role, l10n)),
                                 ),
                             ],
                             onChanged: _isBusy
@@ -1386,7 +1383,7 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
                               ? null
                               : () => unawaited(_addMember()),
                           icon: const Icon(Icons.person_add_alt_1),
-                          label: const Text('Add'),
+                          label: Text(l10n.addButton),
                         ),
                       ],
                     ),
@@ -1403,16 +1400,16 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
             if (_isLoading)
               const Expanded(child: Center(child: CircularProgressIndicator()))
             else if (_members.isEmpty)
-              const Expanded(
+              Expanded(
                 child: EmptyStateView(
                   icon: Icons.people_outline,
-                  title: 'No members',
-                  message: 'Add an existing Supabase account to this tenant.',
+                  title: l10n.noMembersTitle,
+                  message: l10n.noMembersMessage,
                 ),
               )
             else ...[
               const SizedBox(height: 12),
-              const Text('Each tenant must keep at least one owner.'),
+              Text(l10n.keepAtLeastOneOwner),
               const SizedBox(height: 8),
               Expanded(
                 child: ListView.separated(
@@ -1429,29 +1426,29 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
                         child: Icon(Icons.person_outline),
                       ),
                       title: Text(
-                        member.email.isEmpty ? 'Unknown email' : member.email,
+                        member.email.isEmpty ? l10n.unknownEmail : member.email,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      subtitle: Text(_roleLabel(member.role)),
+                      subtitle: Text(_roleLabel(member.role, l10n)),
                       trailing: PopupMenuButton<_TenantMemberAction>(
-                        tooltip: 'Manage ${member.email}',
+                        tooltip: l10n.manageMemberTooltip(member.email),
                         enabled: !_isBusy && !isLastOwner,
                         onSelected: (action) =>
                             _handleMemberAction(member, action),
                         itemBuilder: (context) => [
                           if (member.role == ParkingTenantRole.member)
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: _TenantMemberAction.promote,
-                              child: Text('Make owner'),
+                              child: Text(l10n.makeOwnerMenuItem),
                             )
                           else
-                            const PopupMenuItem(
+                            PopupMenuItem(
                               value: _TenantMemberAction.demote,
-                              child: Text('Make member'),
+                              child: Text(l10n.makeMemberMenuItem),
                             ),
-                          const PopupMenuItem(
+                          PopupMenuItem(
                             value: _TenantMemberAction.remove,
-                            child: Text('Remove member'),
+                            child: Text(l10n.removeMemberMenuItem),
                           ),
                         ],
                       ),
@@ -1466,7 +1463,7 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
       actions: [
         TextButton(
           onPressed: _isBusy ? null : () => Navigator.of(context).pop(),
-          child: const Text('Close'),
+          child: Text(l10n.commonClose),
         ),
       ],
     );
@@ -1475,9 +1472,9 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
 
 enum _TenantMemberAction { promote, demote, remove }
 
-String _roleLabel(ParkingTenantRole role) {
+String _roleLabel(ParkingTenantRole role, AppLocalizations l10n) {
   return switch (role) {
-    ParkingTenantRole.owner => 'Owner',
-    ParkingTenantRole.member => 'Member',
+    ParkingTenantRole.owner => l10n.roleOwner,
+    ParkingTenantRole.member => l10n.roleMember,
   };
 }

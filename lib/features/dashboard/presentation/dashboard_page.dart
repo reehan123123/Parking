@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/empty_state_view.dart';
 import '../../../shared/widgets/error_state_view.dart';
 import '../../../shared/widgets/loading_view.dart';
@@ -200,6 +201,7 @@ class _DashboardPageState extends State<DashboardPage>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final errorMessage = _listErrorMessage ?? _summaryErrorMessage;
     return Center(
       child: ConstrainedBox(
@@ -209,16 +211,16 @@ class _DashboardPageState extends State<DashboardPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildHeader(context),
+              _buildHeader(context, l10n),
               const SizedBox(height: 24),
               if (_isLoading && _sessions.isEmpty)
                 const SizedBox(height: 320, child: LoadingView())
               else if (errorMessage != null && _sessions.isEmpty)
                 ErrorStateView(message: errorMessage, onRetry: () => _load())
               else ...[
-                _buildSummary(context),
+                _buildSummary(context, l10n),
                 const SizedBox(height: 24),
-                _buildSearchField(),
+                _buildSearchField(l10n),
                 const SizedBox(height: 28),
                 if (errorMessage != null) ...[
                   ErrorStateView(
@@ -231,16 +233,16 @@ class _DashboardPageState extends State<DashboardPage>
                   EmptyStateView(
                     icon: Icons.local_parking_outlined,
                     title: _search.isEmpty
-                        ? 'No parking sessions yet'
-                        : 'No matching sessions',
+                        ? l10n.dashboardNoSessionsTitle
+                        : l10n.noMatchingSessionsTitle,
                     message: _search.isEmpty
-                        ? 'Create a parking entry to start tracking a vehicle.'
-                        : 'Try a different registration search.',
+                        ? l10n.dashboardNoSessionsMessage
+                        : l10n.tryDifferentSearchMessage,
                     action: _search.isEmpty && widget.onNewParkingEntry != null
                         ? FilledButton.icon(
                             onPressed: widget.onNewParkingEntry,
                             icon: const Icon(Icons.add),
-                            label: const Text('New Parking Entry'),
+                            label: Text(l10n.dashboardNewEntry),
                           )
                         : null,
                   )
@@ -249,7 +251,7 @@ class _DashboardPageState extends State<DashboardPage>
                     children: [
                       Expanded(
                         child: Text(
-                          'Recent sessions',
+                          l10n.dashboardRecentSessions,
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
@@ -257,7 +259,7 @@ class _DashboardPageState extends State<DashboardPage>
                         TextButton.icon(
                           onPressed: widget.onViewHistory,
                           icon: const Icon(Icons.history),
-                          label: const Text('View all'),
+                          label: Text(l10n.dashboardViewAll),
                         ),
                     ],
                   ),
@@ -275,7 +277,7 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, AppLocalizations l10n) {
     final theme = Theme.of(context);
     return Wrap(
       alignment: WrapAlignment.spaceBetween,
@@ -289,7 +291,7 @@ class _DashboardPageState extends State<DashboardPage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Parking overview',
+                l10n.dashboardOverviewTitle,
                 style: theme.textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: theme.colorScheme.onSurface,
@@ -297,7 +299,7 @@ class _DashboardPageState extends State<DashboardPage>
               ),
               const SizedBox(height: 6),
               Text(
-                'Monitor current activity and manage vehicle entries.',
+                l10n.dashboardOverviewSubtitle,
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -311,13 +313,13 @@ class _DashboardPageState extends State<DashboardPage>
             OutlinedButton.icon(
               onPressed: _isLoading ? null : () => _load(),
               icon: const Icon(Icons.refresh),
-              label: const Text('Refresh'),
+              label: Text(l10n.dashboardRefresh),
             ),
             if (widget.onNewParkingEntry != null)
               FilledButton.icon(
                 onPressed: widget.onNewParkingEntry,
                 icon: const Icon(Icons.add),
-                label: const Text('New Parking Entry'),
+                label: Text(l10n.dashboardNewEntry),
               ),
           ],
         ),
@@ -325,7 +327,7 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildSummary(BuildContext context) {
+  Widget _buildSummary(BuildContext context, AppLocalizations l10n) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth >= 600
@@ -338,21 +340,21 @@ class _DashboardPageState extends State<DashboardPage>
             SizedBox(
               width: width,
               child: _SummaryCard(
-                label: 'Active',
+                label: l10n.commonActive,
                 count: _summary.activeCount,
                 icon: Icons.check_circle_outline,
                 accent: Theme.of(context).colorScheme.primary,
-                message: 'Currently within the allowed duration',
+                message: l10n.dashboardActiveMessage,
               ),
             ),
             SizedBox(
               width: width,
               child: _SummaryCard(
-                label: 'Expired',
+                label: l10n.commonExpired,
                 count: _summary.expiredCount,
                 icon: Icons.history,
                 accent: Theme.of(context).colorScheme.tertiary,
-                message: 'Past the recorded expiry time',
+                message: l10n.dashboardExpiredMessage,
               ),
             ),
           ],
@@ -361,19 +363,19 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  Widget _buildSearchField() {
+  Widget _buildSearchField(AppLocalizations l10n) {
     return TextField(
       controller: _searchController,
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
-        labelText: 'Search registration',
-        hintText: 'Search by plate number',
+        labelText: l10n.searchRegistrationLabel,
+        hintText: l10n.searchByPlateHint,
         prefixIcon: const Icon(Icons.search),
         suffixIcon: _search.isEmpty
             ? null
             : IconButton(
                 onPressed: _clearSearch,
-                tooltip: 'Clear search',
+                tooltip: l10n.clearSearchTooltip,
                 icon: const Icon(Icons.clear),
               ),
       ),

@@ -4,6 +4,9 @@ import 'package:parking_management/features/auth/presentation/auth_gate.dart';
 import 'package:parking_management/features/auth/presentation/password_recovery_page.dart';
 import 'package:parking_management/features/auth/presentation/sign_in_page.dart';
 import 'package:parking_management/features/auth/presentation/temporary_password_reset_page.dart';
+import 'package:parking_management/l10n/app_localizations.dart';
+
+import '../../support/localization_test_support.dart';
 
 import 'fake_auth_repository.dart';
 
@@ -16,6 +19,10 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: testLocalizationBuilder,
         home: AuthGate(
           authRepository: repository,
           authenticatedBuilder: (context, onSignOut) =>
@@ -36,6 +43,10 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: testLocalizationBuilder,
         home: AuthGate(
           authRepository: repository,
           authenticatedBuilder: (context, onSignOut) =>
@@ -64,6 +75,10 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: testLocalizationBuilder,
         home: AuthGate(
           authRepository: repository,
           authenticatedBuilder: (context, onSignOut) =>
@@ -102,6 +117,10 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        builder: testLocalizationBuilder,
         home: AuthGate(
           authRepository: repository,
           authenticatedBuilder: (context, onSignOut) =>
@@ -134,6 +153,10 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: testLocalizationBuilder,
           home: AuthGate(
             authRepository: repository,
             authenticatedBuilder: (context, onSignOut) =>
@@ -160,6 +183,10 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: testLocalizationBuilder,
           home: AuthGate(
             authRepository: repository,
             authenticatedBuilder: (context, onSignOut) =>
@@ -186,6 +213,10 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: testLocalizationBuilder,
           home: AuthGate(
             authRepository: repository,
             authenticatedBuilder: (context, onSignOut) =>
