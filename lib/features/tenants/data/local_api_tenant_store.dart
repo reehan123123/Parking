@@ -62,9 +62,9 @@ class LocalApiTenantStore implements TenantStore {
           'requestId': requestId,
           'isActive': isActive,
           'validUntil': _isoDate(validUntil),
-          if (contactName != null) 'contactName': contactName,
-          if (contactMobile != null) 'contactMobile': contactMobile,
-          if (contactEmail != null) 'contactEmail': contactEmail,
+          'contactName': ?contactName,
+          'contactMobile': ?contactMobile,
+          'contactEmail': ?contactEmail,
         },
       );
       _access = null;
@@ -90,9 +90,9 @@ class LocalApiTenantStore implements TenantStore {
         body: {
           'name': name,
           'validUntil': _isoDate(validUntil),
-          if (contactName != null) 'contactName': contactName,
-          if (contactMobile != null) 'contactMobile': contactMobile,
-          if (contactEmail != null) 'contactEmail': contactEmail,
+          'contactName': ?contactName,
+          'contactMobile': ?contactMobile,
+          'contactEmail': ?contactEmail,
         },
       );
       _access = null;

@@ -581,9 +581,9 @@ class _SupabaseTenantStore implements TenantStore {
           'requestId': requestId,
           'isActive': isActive,
           'validUntil': _isoDate(validUntil),
-          if (contactName != null) 'contactName': contactName,
-          if (contactMobile != null) 'contactMobile': contactMobile,
-          if (contactEmail != null) 'contactEmail': contactEmail,
+          'contactName': ?contactName,
+          'contactMobile': ?contactMobile,
+          'contactEmail': ?contactEmail,
         },
       );
       return _mapResult(
