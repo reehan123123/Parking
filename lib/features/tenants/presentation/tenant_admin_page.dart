@@ -352,7 +352,7 @@ class _TenantAdminPageState extends State<TenantAdminPage> {
                             itemBuilder: (context) => [
                               const PopupMenuItem(
                                 value: _TenantAction.edit,
-                                child: Text('Edit name'),
+                                child: Text('Edit'),
                               ),
                               const PopupMenuItem(
                                 value: _TenantAction.members,

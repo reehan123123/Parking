@@ -221,7 +221,7 @@ void main() {
 
     await tester.tap(find.byTooltip('Manage North lot'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Edit name'));
+    await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).first, 'North parking');
     await tester.tap(find.text('Save'));
