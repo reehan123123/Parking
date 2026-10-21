@@ -50,6 +50,7 @@ supabase/migrations/20261022090000_tenant_activation_expiry_contact.sql
 supabase/migrations/20261023090000_fix_list_tenant_members_email_type.sql
 supabase/migrations/20261024090000_device_session_limits.sql
 supabase/migrations/20261024100000_tenant_member_limits_permissions.sql
+supabase/migrations/20261024110000_fix_device_session_email_return_types.sql
 ```
 
 The first migration creates the initial `parking_sessions` table, private
@@ -87,6 +88,9 @@ migration:
   transactional capacity checks, owner-scoped management RPCs, and
   action-specific parking and photo authorization. The default is one member
   per tenant, excluding owners; the configurable maximum is 50.
+- The device-session follow-up migration casts Auth email values to `text` in
+  three table-returning RPCs whose declared result types previously disagreed
+  with `auth.users.email`.
 
 The tenant-administration and tenant-management migrations must be reviewed
 and applied in order. They preserve existing parking rows but change their
@@ -105,9 +109,12 @@ supabase db push
 ```
 
 The Supabase CLI is available in this development environment, but Docker and
-a local Supabase database are unavailable. No migration was applied here.
-Do not treat a successful Flutter build as proof that a migration reached
-Supabase.
+a local Supabase database are unavailable. The verified `parking-management`
+project has migrations applied through
+`20261024100000_tenant_member_limits_permissions.sql`. The follow-up
+`20261024110000_fix_device_session_email_return_types.sql` is pending separate
+approval. No migration has been applied to a local Supabase database. Do not
+treat a successful Flutter build as proof that a migration reached Supabase.
 
 After applying all migrations, deploy the authenticated Edge Functions:
 
@@ -165,8 +172,9 @@ The bucket must show `public = false`, and both table checks must show
    recognizes the role.
 
 If the account does not exist, the SQL operation stops without granting the
-role. The provisioning script has not been run against the hosted project.
-Authenticated users cannot read or write `public.super_admins` directly.
+role. The provisioning script's current hosted status was not verified during
+the 2026-10-24 rollout. Authenticated users cannot read or write
+`public.super_admins` directly.
 
 ## 4. Create tenant workspaces
 

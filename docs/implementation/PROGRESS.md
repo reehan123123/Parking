@@ -1,6 +1,6 @@
 # Parking SaaS and Performance Progress
 
-- **Updated:** 2026-10-20
+- **Updated:** 2026-10-24
 - **Branch:** `main`
 - **Baseline commit:** `a3faec0`
 
@@ -180,14 +180,45 @@ Local validation:
   tests. PowerShell migration scripts parsed successfully.
 - `git diff --check` — passed.
 
-Database verification remains blocked. `supabase db push --dry-run --local`
-and `supabase test db --local` could not connect to `127.0.0.1:54322`; Docker
-is unavailable. The PostgreSQL concurrency tests were skipped because their
-local Supabase URLs were not configured. The local API integration test
-returned 500 because the existing `parking_local` database lacks the new
-member columns. Applying migration 003 as the runtime `parking_api` role was
-denied because that role does not own the tables; the documented local-owner
-migration path requires the local admin password, which was not available.
-No hosted migration, production data change, commit, push, or deployment was
-performed. The audit-trail wiki could not be updated because
+Local database verification remains blocked. `supabase db push --dry-run
+--local` and `supabase test db --local` could not connect to
+`127.0.0.1:54322`; Docker is unavailable. The PostgreSQL concurrency tests
+were skipped because their local Supabase URLs were not configured. The local
+API integration test returned 500 because the existing `parking_local`
+database lacks the new member columns. Applying migration 003 as the runtime
+`parking_api` role was denied because that role does not own the tables; the
+documented local-owner migration path requires the local admin password,
+which was not available. The audit-trail wiki could not be updated because
 `LLMWIKI_ROOT` is not configured.
+
+## Production rollout and device-session RPC correction
+
+- Applied `20261024100000_tenant_member_limits_permissions.sql` to the
+  verified `parking-management` project after explicit approval. Remote
+  migration history now matches through this version; read-only checks
+  confirmed the member-limit/permission columns, audit table, RPC, and RLS
+  policies. No tenant, membership, parking-session, or payment rows were
+  deleted.
+- Commit `f958c26` was pushed to `main`; GitHub Actions run `39551201127`
+  passed all workflow steps and deployed to Cloudflare Pages. A fresh root
+  request returned `Parking Management`.
+- The production `supabase db lint --linked --schema public` found three
+  return-type errors in device-session list RPCs. Auth email is
+  `character varying`, while the functions declare `text`; this is a schema
+  contract mismatch, not bad user data or project configuration. A prior
+  migration fixed the same issue in `list_tenant_members` by casting the
+  email to `text`.
+- Added the forward migration
+  `20261024110000_fix_device_session_email_return_types.sql` and a pgTAP
+  regression assertion for `list_tenant_device_sessions`. The linked
+  dry-run previews only that migration when run with a temporary,
+  format-valid `SEND_EMAIL_HOOK_SECRET` and `--skip-vault`. A plain CLI
+  invocation is rejected by local Auth Hook config validation; no config or
+  hosted Vault value was changed. The migration remains unapplied pending
+  separate production approval; remote lint has not yet been rerun against
+  the corrected definitions.
+- Security advisors report generic authenticated `SECURITY DEFINER` RPC
+  warnings for the existing authorization-checked API pattern, plus the
+  existing disabled leaked-password-protection setting. These were not
+  changed in this rollout. pgTAP and migrated local API integration tests
+  remain blocked by unavailable Docker/local database-owner access.

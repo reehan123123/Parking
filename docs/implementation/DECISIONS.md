@@ -1,6 +1,6 @@
 # Parking SaaS Implementation Decisions
 
-- **Date:** 2026-10-18
+- **Date:** 2026-10-24
 - **Scope:** Tenant administration and performance hardening
 
 ## Add the missing tenant and Super Admin foundation
@@ -150,3 +150,20 @@ Supabase process before end-to-end Super Admin behavior can be verified.
   Supabase database is unavailable and the existing local API database lacks
   migration 003. No hosted migration, production write, commit, push, or
   deployment was performed.
+
+## Production rollout and device-session email result types
+
+- The user explicitly approved applying the single pending member-management
+  migration to the verified `parking-management` production project. It was
+  applied with Supabase CLI; migration history and read-only schema/RLS checks
+  confirmed success.
+- Commit `f958c26` was pushed to `main` and deployed successfully by GitHub
+  Actions run `39551201127`. The root static page was verified after deploy.
+- Linked schema lint then identified the same `auth.users.email`
+  `character varying` versus declared `text` mismatch in three device-session
+  listing RPCs, a root cause matching the earlier member-listing correction.
+  This is not caused by malformed data or configuration.
+- A forward-only cast correction and pgTAP coverage were prepared in
+  `20261024110000_fix_device_session_email_return_types.sql`. This new
+  production migration requires separate explicit approval; it has not been
+  applied. The previous migration file will not be rewritten.

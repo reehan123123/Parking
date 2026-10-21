@@ -125,17 +125,38 @@ git diff --check
 The versioned migration is
 `supabase/migrations/20261024090000_device_session_limits.sql`. Local
 `supabase/config.toml` enables the Custom Access Token Hook for local
-development. Neither the migration nor the Auth Hook has been applied to or
-activated on a hosted project as part of this change.
+development. The migration was applied to the verified production project
+`parking-management` as part of the approved tenant-member rollout. The
+production Auth Hook configuration was not changed or verified by that
+rollout; do not assume that setting `supabase/config.toml` activated the hook
+for the hosted project.
+
+After deployment, `supabase db lint --linked --schema public` identified
+PostgreSQL return-type errors in
+`list_tenant_member_device_session_policies`,
+`list_tenant_device_sessions`, and `list_device_session_audit_events`.
+`auth.users.email` is `character varying`, while those functions declare
+their email result columns as `text`. The follow-up migration
+`20261024110000_fix_device_session_email_return_types.sql` casts those values
+explicitly. It is prepared locally and remains unapplied pending separate
+approval; do not treat the affected device-session list RPCs as verified
+until the migration is applied and the linked schema lint passes.
 
 After local review and with explicit approval for the intended environment,
 inspect pending remote migrations without applying them:
 
 ```powershell
-supabase db push --dry-run --linked
+supabase db push --dry-run --linked --skip-vault
 ```
 
-Review the output and migration SQL before any approved write operation. Do
+The local configuration references `SEND_EMAIL_HOOK_SECRET`. If it is unset
+or invalid, the CLI rejects the configuration before connecting, even for a
+dry run. For a migration-only preview, provide a temporary format-valid
+`v1,whsec_...` value in the current PowerShell process and use `--skip-vault`
+so that placeholder is not synchronized to Supabase Vault. Do not store a
+placeholder in `config.toml` or use it to configure the hosted Auth Hook.
+
+Review the preview and migration SQL before any approved write operation. Do
 not run `supabase db push`, `supabase config push`, or deploy a frontend as
 part of validation. Production Auth Hook activation and migration application
 are separate, explicitly approved rollout steps.

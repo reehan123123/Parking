@@ -6,15 +6,21 @@ using the free `pages.dev` hostname and the selected project name
 `https://parking-85u.pages.dev/`. The application continues to use Supabase
 for authentication, PostgreSQL, and private vehicle photo storage.
 
-The tenant-administration frontend was deployed from commit `5e2ace7` by
-GitHub Actions run `39209169654` on 2026-10-19. The run succeeded. This
-confirms the static build and deployment only; the local app displayed the
-tenant-setup error because the configured Supabase project had not yet been
-verified as migrated and provisioned. The expanded tenant lifecycle and
-membership-management follow-up is still local and requires a separate
-deployment. Temporary-password owner onboarding is also source-only: its
-migration and Edge Functions have not been applied or deployed to the hosted
-Supabase project.
+The latest production frontend was deployed from commit `f958c26` by GitHub
+Actions run `39551201127` on 2026-10-21. All workflow steps, including the
+Cloudflare Pages deployment, succeeded. The deployed root returned the
+application title `Parking Management`.
+
+The approved Supabase migration
+`20261024100000_tenant_member_limits_permissions.sql` is applied to the
+verified `parking-management` project. A subsequent production schema lint
+found return-type errors in three device-session listing RPCs. The
+forward-only migration
+`20261024110000_fix_device_session_email_return_types.sql` is prepared but
+not applied; review its dry-run and obtain separate approval before applying
+it. The hosted Custom Access Token Hook configuration was not changed or
+verified during this rollout. Edge Function deployment status was not checked
+as part of this release.
 
 ## Architecture and security boundary
 
@@ -117,7 +123,7 @@ Before live testing:
    `supabase/migrations/20261014160000_create_parking_sessions_security.sql`
    `supabase/migrations/20261018185121_tenant_administration.sql`, and all
    subsequent timestamped migrations through
-   `supabase/migrations/20261024100000_tenant_member_limits_permissions.sql`.
+   `supabase/migrations/20261024110000_fix_device_session_email_return_types.sql`.
 2. Apply any pending migrations to the intended Supabase project through the
    approved Supabase workflow. Do not reset the project or run an unreviewed
    migration.
@@ -160,17 +166,14 @@ Before live testing:
     or used; none of these secret values are committed, logged, or present
     in Dart/browser code. See `docs/security.md` for the full architecture
     and the 6-recovery-emails-per-account-per-day application-level cap.
-11. Device-session limits and tenant member limits/permissions are not part
-    of the current production rollout. The migrations
-    `20261024090000_device_session_limits.sql` and
-    `20261024100000_tenant_member_limits_permissions.sql`, along with local
-    `[auth.hook.custom_access_token]` configuration, are source-only. Review
-    and test them in a local/non-production Supabase environment first.
-    Migration application, `supabase config push`, and any production
-    frontend deployment require separate explicit approval. See
+11. The device-session and tenant-member migrations through
+    `20261024100000_tenant_member_limits_permissions.sql` are applied to the
+    verified production project. The follow-up
+    `20261024110000_fix_device_session_email_return_types.sql` remains
+    pending separate approval. The production Custom Access Token Hook
+    configuration was not changed or verified by this rollout. See
     `docs/device-session-limits.md` and
-    `docs/tenant-member-management.md` for local dry-run and validation
-    commands.
+    `docs/tenant-member-management.md` for validation details.
 
 The frontend deployment alone does not prove hosted RLS or Storage isolation.
 Tenant A members must not be able to read, update, delete, sign, or replace
@@ -214,6 +217,11 @@ The root response included the configured
 show that the sampled static files are served; they do not establish that
 sign-in, parking CRUD, Supabase RLS, private Storage, camera, or mobile/PWA
 flows work. Recheck all relevant behavior after any new deployment.
+
+After commit `f958c26`, GitHub Actions run `39551201127` completed all 14
+workflow steps successfully, including Flutter formatting, analysis, tests,
+release build, output checks, Cloudflare configuration validation, and
+deployment. A fresh GET of the production root returned `Parking Management`.
 
 ## Local release validation
 
@@ -294,16 +302,20 @@ or PWA installation behavior across browsers.
 
 ## Current handover status
 
-As of the 2026-10-19 static-host check:
+As of the 2026-10-24 migration review:
 
-- Phase 4-8 and performance hardening are committed and pushed.
-- Commit `5e2ace7` deployed tenant creation and Super Admin access; workflow
-  `39209169654` succeeded. The current tenant-management follow-up is local.
-- The production hostname returned HTTP 200 after deployment. This verifies
-  static delivery only.
-- Hosted Supabase migration/Auth/RLS/Storage behavior is not yet verified; the
-  local app currently reports missing tenant setup.
-- Device-session and tenant-member limit/permission follow-ups remain local.
-  Their migrations have not been applied to the hosted project; no member
-  changes, production data updates, or deployment were performed for them.
-- Android/iPhone production/PWA checks are not yet verified.
+- Commit `f958c26` is pushed to `main`; GitHub Actions run `39551201127`
+  succeeded and the production root serves the Parking Management app.
+- Supabase migrations through
+  `20261024100000_tenant_member_limits_permissions.sql` are recorded as
+  applied to `parking-management`. Read-only verification confirmed the new
+  member-limit/permission schema, audit table, permission RPC, and RLS
+  policies.
+- `20261024110000_fix_device_session_email_return_types.sql` is a pending
+  follow-up for three `varchar`-to-`text` return-type errors found by linked
+  schema lint. It has not been applied and requires separate approval.
+- pgTAP and PostgreSQL concurrency tests remain unexecuted because local
+  Supabase/Docker is unavailable. The local API integration test is blocked
+  by the old `parking_local` schema and unavailable local owner password.
+- Hosted Auth Hook activation, Edge Function status, two-account RLS/Storage
+  behavior, and Android/iPhone production/PWA behavior were not verified.

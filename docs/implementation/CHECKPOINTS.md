@@ -140,3 +140,25 @@ contains the detailed scope, initial evidence, and blockers.
 - No hosted migration, production data change, commit, push, or deployment
   occurred. `LLMWIKI_ROOT` is unset, so the personal audit wiki was not
   updated.
+
+## 2026-10-24 — Production member rollout and RPC type correction
+
+- Applied `20261024100000_tenant_member_limits_permissions.sql` to the
+  verified `parking-management` project after explicit approval. Migration
+  history and read-only checks confirmed the expected schema and RLS objects.
+- Pushed commit `f958c26`; GitHub Actions run `39551201127` passed all steps
+  and deployed the Flutter Web app to Cloudflare Pages. The production root
+  returned the expected Parking Management title.
+- Post-migration schema lint found three device-session RPC return-type
+  errors: `auth.users.email` is `character varying`, but the functions declare
+  `text`. This is the same class of mismatch fixed earlier for
+  `list_tenant_members`, not a data/configuration issue.
+- Prepared migration
+  `20261024110000_fix_device_session_email_return_types.sql` and added a
+  pgTAP assertion for the tenant device-session listing. Its linked dry-run
+  previews only this file when the local `SEND_EMAIL_HOOK_SECRET` reference
+  is satisfied and `--skip-vault` is passed. It remains unapplied pending
+  separate approval.
+- Local pgTAP/concurrency tests and the migrated local API integration test
+  remain blocked by missing Docker/local Supabase and unavailable local
+  database-owner credentials.

@@ -1,6 +1,6 @@
 begin;
 
-select plan(41);
+select plan(42);
 
 insert into auth.users (id, email)
 values
@@ -317,6 +317,12 @@ select results_eq(
   $$,
   $$values (2, 'account_override'::text)$$,
   'the account override takes precedence over the tenant limit'
+);
+select lives_ok(
+  $$select * from public.list_tenant_device_sessions(
+      '30000000-0000-4000-8000-000000000001'
+    )$$,
+  'a Super Admin can list tenant device sessions'
 );
 select lives_ok(
   $$select public.set_platform_device_session_policy(4, 30)$$,
