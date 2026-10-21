@@ -221,11 +221,9 @@ which was not available. The audit-trail wiki could not be updated because
   The CLI reported success, and `supabase migration list --linked` confirms
   local/remote history is in sync through `20261024110000`. The migration
   only replaces three function definitions and does not mutate rows.
-- The post-application `supabase db lint --linked --schema public` attempt
-  failed before schema inspection: PostgreSQL rejected the CLI temporary
-  login role password, and `SUPABASE_DB_PASSWORD` was absent from the process
-  environment. Post-fix lint confirmation remains outstanding; the earlier
-  three return-type errors must not be reported as verified resolved.
+- Post-application `supabase db lint --linked --schema public` passed with
+  “No schema errors found,” confirming the three reported return-type errors
+  are resolved.
 - Commits `c1288cc` (RPC correction) and `cef628d` (rollout documentation)
   were pushed to `main`. GitHub Actions run `39561743168` passed all 14
   workflow steps and deployed to Cloudflare Pages; the production root

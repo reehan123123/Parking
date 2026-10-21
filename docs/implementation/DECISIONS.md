@@ -167,11 +167,9 @@ Supabase process before end-to-end Super Admin behavior can be verified.
   `20261024110000_fix_device_session_email_return_types.sql`. After separate
   explicit approval, it was applied to production without Vault
   synchronization. The previous migration file was not rewritten.
-- Linked migration history confirms the new migration is recorded. The
-  post-application schema-lint attempt failed before introspection because
-  PostgreSQL rejected the CLI temporary login role password; no
-  `SUPABASE_DB_PASSWORD` was set in the process environment. A successful
-  post-fix schema lint remains a follow-up verification requirement.
+- Linked migration history confirms the new migration is recorded.
+  Post-application `supabase db lint --linked --schema public` passed with
+  “No schema errors found,” verifying the corrected RPC result types.
 - Commits `c1288cc` and `cef628d` were pushed to `main`; GitHub Actions run
   `39561743168` passed all 14 workflow steps and deployed successfully.
   Production returned HTTP 200 with the expected app title.

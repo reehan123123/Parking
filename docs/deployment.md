@@ -19,14 +19,13 @@ The approved Supabase migrations
 `20261024110000_fix_device_session_email_return_types.sql` are applied to the
 verified `parking-management` project, and the remote migration history
 matches. The follow-up replaces three RPC definitions with explicit
-`auth.users.email::text` casts; it does not transform or delete data. A
-post-application schema-lint attempt could not authenticate to PostgreSQL:
-the CLI reported a password failure for its temporary login role, and
-`SUPABASE_DB_PASSWORD` was absent from the process environment. The corrected
-RPCs therefore remain unverified by a post-migration lint run. The hosted
-Custom Access Token Hook configuration and Vault were not changed or verified
-during this rollout. Edge Function deployment status was not checked as part
-of this release.
+`auth.users.email::text` casts; it does not transform or delete data.
+Post-application `supabase db lint --linked --schema public` completed with
+“No schema errors found.” The database password was read from the configured
+Windows environment without printing it. The hosted Custom Access Token Hook
+configuration and Vault were not changed or verified during this migration
+rollout. Edge Function deployment status was not checked as part of this
+release.
 
 ## Architecture and security boundary
 
@@ -174,9 +173,9 @@ Before live testing:
     and the 6-recovery-emails-per-account-per-day application-level cap.
 11. The device-session and tenant-member migrations through
     `20261024110000_fix_device_session_email_return_types.sql` are applied to
-    the verified production project. Migration history is in sync. The
-    post-application schema lint is blocked on valid database authentication;
-    the production Custom Access Token Hook configuration was not changed or
+    the verified production project. Migration history is in sync, and
+    `supabase db lint --linked --schema public` reports no schema errors.
+    The production Custom Access Token Hook configuration was not changed or
     verified by this rollout. See
     `docs/device-session-limits.md` and
     `docs/tenant-member-management.md` for validation details.
@@ -322,10 +321,9 @@ As of the 2026-10-24 migration review:
   applied to `parking-management`. Read-only verification confirmed the
   member-limit/permission schema, audit table, permission RPC, and RLS
   policies; migration history is in sync.
-- The post-migration `supabase db lint --linked --schema public` attempt
-  failed before schema inspection because database authentication failed for
-  the CLI's temporary login role. `SUPABASE_DB_PASSWORD` was not set in the
-  process environment, so post-fix lint confirmation remains outstanding.
+- Post-migration `supabase db lint --linked --schema public` passed with
+  “No schema errors found,” confirming the email return-type corrections
+  removed the reported lint errors.
 - pgTAP and PostgreSQL concurrency tests remain unexecuted because local
   Supabase/Docker is unavailable. The local API integration test is blocked
   by the old `parking_local` schema and unavailable local owner password.

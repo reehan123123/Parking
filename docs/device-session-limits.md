@@ -140,10 +140,9 @@ their email result columns as `text`. The follow-up migration
 `20261024110000_fix_device_session_email_return_types.sql` casts those values
 explicitly. It was applied to the verified `parking-management` project
 after separate approval, and linked migration history confirms it is
-recorded. A post-application lint attempt failed before schema inspection
-because PostgreSQL authentication failed for the CLI's temporary login role;
-`SUPABASE_DB_PASSWORD` was absent from the process environment. Do not report
-the affected RPCs as lint-verified until linked schema lint succeeds.
+recorded. Post-application
+`supabase db lint --linked --schema public` completed with “No schema errors
+found,” verifying that the reported return-type errors are resolved.
 
 After local review and with explicit approval for the intended environment,
 inspect pending remote migrations without applying them:

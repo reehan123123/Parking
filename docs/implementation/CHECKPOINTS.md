@@ -161,9 +161,8 @@ contains the detailed scope, initial evidence, and blockers.
   approval, the migration was applied to `parking-management` with Vault
   synchronization disabled. Linked migration history now matches through
   `20261024110000`.
-- A post-application schema-lint attempt could not authenticate: PostgreSQL
-  rejected the CLI temporary login role, and `SUPABASE_DB_PASSWORD` was
-  absent. The corrected RPCs are not yet verified by post-migration lint.
+- Post-application `supabase db lint --linked --schema public` passed with
+  “No schema errors found,” confirming the corrected RPC result types.
 - Commits `c1288cc` and `cef628d` were pushed to `main`. GitHub Actions run
   `39561743168` passed all 14 steps and deployed to Cloudflare Pages; the
   production root returned HTTP 200 with the expected title.
