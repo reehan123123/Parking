@@ -164,6 +164,9 @@ contains the detailed scope, initial evidence, and blockers.
 - A post-application schema-lint attempt could not authenticate: PostgreSQL
   rejected the CLI temporary login role, and `SUPABASE_DB_PASSWORD` was
   absent. The corrected RPCs are not yet verified by post-migration lint.
+- Commits `c1288cc` and `cef628d` were pushed to `main`. GitHub Actions run
+  `39561743168` passed all 14 steps and deployed to Cloudflare Pages; the
+  production root returned HTTP 200 with the expected title.
 - Local pgTAP/concurrency tests and the migrated local API integration test
   remain blocked by missing Docker/local Supabase and unavailable local
   database-owner credentials.

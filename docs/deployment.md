@@ -6,10 +6,13 @@ using the free `pages.dev` hostname and the selected project name
 `https://parking-85u.pages.dev/`. The application continues to use Supabase
 for authentication, PostgreSQL, and private vehicle photo storage.
 
-The latest production frontend was deployed from commit `f958c26` by GitHub
+The tenant-management frontend was deployed from commit `f958c26` by GitHub
 Actions run `39551201127` on 2026-10-21. All workflow steps, including the
 Cloudflare Pages deployment, succeeded. The deployed root returned the
-application title `Parking Management`.
+application title `Parking Management`. The follow-up RPC fix was pushed in
+commit `c1288cc`; documentation in `cef628d` was deployed by Actions run
+`39561743168`, which also passed all workflow steps. A fresh production-root
+request returned HTTP 200 and the `Parking Management` title.
 
 The approved Supabase migrations
 `20261024100000_tenant_member_limits_permissions.sql` and
@@ -225,6 +228,8 @@ After commit `f958c26`, GitHub Actions run `39551201127` completed all 14
 workflow steps successfully, including Flutter formatting, analysis, tests,
 release build, output checks, Cloudflare configuration validation, and
 deployment. A fresh GET of the production root returned `Parking Management`.
+The follow-up commit `cef628d` was deployed by run `39561743168`; its 14
+workflow steps succeeded, and a fresh production request returned HTTP 200.
 
 ## Local release validation
 
@@ -309,6 +314,9 @@ As of the 2026-10-24 migration review:
 
 - Commit `f958c26` is pushed to `main`; GitHub Actions run `39551201127`
   succeeded and the production root serves the Parking Management app.
+- Follow-up commits `c1288cc` and `cef628d` are pushed to `main`. Actions run
+  `39561743168` deployed `cef628d` successfully; all 14 workflow steps passed
+  and the production root returned HTTP 200 with the expected title.
 - Supabase migrations through
   `20261024110000_fix_device_session_email_return_types.sql` are recorded as
   applied to `parking-management`. Read-only verification confirmed the

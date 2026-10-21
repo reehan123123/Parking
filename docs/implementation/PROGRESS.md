@@ -226,6 +226,10 @@ which was not available. The audit-trail wiki could not be updated because
   login role password, and `SUPABASE_DB_PASSWORD` was absent from the process
   environment. Post-fix lint confirmation remains outstanding; the earlier
   three return-type errors must not be reported as verified resolved.
+- Commits `c1288cc` (RPC correction) and `cef628d` (rollout documentation)
+  were pushed to `main`. GitHub Actions run `39561743168` passed all 14
+  workflow steps and deployed to Cloudflare Pages; the production root
+  returned HTTP 200 with the expected app title.
 - Security advisors report generic authenticated `SECURITY DEFINER` RPC
   warnings for the existing authorization-checked API pattern, plus the
   existing disabled leaked-password-protection setting. These were not
