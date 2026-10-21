@@ -11,16 +11,19 @@ Actions run `39551201127` on 2026-10-21. All workflow steps, including the
 Cloudflare Pages deployment, succeeded. The deployed root returned the
 application title `Parking Management`.
 
-The approved Supabase migration
-`20261024100000_tenant_member_limits_permissions.sql` is applied to the
-verified `parking-management` project. A subsequent production schema lint
-found return-type errors in three device-session listing RPCs. The
-forward-only migration
-`20261024110000_fix_device_session_email_return_types.sql` is prepared but
-not applied; review its dry-run and obtain separate approval before applying
-it. The hosted Custom Access Token Hook configuration was not changed or
-verified during this rollout. Edge Function deployment status was not checked
-as part of this release.
+The approved Supabase migrations
+`20261024100000_tenant_member_limits_permissions.sql` and
+`20261024110000_fix_device_session_email_return_types.sql` are applied to the
+verified `parking-management` project, and the remote migration history
+matches. The follow-up replaces three RPC definitions with explicit
+`auth.users.email::text` casts; it does not transform or delete data. A
+post-application schema-lint attempt could not authenticate to PostgreSQL:
+the CLI reported a password failure for its temporary login role, and
+`SUPABASE_DB_PASSWORD` was absent from the process environment. The corrected
+RPCs therefore remain unverified by a post-migration lint run. The hosted
+Custom Access Token Hook configuration and Vault were not changed or verified
+during this rollout. Edge Function deployment status was not checked as part
+of this release.
 
 ## Architecture and security boundary
 
@@ -167,11 +170,11 @@ Before live testing:
     in Dart/browser code. See `docs/security.md` for the full architecture
     and the 6-recovery-emails-per-account-per-day application-level cap.
 11. The device-session and tenant-member migrations through
-    `20261024100000_tenant_member_limits_permissions.sql` are applied to the
-    verified production project. The follow-up
-    `20261024110000_fix_device_session_email_return_types.sql` remains
-    pending separate approval. The production Custom Access Token Hook
-    configuration was not changed or verified by this rollout. See
+    `20261024110000_fix_device_session_email_return_types.sql` are applied to
+    the verified production project. Migration history is in sync. The
+    post-application schema lint is blocked on valid database authentication;
+    the production Custom Access Token Hook configuration was not changed or
+    verified by this rollout. See
     `docs/device-session-limits.md` and
     `docs/tenant-member-management.md` for validation details.
 
@@ -307,13 +310,14 @@ As of the 2026-10-24 migration review:
 - Commit `f958c26` is pushed to `main`; GitHub Actions run `39551201127`
   succeeded and the production root serves the Parking Management app.
 - Supabase migrations through
-  `20261024100000_tenant_member_limits_permissions.sql` are recorded as
-  applied to `parking-management`. Read-only verification confirmed the new
+  `20261024110000_fix_device_session_email_return_types.sql` are recorded as
+  applied to `parking-management`. Read-only verification confirmed the
   member-limit/permission schema, audit table, permission RPC, and RLS
-  policies.
-- `20261024110000_fix_device_session_email_return_types.sql` is a pending
-  follow-up for three `varchar`-to-`text` return-type errors found by linked
-  schema lint. It has not been applied and requires separate approval.
+  policies; migration history is in sync.
+- The post-migration `supabase db lint --linked --schema public` attempt
+  failed before schema inspection because database authentication failed for
+  the CLI's temporary login role. `SUPABASE_DB_PASSWORD` was not set in the
+  process environment, so post-fix lint confirmation remains outstanding.
 - pgTAP and PostgreSQL concurrency tests remain unexecuted because local
   Supabase/Docker is unavailable. The local API integration test is blocked
   by the old `parking_local` schema and unavailable local owner password.

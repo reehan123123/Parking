@@ -157,8 +157,13 @@ contains the detailed scope, initial evidence, and blockers.
   `20261024110000_fix_device_session_email_return_types.sql` and added a
   pgTAP assertion for the tenant device-session listing. Its linked dry-run
   previews only this file when the local `SEND_EMAIL_HOOK_SECRET` reference
-  is satisfied and `--skip-vault` is passed. It remains unapplied pending
-  separate approval.
+  is satisfied and `--skip-vault` is passed. After separate explicit
+  approval, the migration was applied to `parking-management` with Vault
+  synchronization disabled. Linked migration history now matches through
+  `20261024110000`.
+- A post-application schema-lint attempt could not authenticate: PostgreSQL
+  rejected the CLI temporary login role, and `SUPABASE_DB_PASSWORD` was
+  absent. The corrected RPCs are not yet verified by post-migration lint.
 - Local pgTAP/concurrency tests and the migrated local API integration test
   remain blocked by missing Docker/local Supabase and unavailable local
   database-owner credentials.

@@ -164,6 +164,11 @@ Supabase process before end-to-end Super Admin behavior can be verified.
   listing RPCs, a root cause matching the earlier member-listing correction.
   This is not caused by malformed data or configuration.
 - A forward-only cast correction and pgTAP coverage were prepared in
-  `20261024110000_fix_device_session_email_return_types.sql`. This new
-  production migration requires separate explicit approval; it has not been
-  applied. The previous migration file will not be rewritten.
+  `20261024110000_fix_device_session_email_return_types.sql`. After separate
+  explicit approval, it was applied to production without Vault
+  synchronization. The previous migration file was not rewritten.
+- Linked migration history confirms the new migration is recorded. The
+  post-application schema-lint attempt failed before introspection because
+  PostgreSQL rejected the CLI temporary login role password; no
+  `SUPABASE_DB_PASSWORD` was set in the process environment. A successful
+  post-fix schema lint remains a follow-up verification requirement.

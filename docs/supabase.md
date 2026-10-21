@@ -111,10 +111,12 @@ supabase db push
 The Supabase CLI is available in this development environment, but Docker and
 a local Supabase database are unavailable. The verified `parking-management`
 project has migrations applied through
-`20261024100000_tenant_member_limits_permissions.sql`. The follow-up
-`20261024110000_fix_device_session_email_return_types.sql` is pending separate
-approval. No migration has been applied to a local Supabase database. Do not
-treat a successful Flutter build as proof that a migration reached Supabase.
+`20261024110000_fix_device_session_email_return_types.sql`; linked migration
+history is in sync. A post-application schema-lint attempt could not
+authenticate because `SUPABASE_DB_PASSWORD` was absent from the process
+environment. No migration has been applied to a local Supabase database. Do
+not treat a successful Flutter build as proof that a migration reached
+Supabase.
 
 After applying all migrations, deploy the authenticated Edge Functions:
 

@@ -214,9 +214,18 @@ which was not available. The audit-trail wiki could not be updated because
   dry-run previews only that migration when run with a temporary,
   format-valid `SEND_EMAIL_HOOK_SECRET` and `--skip-vault`. A plain CLI
   invocation is rejected by local Auth Hook config validation; no config or
-  hosted Vault value was changed. The migration remains unapplied pending
-  separate production approval; remote lint has not yet been rerun against
-  the corrected definitions.
+  hosted Vault value was changed.
+- After separate explicit approval, applied
+  `20261024110000_fix_device_session_email_return_types.sql` to
+  `parking-management` using `supabase db push --linked --skip-vault --yes`.
+  The CLI reported success, and `supabase migration list --linked` confirms
+  local/remote history is in sync through `20261024110000`. The migration
+  only replaces three function definitions and does not mutate rows.
+- The post-application `supabase db lint --linked --schema public` attempt
+  failed before schema inspection: PostgreSQL rejected the CLI temporary
+  login role password, and `SUPABASE_DB_PASSWORD` was absent from the process
+  environment. Post-fix lint confirmation remains outstanding; the earlier
+  three return-type errors must not be reported as verified resolved.
 - Security advisors report generic authenticated `SECURITY DEFINER` RPC
   warnings for the existing authorization-checked API pattern, plus the
   existing disabled leaked-password-protection setting. These were not
