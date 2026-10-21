@@ -104,6 +104,7 @@ abstract interface class TenantStore {
   Future<Map<String, dynamic>> addTenantMember({
     required String tenantId,
     required String email,
+    required String requestId,
     required String role,
   });
 
@@ -551,30 +552,53 @@ class SupabaseTenantRepository implements TenantRepository {
   }
 
   @override
-  Future<void> addMember({
+  Future<TenantMemberCreationResult> addMember({
     required String tenantId,
     required String email,
+    required String requestId,
     required ParkingTenantRole role,
   }) async {
     final normalizedEmail = email.trim().toLowerCase();
-    if (tenantId.trim().isEmpty || !_looksLikeEmail(normalizedEmail)) {
+    if (tenantId.trim().isEmpty ||
+        !_looksLikeEmail(normalizedEmail) ||
+        !_isUuidV4(requestId)) {
       throw const TenantRepositoryException(
-        'Enter a valid member email address.',
+        'Enter a valid member email address and request identifier.',
       );
     }
 
     try {
-      await _tenantStore.addTenantMember(
+      final Map<String, dynamic> result = await _tenantStore.addTenantMember(
         tenantId: tenantId,
         email: normalizedEmail,
+        requestId: requestId,
         role: role.name,
+      );
+      if (result['success'] != true || result['accountCreated'] is! bool) {
+        throw const FormatException('The member creation response is invalid.');
+      }
+
+      final Object? passwordValue = result['temporaryPassword'];
+      if (passwordValue != null &&
+          (passwordValue is! String || passwordValue.isEmpty)) {
+        throw const FormatException(
+          'The temporary member password response is invalid.',
+        );
+      }
+      return TenantMemberCreationResult(
+        accountCreated: result['accountCreated'] as bool,
+        temporaryPassword: passwordValue as String?,
       );
     } on TenantStoreException catch (error) {
       if (error.code == 'MEMBER_LIMIT_REACHED' ||
           error.code == 'member_limit_reached') {
         throw _memberLimitError(error.details);
       }
-      throw TenantRepositoryException(error.message);
+      throw TenantRepositoryException(
+        error.message,
+        code: error.code,
+        temporaryPassword: error.temporaryPassword,
+      );
     } on PostgrestException catch (error) {
       if (error.message == 'MEMBER_LIMIT_REACHED') {
         throw _memberLimitError(_decodeDetails(error.details));
@@ -583,6 +607,10 @@ class SupabaseTenantRepository implements TenantRepository {
         error,
         fallback:
             'The member could not be added. Check your connection and retry.',
+      );
+    } on FormatException {
+      throw const TenantRepositoryException(
+        'The member creation response was invalid. Contact the system administrator.',
       );
     }
   }
@@ -823,6 +851,13 @@ class SupabaseTenantRepository implements TenantRepository {
         atIndex < value.length - 1 &&
         value.indexOf('.', atIndex) > atIndex + 1 &&
         value.indexOf('.', atIndex) < value.length - 1;
+  }
+
+  static bool _isUuidV4(String value) {
+    return RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      caseSensitive: false,
+    ).hasMatch(value);
   }
 
   static bool _isMissingTenantSchema(PostgrestException error) {
@@ -1167,15 +1202,50 @@ class _SupabaseTenantStore
   Future<Map<String, dynamic>> addTenantMember({
     required String tenantId,
     required String email,
+    required String requestId,
     required String role,
   }) async {
-    return _mapResult(
-      await _client.rpc(
-        'add_tenant_member',
-        params: {'p_tenant_id': tenantId, 'p_email': email, 'p_role': role},
-      ),
-      'The added member response is invalid.',
-    );
+    try {
+      final response = await _client.functions.invoke(
+        'create-tenant-member',
+        body: {
+          'tenantId': tenantId,
+          'email': email,
+          'requestId': requestId,
+          'role': role,
+        },
+      );
+      return _mapResult(
+        response.data,
+        'The created member response is invalid.',
+      );
+    } on FunctionException catch (error) {
+      final Map<String, dynamic>? payload = _mapOptionalRow(error.details);
+      final Object? codeValue = payload?['code'];
+      final String? code = codeValue is String ? codeValue : null;
+      final Map<String, dynamic>? details = _mapOptionalRow(
+        payload?['details'],
+      );
+      final String message = switch (code) {
+        'authentication_required' =>
+          'Your session expired. Sign in again and retry.',
+        'super_admin_required' || 'tenant_management_required' =>
+          'You are not authorized to manage members in this tenant.',
+        'tenant_setup_incomplete' => 'Member account setup is not available. Check the Supabase Edge Function configuration.',
+        'member_account_creation_failed' => 'The new member account could not be created. Check the email address and retry.',
+        'member_account_lookup_failed' => 'The existing Supabase account could not be loaded. Check your connection and retry.',
+        'member_account_not_found' => 'The account could not be found or created. Check the email address and retry.',
+        'member_onboarding_state_invalid' => 'This member account has an incomplete setup record. Contact the system administrator.',
+        'temporary_password_rotation_failed' => 'A temporary password could not be recovered. Retry adding the same email.',
+        'member_setup_incomplete' => 'Member setup may be incomplete. Retry adding the same email to safely finish setup.',
+        'tenant_archived' => 'Restore this tenant before adding members.',
+        'MEMBER_LIMIT_REACHED' ||
+        'member_limit_reached' => 'The tenant member limit has been reached.',
+        'invalid_request' => 'Enter a valid member email address.',
+        _ => 'The member could not be added. Check your connection and retry.',
+      };
+      throw TenantStoreException(message, code: code, details: details);
+    }
   }
 
   @override
@@ -1225,6 +1295,19 @@ class _SupabaseTenantStore
     }
     if (value is Map) {
       return Map<String, dynamic>.from(value);
+    }
+    if (value is String) {
+      try {
+        final Object? decoded = jsonDecode(value);
+        if (decoded is Map<String, dynamic>) {
+          return decoded;
+        }
+        if (decoded is Map) {
+          return Map<String, dynamic>.from(decoded);
+        }
+      } on FormatException {
+        return null;
+      }
     }
 
     return null;

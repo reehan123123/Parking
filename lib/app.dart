@@ -614,6 +614,11 @@ class _AppShellState extends State<AppShell> {
       canViewEntries: scope.canViewEntries,
       canAddEntries: scope.canAddEntries,
     );
+    final int adminDestinationIndex = showAdmin
+        ? destinations.indexWhere(
+            (destination) => destination.label == l10n.navAdmin,
+          )
+        : -1;
     final pages = <Widget>[];
     if (scope.canViewEntries) {
       pages
@@ -682,6 +687,10 @@ class _AppShellState extends State<AppShell> {
         deviceSessionRepository: widget.deviceSessionRepository,
         tenant: selectedTenant,
         tenantRepository: widget.tenantRepository,
+        isSuperAdmin: access.isSuperAdmin,
+        onManageTenants: adminDestinationIndex < 0
+            ? null
+            : () => _selectDestination(adminDestinationIndex),
         onMembersChanged: selectedTenant?.role == ParkingTenantRole.owner
             ? () => _loadTenantAccess(preferredTenantId: selectedTenant!.id)
             : null,

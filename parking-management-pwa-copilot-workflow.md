@@ -210,6 +210,17 @@ Keep the schema small. Add tables only when a concrete requirement needs them.
   server-side Edge Function. Never create Auth users from the browser or
   expose a service-role key. A new account's temporary-password reset must be
   enforced by both the application gate and RLS until the password changes.
+- Tenant owners may manage member-role accounts only in their own tenant;
+  Super Admins may manage memberships across tenants. Reuse an existing Auth
+  account without changing its credentials. If a member email is not
+  registered, create the login only through an authenticated
+  `create-tenant-member` Edge Function, assign it only to the requested
+  tenant, and return a one-time temporary password to the authorized manager.
+  This flow marks the email confirmed without verifying ownership separately;
+  the manager must share the password securely. Require a password change
+  before the new account can access tenant data. Enforce member capacity and
+  caller authorization again in the database; never let the browser create
+  Auth users or choose another tenant for the new account.
 - The frontend may use only the Supabase project URL and publishable/anon key. Never use the service-role key in the client, GitHub, build artifacts, logs, or documentation.
 - The opt-in local development API must bind to loopback, use only the
   isolated local database, keep credentials outside the browser and Git, and

@@ -29,14 +29,21 @@ and a role-gated tenant administration screen.
 - The requested initial Super Admin is provisioned with a separate SQL
   operation after migration and account creation. The migration and operation
   are a manual Supabase operation; their hosted status must be verified.
-- Tenant membership management uses existing Auth accounts. Invitations and
-  Auth-user creation remain outside the browser.
+- Tenant membership management reuses existing Auth accounts without
+  changing credentials. When a member email is new, the authenticated
+  `create-tenant-member` Edge Function provisions it and assigns only the
+  selected tenant; the authorized manager receives a one-time temporary
+  password, marks the email confirmed without separately verifying
+  ownership, and requires the new member to change the password before
+  accessing tenant data. The manager is responsible for secure password
+  delivery. Invitations are not used, and Auth-user creation remains outside
+  the browser.
 - Billing, payment processing, location management, reporting, charts, and
   CSV export remain outside this implementation.
 
 The existing-account-only tenant-owner restriction above was superseded by
-the server-side onboarding decision below. Auth-user creation remains outside
-the browser.
+the server-side tenant-owner onboarding decision below. Member onboarding uses
+the same server-only Auth Admin boundary.
 
 ## Bound session reads
 
@@ -123,9 +130,12 @@ Supabase process before end-to-end Super Admin behavior can be verified.
 ## Tenant member capacity and entry permissions
 
 - Reuse `public.tenants` and `public.tenant_memberships`; do not introduce a
-  second tenant, member, or device registry. Member identities must already
-  exist in Supabase Auth; this feature does not create member accounts or
-  invitations.
+  second tenant, member, or device registry. Reuse existing Supabase Auth
+  accounts without changing credentials. When an email is not registered,
+  the authenticated `create-tenant-member` Edge Function may create a
+  tenant-scoped member login with a temporary password, forced password
+  change, and membership only in the selected tenant. Never expose the
+  service-role key or create Auth users from Flutter.
 - Set each tenant's stored member limit to one by default, with a maximum of
   50. Owners are excluded from the count. Count current member-role rows;
   preserve existing rows even if an existing tenant is over its configured
@@ -143,6 +153,9 @@ Supabase process before end-to-end Super Admin behavior can be verified.
 - Extend the local API with the same limit and permission behavior. Keep its
   `parking_api` role least-privileged; schema changes require the local
   database owner, and the migration helper refreshes table/sequence grants.
+  The local member-provisioning path is transactionally created and uses a
+  request ledger for temporary-password recovery; it has no email service and
+  remains loopback-only.
 - Reuse the existing device-session policy and administration flow; do not
   create a parallel device registry or change policy precedence.
 - Local Flutter and API security tests passed. SQL/RLS, PostgreSQL race, and

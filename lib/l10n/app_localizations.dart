@@ -536,18 +536,6 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get settingsTitle;
 
-  /// No description provided for @settingsComingLaterTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Settings are coming later'**
-  String get settingsComingLaterTitle;
-
-  /// No description provided for @settingsComingLaterMessage.
-  ///
-  /// In en, this message translates to:
-  /// **'Account and application settings will be added in a later phase.'**
-  String get settingsComingLaterMessage;
-
   /// No description provided for @settingsSignOutError.
   ///
   /// In en, this message translates to:
@@ -2129,8 +2117,14 @@ abstract class AppLocalizations {
   /// No description provided for @existingAccountEmailLabel.
   ///
   /// In en, this message translates to:
-  /// **'Existing Supabase account email'**
+  /// **'Member account email'**
   String get existingAccountEmailLabel;
+
+  /// No description provided for @memberEmailLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Member email'**
+  String get memberEmailLabel;
 
   /// No description provided for @roleLabel.
   ///
@@ -2153,7 +2147,7 @@ abstract class AppLocalizations {
   /// No description provided for @noMembersMessage.
   ///
   /// In en, this message translates to:
-  /// **'Add an existing Supabase account to this tenant.'**
+  /// **'Add an existing account or create a new member login for this tenant.'**
   String get noMembersMessage;
 
   /// No description provided for @keepAtLeastOneOwner.
@@ -2273,8 +2267,26 @@ abstract class AppLocalizations {
   /// No description provided for @settingsManageMembersDescription.
   ///
   /// In en, this message translates to:
-  /// **'Manage existing accounts in this tenant, their parking-entry permissions, and member usage.'**
+  /// **'Manage member accounts in this tenant, their parking-entry permissions, and member usage.'**
   String get settingsManageMembersDescription;
+
+  /// No description provided for @settingsManageTenantsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tenant administration'**
+  String get settingsManageTenantsTitle;
+
+  /// No description provided for @settingsManageTenantsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage tenant details, members, member limits, and device-session policies.'**
+  String get settingsManageTenantsDescription;
+
+  /// No description provided for @manageTenantsMenuItem.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage tenants'**
+  String get manageTenantsMenuItem;
 
   /// No description provided for @memberUsageTemplate.
   ///
@@ -2377,6 +2389,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New members start with View enabled. Add, Edit, and Delete are disabled until granted.'**
   String get memberNewMemberPermissionNote;
+
+  /// No description provided for @memberAccountProvisioningNote.
+  ///
+  /// In en, this message translates to:
+  /// **'An existing Supabase account is reused. If no account exists, a new login is created for this tenant with a temporary password.'**
+  String get memberAccountProvisioningNote;
+
+  /// No description provided for @memberTemporaryPasswordTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'New member account'**
+  String get memberTemporaryPasswordTitle;
+
+  /// No description provided for @memberTemporaryPasswordMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'A new login for {email} was added only to this tenant. Share this temporary password securely. The member must change it at first sign-in. It will not be shown again after closing this dialog.'**
+  String memberTemporaryPasswordMessage(String email);
+
+  /// No description provided for @memberSetupIncompleteMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Member setup may be incomplete. Retry adding the same email to finish safely; do not create a different account.'**
+  String get memberSetupIncompleteMessage;
 
   /// No description provided for @memberAddedMessage.
   ///

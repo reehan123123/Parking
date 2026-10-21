@@ -49,6 +49,8 @@ the local database owner before running the integration suite. For example:
 ```powershell
 .\scripts\apply-local-migration.ps1 `
   -MigrationFile local-api\migrations\003_tenant_member_limits_permissions.sql
+.\scripts\apply-local-migration.ps1 `
+  -MigrationFile local-api\migrations\004_tenant_member_account_provisioning.sql
 ```
 
 The script prompts for the local admin password when it is not already
@@ -59,6 +61,11 @@ The seed command creates only the synthetic local Super Admin
 `local-admin@parking.test` and prints a one-time password when it is first
 created. Save that password privately and change it at first sign-in. Running
 the seed command again does not show or reset an existing password.
+
+The local API can create missing tenant-member accounts inside its local
+database transaction and returns a one-time password for first sign-in. It
+does not send email or provide email verification; use this only with the
+loopback-bound development API and synthetic local data.
 
 ## Run the app
 

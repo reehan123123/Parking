@@ -251,13 +251,6 @@ class AppLocalizationsHi extends AppLocalizations {
   String get settingsTitle => 'सेटिंग';
 
   @override
-  String get settingsComingLaterTitle => 'सेटिंग बाद में उपलब्ध होंगी';
-
-  @override
-  String get settingsComingLaterMessage =>
-      'खाता और ऐप की सेटिंग अगले चरण में जोड़ी जाएँगी।';
-
-  @override
   String get settingsSignOutError =>
       'साइन आउट नहीं हो सका। अपना कनेक्शन जाँचें और फिर से प्रयास करें।';
 
@@ -1164,7 +1157,10 @@ class AppLocalizationsHi extends AppLocalizations {
       'सदस्य जोड़ने से पहले इस टेनेंट को बहाल करें।';
 
   @override
-  String get existingAccountEmailLabel => 'मौजूदा Supabase खाते का ईमेल';
+  String get existingAccountEmailLabel => 'सदस्य खाते का ईमेल';
+
+  @override
+  String get memberEmailLabel => 'सदस्य का ईमेल';
 
   @override
   String get roleLabel => 'भूमिका';
@@ -1177,7 +1173,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get noMembersMessage =>
-      'इस टेनेंट में कोई मौजूदा Supabase खाता जोड़ें।';
+      'इस टेनेंट में मौजूदा खाता जोड़ें या नया सदस्य लॉगिन बनाएँ।';
 
   @override
   String get keepAtLeastOneOwner =>
@@ -1246,7 +1242,17 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get settingsManageMembersDescription =>
-      'इस टेनेंट के मौजूदा खाते, उनकी पार्किंग एंट्री अनुमतियाँ और सदस्य उपयोग प्रबंधित करें।';
+      'इस टेनेंट के सदस्य खाते, उनकी पार्किंग एंट्री अनुमतियाँ और सदस्य उपयोग प्रबंधित करें।';
+
+  @override
+  String get settingsManageTenantsTitle => 'टेनेंट प्रशासन';
+
+  @override
+  String get settingsManageTenantsDescription =>
+      'टेनेंट विवरण, सदस्य, सदस्य सीमा और डिवाइस-सत्र नीतियाँ प्रबंधित करें।';
+
+  @override
+  String get manageTenantsMenuItem => 'टेनेंट प्रबंधित करें';
 
   @override
   String memberUsageTemplate(int active, int limit) {
@@ -1308,6 +1314,22 @@ class AppLocalizationsHi extends AppLocalizations {
   @override
   String get memberNewMemberPermissionNote =>
       'नए सदस्य के लिए View चालू रहता है। Add, Edit और Delete अनुमति देने तक बंद रहते हैं।';
+
+  @override
+  String get memberAccountProvisioningNote =>
+      'मौजूदा Supabase खाता फिर से उपयोग होगा। खाता न मिलने पर इस टेनेंट के लिए अस्थायी पासवर्ड वाला नया लॉगिन बनाया जाएगा।';
+
+  @override
+  String get memberTemporaryPasswordTitle => 'नया सदस्य खाता';
+
+  @override
+  String memberTemporaryPasswordMessage(String email) {
+    return '$email के लिए नया लॉगिन केवल इस टेनेंट में जोड़ा गया। यह अस्थायी पासवर्ड सुरक्षित रूप से साझा करें। सदस्य को पहली बार साइन इन करते समय इसे बदलना होगा। डायलॉग बंद करने के बाद यह दोबारा नहीं दिखेगा।';
+  }
+
+  @override
+  String get memberSetupIncompleteMessage =>
+      'सदस्य सेटअप अधूरा हो सकता है। सुरक्षित रूप से पूरा करने के लिए उसी ईमेल को फिर से जोड़ें; अलग खाता न बनाएँ।';
 
   @override
   String memberAddedMessage(String email) {

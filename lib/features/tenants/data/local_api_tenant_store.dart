@@ -203,13 +203,14 @@ class LocalApiTenantStore implements TenantStore {
   Future<Map<String, dynamic>> addTenantMember({
     required String tenantId,
     required String email,
+    required String requestId,
     required String role,
   }) async {
     try {
       final response = await _api.requestJson(
         'POST',
         '/api/tenants/${Uri.encodeComponent(tenantId)}/members',
-        body: {'email': email, 'role': role},
+        body: {'email': email, 'requestId': requestId, 'role': role},
       );
       _access = null;
       return response;

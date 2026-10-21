@@ -360,6 +360,63 @@ void main() {
     );
   });
 
+  testWidgets('shows a new member temporary password once', (
+    WidgetTester tester,
+  ) async {
+    const ParkingTenant tenant = ParkingTenant(
+      id: 'north-tenant',
+      name: 'North lot',
+      slug: 'north-lot',
+    );
+    final TestTenantRepository repository =
+        TestTenantRepository(
+            access: const ParkingTenantAccess(
+              isSuperAdmin: true,
+              tenants: [tenant],
+            ),
+          )
+          ..memberCreationResult = const TenantMemberCreationResult(
+            accountCreated: true,
+            temporaryPassword: 'temporary-member-password',
+          );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: TenantAdminPage(
+            access: repository.access,
+            repository: repository,
+            onTenantChanged: (_) async {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Manage North lot'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Manage members'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextFormField).last,
+      'new-member@example.com',
+    );
+    await tester.ensureVisible(find.widgetWithText(FilledButton, 'Add'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Add'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastMemberRequestId, matches(RegExp(r'^[0-9a-f-]{36}$')));
+    expect(find.text('New member account'), findsOneWidget);
+    expect(find.text('temporary-member-password'), findsOneWidget);
+    expect(find.textContaining('added only to this tenant'), findsOneWidget);
+
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    expect(find.text('temporary-member-password'), findsNothing);
+  });
+
   testWidgets(
     'hides Add Member at capacity and allows a Super Admin to raise the limit',
     (WidgetTester tester) async {

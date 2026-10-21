@@ -121,6 +121,7 @@ After applying all migrations, deploy the authenticated Edge Functions:
 
 ```powershell
 supabase functions deploy create-tenant-owner
+supabase functions deploy create-tenant-member
 supabase functions deploy complete-temporary-password-reset
 ```
 
@@ -181,18 +182,19 @@ the 2026-10-24 rollout. Authenticated users cannot read or write
 
 Only a Super Admin can use the Admin screen to create, rename, archive, and
 restore tenants, manage member limits, or manage memberships across tenants.
-Tenant owners can manage existing member-role accounts only in their own
-tenant. New members default to View-only, while existing memberships retain
-their prior access. An email already registered in Supabase Auth is assigned
-as owner without changing its password. If the email is new,
-`create-tenant-owner` creates the Auth account server-side and
-shows a cryptographically random temporary password once. The administrator
-must forward it securely; the owner must change it at first sign-in before
-any tenant or parking data is accessible. A retry reuses the original
-request ID and returns the same tenant rather than creating a duplicate.
+Tenant owners can manage member-role accounts only in their own tenant. New
+members default to View-only, while existing memberships retain their prior
+access. Existing Supabase accounts are assigned without changing credentials.
+If an email is not registered, `create-tenant-member` creates an Auth user
+server-side, marks its email confirmed without a separate ownership check,
+adds membership only to the selected tenant, and returns a cryptographically
+random temporary password once. The manager must share it securely, and the
+member must change it at first sign-in before any tenant or parking data is
+accessible.
 
-The Flutter app never creates member Auth users or receives the privileged
-API key. Archiving preserves parking records and photos and can be reversed;
+For tenant owners, the Flutter app calls the authenticated member Edge
+Function; it never creates Auth users directly or receives the privileged API
+key. Archiving preserves parking records and photos and can be reversed;
 removing a membership does not delete the Auth account or parking data and
 revokes the member's device sessions for that tenant. A tenant must always
 retain at least one owner. Member capacity counts member-role membership rows

@@ -14,17 +14,18 @@ and a role-gated Super Admin area. Super Admins can view parking across
 tenants, create parking entries for a selected active tenant, rename tenants,
 reversibly archive or restore tenants, and manage existing Auth-user
 memberships. Tenant owners can be assigned from an existing Auth account or
-onboarded by the server-side Supabase Edge Function. New owners receive a
-one-time temporary password and must change it before accessing tenant data.
-The tenant authorization model is enforced by PostgreSQL RLS. Apply the
-tenant migrations, deploy the two onboarding Edge Functions, and provision
+onboarded by the server-side Supabase Edge Function. Owners can add existing
+member accounts or provision a new tenant-scoped login through a separate
+authenticated Edge Function. New accounts receive a one-time temporary
+password and must change it before accessing tenant data. The tenant
+authorization model is enforced by PostgreSQL RLS. Review the Supabase
+migration history, deploy the three onboarding Edge Functions, and provision
 the initial Super Admin before using these features.
 
 Tenant member limits and independent parking-entry permissions are now
 implemented in source. New tenants allow one member by default (owners do
 not count); only Super Admins can change the limit. Owners can manage
-existing member accounts in their own tenant. The new migration has not been
-applied to a hosted database; see
+existing or newly provisioned member accounts in their own tenant. See
 [docs/tenant-member-management.md](docs/tenant-member-management.md) before
 local testing or rollout.
 

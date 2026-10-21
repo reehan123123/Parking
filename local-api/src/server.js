@@ -831,6 +831,7 @@ async function addTenantMember(request, response, user, tenantId, pool) {
   const body = await readJsonBody(request);
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
   const role = body.role;
+  const requestId = requireUuid(body.requestId, 'request');
   if (!isValidEmail(email) || !['owner', 'member'].includes(role)) {
     throw new ApiError(400, 'invalid_request', 'Enter a valid email and tenant role.');
   }
@@ -845,6 +846,10 @@ async function addTenantMember(request, response, user, tenantId, pool) {
   }
 
   const result = await withTransaction(pool, async (client) => {
+    await client.query(
+      'select pg_advisory_xact_lock(hashtextextended($1, 0))',
+      [requestId],
+    );
     await lockTenant(client, tenantId);
     await requireTenantMemberManager(user.id, tenantId, client);
     const isSuperAdmin = await hasSuperAdminRole(user.id, client);
@@ -856,11 +861,94 @@ async function addTenantMember(request, response, user, tenantId, pool) {
       throw new ApiError(409, 'tenant_archived', 'Restore the tenant before adding members.');
     }
 
+    const priorRequestResult = await client.query(
+      `select request.requested_by, request.tenant_id, request.member_user_id,
+              request.email, member.email as member_email,
+              member.requires_password_change
+         from core.tenant_member_creation_requests as request
+         join core.users as member on member.id = request.member_user_id
+        where request.request_id = $1
+        for update of request, member`,
+      [requestId],
+    );
+    const priorRequest = priorRequestResult.rows[0];
+    if (priorRequest != null) {
+      if (
+        priorRequest.requested_by !== user.id ||
+        priorRequest.tenant_id !== tenantId ||
+        priorRequest.email !== email
+      ) {
+        throw new ApiError(
+          409,
+          'request_id_reused',
+          'This member request ID was already used for different data.',
+        );
+      }
+
+      const membershipResult = await client.query(
+        `select role from core.tenant_memberships
+          where tenant_id = $1 and user_id = $2
+          for update`,
+        [tenantId, priorRequest.member_user_id],
+      );
+      if (membershipResult.rows[0] == null) {
+        throw new ApiError(
+          409,
+          'member_creation_request_expired',
+          'This member request has already been completed and the membership was removed.',
+        );
+      }
+
+      let temporaryPassword;
+      if (priorRequest.requires_password_change) {
+        temporaryPassword = generateTemporaryPassword();
+        const passwordHash = await hashPassword(temporaryPassword);
+        await client.query(
+          'update core.users set password_hash = $2 where id = $1',
+          [priorRequest.member_user_id, passwordHash],
+        );
+      }
+
+      return {
+        user_id: priorRequest.member_user_id,
+        email: priorRequest.member_email,
+        role: membershipResult.rows[0].role,
+        accountCreated: true,
+        temporaryPassword,
+      };
+    }
+
     const account = await client.query(
       'select id, email from core.users where lower(email) = $1 limit 1',
       [email],
     );
-    const member = account.rows[0];
+    let member = account.rows[0];
+    let accountCreated = false;
+    let temporaryPassword;
+    if (member == null && role === 'member') {
+      await requireMemberCapacity(client, tenantId, tenant.rows[0].member_limit);
+      temporaryPassword = generateTemporaryPassword();
+      const passwordHash = await hashPassword(temporaryPassword);
+      const createdAccount = await client.query(
+        `insert into core.users (
+           email, password_hash, requires_password_change
+         )
+         values ($1, $2, true)
+         on conflict (lower(email)) do nothing
+         returning id, email`,
+        [email, passwordHash],
+      );
+      member = createdAccount.rows[0];
+      accountCreated = member != null;
+      if (member == null) {
+        const racedAccount = await client.query(
+          'select id, email from core.users where lower(email) = $1 limit 1',
+          [email],
+        );
+        member = racedAccount.rows[0];
+        temporaryPassword = undefined;
+      }
+    }
     if (member == null) {
       throw new ApiError(404, 'account_not_found', 'The local account was not found.');
     }
@@ -918,9 +1006,34 @@ async function addTenantMember(request, response, user, tenantId, pool) {
         { oldRole: current.role, newRole: role },
       );
     }
-    return { user_id: member.id, email: member.email, role };
+    if (accountCreated) {
+      await client.query(
+        `insert into core.tenant_member_creation_requests (
+           request_id, requested_by, tenant_id, member_user_id, email
+         )
+         values ($1, $2, $3, $4, $5)`,
+        [requestId, user.id, tenantId, member.id, email],
+      );
+    }
+
+    return {
+      user_id: member.id,
+      email: member.email,
+      role,
+      accountCreated,
+      temporaryPassword,
+    };
   });
-  sendJson(response, 200, result);
+  sendJson(response, 200, {
+    success: true,
+    userId: result.user_id,
+    email: result.email,
+    role: result.role,
+    accountCreated: result.accountCreated,
+    ...(result.temporaryPassword == null
+      ? {}
+      : { temporaryPassword: result.temporaryPassword }),
+  });
 }
 
 async function updateTenantMemberRole(

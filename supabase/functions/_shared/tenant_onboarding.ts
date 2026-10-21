@@ -10,6 +10,12 @@ export const tenantOwnerOnboardingPendingFlag =
   "parking_tenant_owner_onboarding_pending";
 export const tenantOwnerOnboardingRequestId =
   "parking_tenant_owner_onboarding_request_id";
+export const tenantMemberOnboardingPendingFlag =
+  "parking_tenant_member_onboarding_pending";
+export const tenantMemberOnboardingTenantId =
+  "parking_tenant_member_onboarding_tenant_id";
+export const tenantMemberOnboardingRequestId =
+  "parking_tenant_member_onboarding_request_id";
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

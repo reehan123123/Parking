@@ -3,6 +3,9 @@ import {
   errorResponse,
   jsonResponse,
   preflightResponse,
+  tenantMemberOnboardingPendingFlag,
+  tenantMemberOnboardingRequestId,
+  tenantMemberOnboardingTenantId,
   temporaryPasswordResetFlag,
   tenantOwnerOnboardingPendingFlag,
   tenantOwnerOnboardingRequestId,
@@ -60,6 +63,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
       [temporaryPasswordResetFlag]: false,
       [tenantOwnerOnboardingPendingFlag]: false,
       [tenantOwnerOnboardingRequestId]: null,
+      [tenantMemberOnboardingPendingFlag]: false,
+      [tenantMemberOnboardingTenantId]: null,
+      [tenantMemberOnboardingRequestId]: null,
     };
     const { error: updateError } =
       await clients.admin.auth.admin.updateUserById(clients.user.id, {

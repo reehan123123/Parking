@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/locale/language_switch.dart';
 import '../../../l10n/app_localizations.dart';
-import '../../../shared/widgets/empty_state_view.dart';
 import '../../device_sessions/data/device_session_repository.dart';
 import '../../device_sessions/presentation/device_sessions_panel.dart';
 import '../../tenants/data/tenant_repository.dart';
@@ -16,6 +15,8 @@ class SettingsPage extends StatefulWidget {
     this.deviceSessionRepository,
     this.tenant,
     this.tenantRepository,
+    this.isSuperAdmin = false,
+    this.onManageTenants,
     this.onMembersChanged,
     super.key,
   });
@@ -24,6 +25,8 @@ class SettingsPage extends StatefulWidget {
   final DeviceSessionRepository? deviceSessionRepository;
   final ParkingTenant? tenant;
   final TenantRepository? tenantRepository;
+  final bool isSuperAdmin;
+  final VoidCallback? onManageTenants;
   final Future<void> Function()? onMembersChanged;
 
   @override
@@ -33,6 +36,13 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   bool _isSigningOut = false;
   String? _errorMessage;
+
+  void _manageTenants() {
+    if (!widget.isSuperAdmin) {
+      return;
+    }
+    widget.onManageTenants?.call();
+  }
 
   Future<void> _manageMembers() async {
     final ParkingTenant? tenant = widget.tenant;
@@ -136,6 +146,34 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 16),
+              if (widget.isSuperAdmin && widget.onManageTenants != null) ...[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          l10n.settingsManageTenantsTitle,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          l10n.settingsManageTenantsDescription,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(height: 12),
+                        FilledButton.tonalIcon(
+                          onPressed: _manageTenants,
+                          icon: const Icon(Icons.admin_panel_settings_outlined),
+                          label: Text(l10n.manageTenantsMenuItem),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               if (widget.tenant?.role == ParkingTenantRole.owner &&
                   widget.tenantRepository != null) ...[
                 Card(
@@ -171,14 +209,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 16),
               ],
-              SizedBox(
-                width: double.infinity,
-                child: EmptyStateView(
-                  icon: Icons.settings_outlined,
-                  title: l10n.settingsComingLaterTitle,
-                  message: l10n.settingsComingLaterMessage,
-                ),
-              ),
               if (_errorMessage != null) ...[
                 const SizedBox(height: 16),
                 Text(

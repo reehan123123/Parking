@@ -1296,6 +1296,8 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
   TenantMemberCapacity? _capacity;
   String? _errorMessage;
   String? _auditErrorMessage;
+  String? _memberRequestEmail;
+  String? _memberRequestId;
   bool _isLoading = true;
   bool _isBusy = false;
 
@@ -1392,10 +1394,13 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
       await _loadData();
       return true;
     } on TenantRepositoryException catch (error) {
-      if (error is TenantMemberLimitReachedException && mounted) {
+      if ((error is TenantMemberLimitReachedException ||
+              error.code == 'member_setup_incomplete') &&
+          mounted) {
         await _loadData();
       }
       if (mounted) {
+        final AppLocalizations l10n = AppLocalizations.of(context);
         final TenantMemberCapacity? capacity = _capacity;
         final int? activeMemberCount =
             error is TenantMemberLimitReachedException
@@ -1406,8 +1411,9 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
             : null;
         setState(() {
           _errorMessage = activeMemberCount != null && memberLimit != null
-              ? AppLocalizations.of(context)
-                    .memberLimitReachedMessage(activeMemberCount, memberLimit)
+              ? l10n.memberLimitReachedMessage(activeMemberCount, memberLimit)
+              : error.code == 'member_setup_incomplete'
+              ? l10n.memberSetupIncompleteMessage
               : error.message;
         });
       }
@@ -1438,19 +1444,121 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
     }
 
     final String email = _emailController.text.trim().toLowerCase();
-    final wasAdded = await _runMemberAction(
-      () => widget.repository.addMember(
+    TenantMemberCreationResult? creationResult;
+    final wasAdded = await _runMemberAction(() async {
+      creationResult = await widget.repository.addMember(
         tenantId: widget.tenant.id,
         email: email,
+        requestId: _memberRequestIdFor(email),
         role: ParkingTenantRole.member,
-      ),
-    );
+      );
+    });
     if (wasAdded && mounted) {
       _emailController.clear();
       _formKey.currentState!.reset();
+      _memberRequestEmail = null;
+      _memberRequestId = null;
+      final String? temporaryPassword = creationResult?.temporaryPassword;
+      if (temporaryPassword == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context).memberAddedMessage(email),
+            ),
+          ),
+        );
+      } else {
+        await _showMemberTemporaryPasswordDialog(email, temporaryPassword);
+      }
+    }
+  }
+
+  String _memberRequestIdFor(String email) {
+    if (_memberRequestId != null && _memberRequestEmail == email) {
+      return _memberRequestId!;
+    }
+
+    final List<int> bytes = List<int>.generate(
+      16,
+      (_) => Random.secure().nextInt(256),
+    );
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final String hex = bytes
+        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+        .join();
+    _memberRequestId =
+        '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
+        '${hex.substring(20)}';
+    _memberRequestEmail = email;
+    return _memberRequestId!;
+  }
+
+  Future<void> _showMemberTemporaryPasswordDialog(
+    String email,
+    String temporaryPassword,
+  ) async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => AlertDialog(
+        title: Text(l10n.memberTemporaryPasswordTitle),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.memberTemporaryPasswordMessage(email)),
+              const SizedBox(height: 16),
+              InputDecorator(
+                decoration: InputDecoration(
+                  labelText: l10n.temporaryPasswordLabel,
+                ),
+                child: SelectableText(
+                  temporaryPassword,
+                  style: Theme.of(dialogContext).textTheme.titleSmall,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(l10n.doneButton),
+          ),
+          FilledButton.tonalIcon(
+            onPressed: () => _copyMemberTemporaryPassword(temporaryPassword),
+            icon: const Icon(Icons.copy),
+            label: Text(l10n.copyButton),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _copyMemberTemporaryPassword(String password) async {
+    try {
+      await Clipboard.setData(ClipboardData(text: password));
+    } on Exception {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context).copyPasswordFailedMessage,
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(AppLocalizations.of(context).memberAddedMessage(email)),
+          content: Text(AppLocalizations.of(context).passwordCopiedMessage),
         ),
       );
     }
@@ -1696,13 +1804,18 @@ class _TenantMembersDialogState extends State<_TenantMembersDialog> {
             l10n.memberNewMemberPermissionNote,
             style: Theme.of(context).textTheme.bodySmall,
           ),
+          const SizedBox(height: 4),
+          Text(
+            l10n.memberAccountProvisioningNote,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: 8),
           TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.done,
             decoration: InputDecoration(
-              labelText: l10n.existingAccountEmailLabel,
+              labelText: l10n.memberEmailLabel,
               prefixIcon: const Icon(Icons.alternate_email),
             ),
             validator: (value) {

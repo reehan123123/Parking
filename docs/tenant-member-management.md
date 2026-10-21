@@ -2,9 +2,14 @@
 
 This feature extends the existing `public.tenants` and
 `public.tenant_memberships` model. It does not add a second user, tenant, or
-device registry. Members are existing Supabase Auth accounts; the application
-does not create member accounts, send invitations, set passwords, or collect
-profile fields that are not present in the current account model.
+device registry. An existing Supabase Auth account can be assigned to a
+tenant without changing its password or other memberships. If the email is
+not registered, the authenticated `create-tenant-member` Edge Function
+creates a new account and adds only the requested tenant membership. It
+marks the email confirmed without a separate ownership check and returns a
+one-time temporary password to the authorized manager for secure sharing. The
+account must change that password before accessing tenant data. No new profile
+fields or invitation system are introduced.
 
 ## Capacity policy
 
@@ -15,7 +20,8 @@ profile fields that are not present in the current account model.
 - Existing tenants receive the default limit without removing memberships.
   If an existing tenant already has more members than its limit, those
   memberships are preserved and further additions are rejected until the
-  count is below the configured limit.
+  count is below the configured limit. A newly provisioned member is added
+  inside this same capacity-enforced membership flow and consumes a slot.
 - `add_tenant_member` locks the tenant row before checking and inserting a
   member. Owner-to-member role transitions use the same lock and capacity
   check. The stable capacity error is `MEMBER_LIMIT_REACHED`; the database
@@ -30,11 +36,11 @@ profile fields that are not present in the current account model.
 ## Roles and entry permissions
 
 Owners retain full tenant entry access and manage only member-role accounts
-in their own tenant. They can add an existing Auth account by email, update
-its four independent permissions, and remove its membership. They cannot
-change tenant limits, manage another tenant, promote an account to owner, or
-remove an owner. Super Admins retain platform-wide member, role, and limit
-management.
+in their own tenant. They can add an existing Auth account or provision a new
+login by email, update its four independent permissions, and remove its
+membership. They cannot change tenant limits, manage another tenant, promote
+an account to owner, or remove an owner. Super Admins retain platform-wide
+member, role, and limit management.
 
 New member rows default to **View enabled** and **Add/Edit/Delete disabled**.
 The migration backfills existing memberships with all four permissions
@@ -69,6 +75,11 @@ checked separately for subsequent reads and mutations.
 - Tenant owners see **Manage Members** in Settings; regular members do not.
 - The member screen reports usage as `active / allowed`, shows remaining
   capacity, and hides **Add Member** when no slot remains.
+- Existing accounts keep their current credentials. A newly created account
+  receives a cryptographically random temporary password in a one-time
+  dialog, is assigned only to the selected tenant, and must change its
+  password before tenant access. The password is not stored in application
+  data or logs.
 - The Super Admin tenant manager displays member usage and can change the
   tenant limit. Its device-policy entry reuses the existing device-session
   administration flow instead of introducing duplicate policy state.
@@ -112,9 +123,14 @@ Remove-Item Env:\TENANT_MEMBER_TEST_DATABASE_URL
 ```
 
 The local API mirrors the member limit and permissions in its isolated
-development schema. Before upgrading an existing `parking_local` database,
-apply `local-api/migrations/003_tenant_member_limits_permissions.sql` with
-the local database owner using the migration command in
+development schema. It can create a local-only account in the same database
+transaction, returns its temporary password once, and uses a request ledger to
+recover safely from retries. The local API has no email service; this
+development-only flow must not be exposed outside loopback or used with
+production data. Before upgrading an existing `parking_local` database,
+apply `local-api/migrations/003_tenant_member_limits_permissions.sql` and
+then `local-api/migrations/004_tenant_member_account_provisioning.sql` with
+the local database owner using the migration commands in
 [local development](local-development.md). The runtime `parking_api` role
 cannot alter schema. Then run its integration suite only against
 `parking_local`:

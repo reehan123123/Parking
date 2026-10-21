@@ -42,9 +42,10 @@ abstract interface class TenantRepository {
     required String tenantId,
   });
 
-  Future<void> addMember({
+  Future<TenantMemberCreationResult> addMember({
     required String tenantId,
     required String email,
+    required String requestId,
     required ParkingTenantRole role,
   });
 

@@ -132,7 +132,7 @@ Before live testing:
 2. Apply any pending migrations to the intended Supabase project through the
    approved Supabase workflow. Do not reset the project or run an unreviewed
    migration.
-3. Deploy `create-tenant-owner` and
+3. Deploy `create-tenant-owner`, `create-tenant-member`, and
    `complete-temporary-password-reset` with the Supabase CLI. Keep JWT
    verification enabled and do not disable it to resolve authentication
    errors.

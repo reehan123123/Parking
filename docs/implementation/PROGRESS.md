@@ -233,3 +233,45 @@ which was not available. The audit-trail wiki could not be updated because
   existing disabled leaked-password-protection setting. These were not
   changed in this rollout. pgTAP and migrated local API integration tests
   remain blocked by unavailable Docker/local database-owner access.
+
+## Member account provisioning and Settings shortcuts
+
+- [x] Reuse an existing Supabase Auth account without changing its password;
+      provision a missing member only through the authenticated
+      `create-tenant-member` Edge Function.
+- [x] Scope a new account to the selected tenant, return a one-time temporary
+      password to the authorized manager, and require a password change before
+      tenant data access.
+- [x] Add a Super Admin Settings shortcut to the existing tenant manager and
+      keep owner Manage Members in Settings.
+- [x] Mirror missing-account provisioning, password reset, and retry handling
+      in the loopback-only local API; update English/Hindi strings and
+      security/deployment/local-development documentation.
+
+Local validation:
+
+- `dart format .` — passed; 92 files checked, 5 formatted on the first pass
+  and 0 changed on the final repeat.
+- `flutter analyze` — passed with no issues.
+- `flutter test` — passed; 180 tests.
+- `flutter build web --release` — passed. Flutter emitted its existing
+  non-fatal Cupertino icon-font warning and Wasm dry-run notice.
+- `npm --prefix local-api test` — passed; 4 security tests.
+- `npm --prefix local-api run test:tenant-member-concurrency` — skipped
+  because `TENANT_MEMBER_TEST_DATABASE_URL` is not configured.
+- `node --check` — passed for the local API server and integration test.
+- Node 22's experimental TypeScript parser accepted the new member Edge
+  Function, shared onboarding module, and password-reset function. This is a
+  syntax check only, not Deno type-checking or runtime validation.
+- `git diff --check` — passed after the final source and documentation changes.
+
+The local API integration test was attempted against its guarded
+`parking_local` database, but the first tenant-access request returned 500.
+Read-only schema checks confirmed the database lacks the member-limit and
+permission columns from migration 003 and the provisioning request table from
+migration 004. The `parking_api` runtime role cannot apply DDL, and no local
+database-owner credential was available. The migrations were not applied.
+Deno is unavailable, so Edge Function type/runtime checks were not run.
+There is no new Supabase schema migration for this change; the new Edge
+Function uses the existing member-capacity and member-add RPCs. No hosted
+migration, production write, commit, push, or deployment was performed.

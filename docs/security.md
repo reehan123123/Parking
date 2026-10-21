@@ -33,20 +33,26 @@ remain on the Supabase Auth, RLS, and private Storage model described below.
 
 The UI supports email/password sign-in and sign-out. Public self-registration
 is not implemented. A Super Admin can create a new tenant-owner account
-through the authenticated `create-tenant-owner` Edge Function. Existing Auth
-accounts are assigned without changing their credentials. A new account is
-email-confirmed by this private administrative flow and receives a
-cryptographically random temporary password shown only in the Super Admin
-dialog; the password is not persisted or logged by the application.
+through the authenticated `create-tenant-owner` Edge Function. Tenant owners
+and Super Admins can add members through the authenticated
+`create-tenant-member` Edge Function. Existing Auth accounts are assigned
+without changing their credentials. A missing member account is created with
+a cryptographically random temporary password, marked for a forced password
+change, email-confirmed by the administrative flow, and linked only to the
+requested tenant. This does not independently verify email ownership; the
+authorized manager must share the password securely. The password is returned
+only to that manager for one-time display; it is not persisted or logged by
+the application.
 
-New owner accounts receive a server-set `app_metadata` flag requiring a
-password change. `AuthGate` routes them to the password-change screen, while
-`is_super_admin()` and `is_tenant_member()` deny tenant, parking-session, and
-private-photo access until the change is completed by the
+New owner and member accounts receive a server-set `app_metadata` flag
+requiring a password change. `AuthGate` routes them to the password-change
+screen, while `is_super_admin()` and `is_tenant_member()` deny tenant,
+parking-session, and private-photo access until the change is completed by the
 `complete-temporary-password-reset` Edge Function. The client cannot set or
-clear the flag. The functions validate the caller's JWT and database-backed
-Super Admin role where required; privileged Auth Admin access remains
-server-side.
+clear the flag. The member function validates the caller's management
+authority through database RPCs and checks capacity before creating an Auth
+identity; the existing `add_tenant_member` RPC remains the atomic final
+capacity check. Privileged Auth Admin access remains server-side.
 
 `public.super_admins` is database-backed and has no authenticated-client
 table privileges or user-facing insert path. The `is_super_admin()` function
@@ -80,11 +86,11 @@ Database RPCs serialize member additions and owner-to-member role changes
 with a tenant-row lock before checking capacity. A full tenant receives the
 stable `MEMBER_LIMIT_REACHED` error and structured limit/usage details.
 Super Admins alone can change limits; owners can manage member-role accounts
-only in their own tenant. Authenticated clients cannot directly change
-membership roles, permission flags, or member limits. Membership and policy
-changes are recorded in tenant-scoped audit events. Removal revokes that
-member's registered device sessions in the tenant but preserves the shared
-Auth identity and parking history.
+only in their own tenant. Authenticated clients cannot directly create Auth
+users or change membership roles, permission flags, or member limits.
+Membership and policy changes are recorded in tenant-scoped audit events.
+Removal revokes that member's registered device sessions in the tenant but
+preserves the shared Auth identity and parking history.
 
 The tenant migration creates a `Personal workspace` and owner membership for
 each existing Auth user, then assigns that user's existing parking sessions
@@ -111,10 +117,12 @@ compatibility and has a required `tenant_id`. RLS enforces:
 - Non-admin users cannot change a session's `tenant_id` or `created_by`.
 - Authenticated users cannot insert or update rows in `public.super_admins`.
 - Tenant creation is restricted to Super Admins. The authenticated
-  `create-tenant-owner` Edge Function provisions a missing Auth user
+  `create-tenant-owner` Edge Function provisions a missing owner account
   server-side, then calls the idempotent `create_tenant_for_request` RPC to
-  assign the owner in the same transaction as tenant creation. Existing users
-  keep their current passwords.
+  assign the owner in the same transaction as tenant creation. The
+  `create-tenant-member` Edge Function similarly provisions missing member
+  accounts and calls the atomic `add_tenant_member` RPC. Existing users keep
+  their current passwords.
 - Tenant-creation request IDs make retries idempotent. If Auth account
   creation succeeds but tenant setup cannot be confirmed, the UI preserves
   the temporary password and allows a retry without silently claiming the

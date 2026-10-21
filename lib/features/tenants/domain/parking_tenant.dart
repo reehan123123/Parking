@@ -103,6 +103,16 @@ class ParkingTenantMember {
   final DateTime? createdAt;
 }
 
+class TenantMemberCreationResult {
+  const TenantMemberCreationResult({
+    required this.accountCreated,
+    this.temporaryPassword,
+  });
+
+  final bool accountCreated;
+  final String? temporaryPassword;
+}
+
 class TenantMemberCapacity {
   const TenantMemberCapacity({
     required this.tenantId,

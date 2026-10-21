@@ -250,13 +250,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsTitle => 'Settings';
 
   @override
-  String get settingsComingLaterTitle => 'Settings are coming later';
-
-  @override
-  String get settingsComingLaterMessage =>
-      'Account and application settings will be added in a later phase.';
-
-  @override
   String get settingsSignOutError =>
       'Unable to sign out. Check your connection and try again.';
 
@@ -1167,7 +1160,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Restore this tenant before adding members.';
 
   @override
-  String get existingAccountEmailLabel => 'Existing Supabase account email';
+  String get existingAccountEmailLabel => 'Member account email';
+
+  @override
+  String get memberEmailLabel => 'Member email';
 
   @override
   String get roleLabel => 'Role';
@@ -1180,7 +1176,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noMembersMessage =>
-      'Add an existing Supabase account to this tenant.';
+      'Add an existing account or create a new member login for this tenant.';
 
   @override
   String get keepAtLeastOneOwner => 'Each tenant must keep at least one owner.';
@@ -1248,7 +1244,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsManageMembersDescription =>
-      'Manage existing accounts in this tenant, their parking-entry permissions, and member usage.';
+      'Manage member accounts in this tenant, their parking-entry permissions, and member usage.';
+
+  @override
+  String get settingsManageTenantsTitle => 'Tenant administration';
+
+  @override
+  String get settingsManageTenantsDescription =>
+      'Manage tenant details, members, member limits, and device-session policies.';
+
+  @override
+  String get manageTenantsMenuItem => 'Manage tenants';
 
   @override
   String memberUsageTemplate(int active, int limit) {
@@ -1311,6 +1317,22 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get memberNewMemberPermissionNote =>
       'New members start with View enabled. Add, Edit, and Delete are disabled until granted.';
+
+  @override
+  String get memberAccountProvisioningNote =>
+      'An existing Supabase account is reused. If no account exists, a new login is created for this tenant with a temporary password.';
+
+  @override
+  String get memberTemporaryPasswordTitle => 'New member account';
+
+  @override
+  String memberTemporaryPasswordMessage(String email) {
+    return 'A new login for $email was added only to this tenant. Share this temporary password securely. The member must change it at first sign-in. It will not be shown again after closing this dialog.';
+  }
+
+  @override
+  String get memberSetupIncompleteMessage =>
+      'Member setup may be incomplete. Retry adding the same email to finish safely; do not create a different account.';
 
   @override
   String memberAddedMessage(String email) {

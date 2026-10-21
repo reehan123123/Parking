@@ -8,6 +8,43 @@ import 'package:parking_management/l10n/app_localizations.dart';
 import '../../tenants/test_tenant_repository.dart';
 
 void main() {
+  testWidgets('Super Admin can open tenant management from Settings', (
+    WidgetTester tester,
+  ) async {
+    bool openedTenantManagement = false;
+    final LocaleController localeController = LocaleController();
+    addTearDown(localeController.dispose);
+
+    await tester.pumpWidget(
+      LocaleScope(
+        controller: localeController,
+        child: MaterialApp(
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SettingsPage(
+              isSuperAdmin: true,
+              onManageTenants: () => openedTenantManagement = true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Manage tenants'), findsOneWidget);
+    expect(find.text('Settings are coming later'), findsNothing);
+    expect(
+      find.text(
+        'Account and application settings will be added in a later phase.',
+      ),
+      findsNothing,
+    );
+    await tester.tap(find.text('Manage tenants'));
+
+    expect(openedTenantManagement, isTrue);
+  });
+
   testWidgets('tenant owners can open Manage Members from Settings', (
     WidgetTester tester,
   ) async {
@@ -38,6 +75,13 @@ void main() {
     );
 
     expect(find.text('Manage members'), findsOneWidget);
+    expect(find.text('Settings are coming later'), findsNothing);
+    expect(
+      find.text(
+        'Account and application settings will be added in a later phase.',
+      ),
+      findsNothing,
+    );
     await tester.tap(find.text('Manage members'));
     await tester.pumpAndSettle();
 
@@ -77,5 +121,12 @@ void main() {
 
     expect(find.text('Manage members'), findsNothing);
     expect(find.text('Tenant members'), findsNothing);
+    expect(find.text('Settings are coming later'), findsNothing);
+    expect(
+      find.text(
+        'Account and application settings will be added in a later phase.',
+      ),
+      findsNothing,
+    );
   });
 }

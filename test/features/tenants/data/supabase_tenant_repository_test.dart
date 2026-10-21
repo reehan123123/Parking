@@ -347,6 +347,7 @@ void main() {
       await repository.addMember(
         tenantId: 'tenant-a',
         email: ' Member@Example.com ',
+        requestId: '11111111-1111-4111-8111-111111111111',
         role: ParkingTenantRole.member,
       );
       await repository.updateMemberRole(
@@ -361,9 +362,33 @@ void main() {
       expect(members.single.permissions.canDelete, isTrue);
       expect(members.single.createdAt, DateTime.utc(2026, 10, 1));
       expect(store.lastEmail, 'member@example.com');
+      expect(store.lastRequestId, '11111111-1111-4111-8111-111111111111');
       expect(store.lastRole, 'member');
       expect(store.updateMemberRoleCalls, 1);
       expect(store.removeMemberCalls, 1);
+    });
+
+    test('returns the temporary password for a newly created member', () async {
+      final store = _FakeTenantStore()
+        ..addedMemberRow = {
+          'success': true,
+          'accountCreated': true,
+          'userId': 'member-id',
+          'email': 'member@example.com',
+          'role': 'member',
+          'temporaryPassword': 'temporary-member-password',
+        };
+      final repository = SupabaseTenantRepository(null, tenantStore: store);
+
+      final result = await repository.addMember(
+        tenantId: 'tenant-a',
+        email: 'member@example.com',
+        requestId: '11111111-1111-4111-8111-111111111111',
+        role: ParkingTenantRole.member,
+      );
+
+      expect(result.accountCreated, isTrue);
+      expect(result.temporaryPassword, 'temporary-member-password');
     });
 
     test('maps member capacity and saves a validated limit', () async {
@@ -400,6 +425,7 @@ void main() {
         SupabaseTenantRepository(null, tenantStore: store).addMember(
           tenantId: 'tenant-a',
           email: 'member@example.com',
+          requestId: '11111111-1111-4111-8111-111111111111',
           role: ParkingTenantRole.member,
         ),
         throwsA(
@@ -485,6 +511,13 @@ class _FakeTenantStore implements TenantStore {
       'name': 'New tenant',
       'slug': 'new-tenant-12345678',
     },
+  };
+  Map<String, dynamic> addedMemberRow = {
+    'success': true,
+    'accountCreated': false,
+    'userId': 'member-id',
+    'email': 'member@example.com',
+    'role': 'member',
   };
   Map<String, dynamic> updatedRow = {
     'id': 'tenant-a',
@@ -684,16 +717,18 @@ class _FakeTenantStore implements TenantStore {
   Future<Map<String, dynamic>> addTenantMember({
     required String tenantId,
     required String email,
+    required String requestId,
     required String role,
   }) async {
     lastTenantId = tenantId;
     lastEmail = email;
+    lastRequestId = requestId;
     lastRole = role;
     final error = managementError;
     if (error != null) {
       throw error;
     }
-    return {'user_id': 'member-id', 'email': email, 'role': role};
+    return addedMemberRow;
   }
 
   @override

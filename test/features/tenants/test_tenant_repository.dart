@@ -51,9 +51,12 @@ class TestTenantRepository implements TenantRepository {
   List<TenantMemberCapacity> memberCapacities = const [];
   List<TenantMemberAuditEvent> memberAuditEvents = const [];
   String? lastMemberEmail;
+  String? lastMemberRequestId;
   ParkingTenantRole? lastMemberRole;
   TenantEntryPermissions? lastMemberPermissions;
   int? lastMemberLimit;
+  TenantMemberCreationResult memberCreationResult =
+      const TenantMemberCreationResult(accountCreated: false);
 
   @override
   Future<ParkingTenantAccess> loadAccess() async {
@@ -209,18 +212,21 @@ class TestTenantRepository implements TenantRepository {
   }
 
   @override
-  Future<void> addMember({
+  Future<TenantMemberCreationResult> addMember({
     required String tenantId,
     required String email,
+    required String requestId,
     required ParkingTenantRole role,
   }) async {
     addMemberCalls++;
     lastMemberEmail = email;
+    lastMemberRequestId = requestId;
     lastMemberRole = role;
     final error = managementError;
     if (error != null) {
       throw error;
     }
+    return memberCreationResult;
   }
 
   @override

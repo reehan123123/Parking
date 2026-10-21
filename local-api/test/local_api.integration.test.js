@@ -21,10 +21,12 @@ test('local API supports isolated auth, tenant, parking, and photo flows', async
   const ownerEmail = `api-owner-${randomUUID()}@parking.test`;
   const memberEmail = `api-member-${randomUUID()}@parking.test`;
   const secondMemberEmail = `api-member-${randomUUID()}@parking.test`;
+  const provisionedMemberEmail = `api-member-${randomUUID()}@parking.test`;
   const adminPassword = generateTemporaryPassword();
   const ownerNewPassword = generateTemporaryPassword();
   const memberPassword = generateTemporaryPassword();
   const secondMemberPassword = generateTemporaryPassword();
+  const provisionedMemberPassword = generateTemporaryPassword();
   const tenantIds = [];
   const requestIds = [];
   const memberIds = [];
@@ -161,18 +163,28 @@ test('local API supports isolated auth, tenant, parking, and photo flows', async
       `/api/tenants/${tenantId}/members`,
       {
         token: ownerSignIn.body.accessToken,
-        body: { email: memberEmail, role: 'member' },
+        body: {
+          email: memberEmail,
+          requestId: randomUUID(),
+          role: 'member',
+        },
       },
     );
     assert.equal(firstMemberAdded.status, 200);
     assert.equal(firstMemberAdded.body.role, 'member');
+    assert.equal(firstMemberAdded.body.accountCreated, false);
+    assert.equal(firstMemberAdded.body.temporaryPassword, undefined);
     const reachedCapacity = await request(
       baseUrl,
       'POST',
       `/api/tenants/${tenantId}/members`,
       {
         token: ownerSignIn.body.accessToken,
-        body: { email: secondMemberEmail, role: 'member' },
+        body: {
+          email: secondMemberEmail,
+          requestId: randomUUID(),
+          role: 'member',
+        },
       },
     );
     assert.equal(reachedCapacity.status, 409);
@@ -199,7 +211,11 @@ test('local API supports isolated auth, tenant, parking, and photo flows', async
       `/api/tenants/${tenantId}/members`,
       {
         token: ownerSignIn.body.accessToken,
-        body: { email: secondMemberEmail, role: 'owner' },
+        body: {
+          email: secondMemberEmail,
+          requestId: randomUUID(),
+          role: 'owner',
+        },
       },
     );
     assert.equal(ownerCannotAddAnotherOwner.status, 403);
@@ -222,7 +238,11 @@ test('local API supports isolated auth, tenant, parking, and photo flows', async
       `/api/tenants/${tenantId}/members`,
       {
         token: ownerSignIn.body.accessToken,
-        body: { email: secondMemberEmail, role: 'member' },
+        body: {
+          email: secondMemberEmail,
+          requestId: randomUUID(),
+          role: 'member',
+        },
       },
     );
     assert.equal(secondMemberAdded.status, 200);
@@ -686,6 +706,89 @@ test('local API supports isolated auth, tenant, parking, and photo flows', async
     assert.equal(reusedRequest.status, 200);
     assert.equal(reusedRequest.body.tenant.id, tenantId);
     assert.equal(reusedRequest.body.temporaryPassword, undefined);
+
+    const memberCreationRequestId = randomUUID();
+    const provisionedMember = await request(
+      baseUrl,
+      'POST',
+      `/api/tenants/${tenantId}/members`,
+      {
+        token: ownerSignIn.body.accessToken,
+        body: {
+          email: provisionedMemberEmail,
+          requestId: memberCreationRequestId,
+          role: 'member',
+        },
+      },
+    );
+    assert.equal(provisionedMember.status, 200);
+    assert.equal(provisionedMember.body.success, true);
+    assert.equal(provisionedMember.body.accountCreated, true);
+    assert.equal(typeof provisionedMember.body.temporaryPassword, 'string');
+    const provisionedMemberId = provisionedMember.body.userId;
+    memberIds.push(provisionedMemberId);
+
+    const retriedProvisioning = await request(
+      baseUrl,
+      'POST',
+      `/api/tenants/${tenantId}/members`,
+      {
+        token: ownerSignIn.body.accessToken,
+        body: {
+          email: provisionedMemberEmail,
+          requestId: memberCreationRequestId,
+          role: 'member',
+        },
+      },
+    );
+    assert.equal(retriedProvisioning.status, 200);
+    assert.equal(retriedProvisioning.body.accountCreated, true);
+    assert.notEqual(
+      retriedProvisioning.body.temporaryPassword,
+      provisionedMember.body.temporaryPassword,
+    );
+
+    const provisionedMemberSignIn = await request(
+      baseUrl,
+      'POST',
+      '/api/auth/sign-in',
+      {
+        body: {
+          email: provisionedMemberEmail,
+          password: retriedProvisioning.body.temporaryPassword,
+        },
+      },
+    );
+    assert.equal(provisionedMemberSignIn.status, 200);
+    assert.equal(
+      provisionedMemberSignIn.body.user.requiresTemporaryPasswordChange,
+      true,
+    );
+    assert.equal(provisionedMemberSignIn.body.user.id, provisionedMemberId);
+
+    const provisionedMemberPasswordChange = await request(
+      baseUrl,
+      'POST',
+      '/api/auth/change-password',
+      {
+        token: provisionedMemberSignIn.body.accessToken,
+        body: { newPassword: provisionedMemberPassword },
+      },
+    );
+    assert.equal(provisionedMemberPasswordChange.status, 200);
+    assert.equal(provisionedMemberPasswordChange.body.success, true);
+
+    const provisionedMemberAccess = await request(
+      baseUrl,
+      'GET',
+      '/api/tenants/access',
+      { token: provisionedMemberSignIn.body.accessToken },
+    );
+    assert.equal(provisionedMemberAccess.status, 200);
+    assert.deepEqual(
+      provisionedMemberAccess.body.tenants.map((tenant) => tenant.id),
+      [tenantId],
+    );
   } finally {
     if (photoPath != null) {
       const photoFile = resolvePhotoPath(config.storageRoot, photoPath);
