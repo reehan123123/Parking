@@ -19,6 +19,8 @@ import 'features/history/presentation/history_page.dart';
 import 'features/parking/data/parking_session_repository.dart';
 import 'features/parking/domain/parking_session.dart';
 import 'features/parking/presentation/parking_entry_page.dart';
+import 'features/parking/presentation/parking_session_details_page.dart';
+import 'features/parking_notifications/data/parking_push_notification_service.dart';
 import 'features/settings/presentation/settings_page.dart';
 import 'features/tenants/data/supabase_tenant_repository.dart';
 import 'features/tenants/data/tenant_repository.dart';
@@ -32,6 +34,7 @@ class ParkingManagementApp extends StatefulWidget {
     this.parkingSessionRepository,
     this.tenantRepository,
     this.deviceSessionRepository,
+    this.parkingPushNotificationService,
     this.configurationError,
     this.supabaseClient,
     super.key,
@@ -41,6 +44,7 @@ class ParkingManagementApp extends StatefulWidget {
   final ParkingSessionRepository? parkingSessionRepository;
   final TenantRepository? tenantRepository;
   final DeviceSessionRepository? deviceSessionRepository;
+  final ParkingPushNotificationService? parkingPushNotificationService;
   final String? configurationError;
   final SupabaseClient? supabaseClient;
 
@@ -213,6 +217,7 @@ class _ParkingManagementAppState extends State<ParkingManagementApp> {
           parkingSessionRepository: widget.parkingSessionRepository,
           tenantRepository: widget.tenantRepository,
           deviceSessionRepository: widget.deviceSessionRepository,
+          parkingPushNotificationService: widget.parkingPushNotificationService,
         );
       },
     );
@@ -226,7 +231,9 @@ class AppShell extends StatefulWidget {
     this.parkingSessionRepository,
     this.tenantRepository,
     this.deviceSessionRepository,
+    this.parkingPushNotificationService,
     this.initialTenantAccess,
+    this.notificationLaunchUri,
     super.key,
   });
 
@@ -235,7 +242,9 @@ class AppShell extends StatefulWidget {
   final ParkingSessionRepository? parkingSessionRepository;
   final TenantRepository? tenantRepository;
   final DeviceSessionRepository? deviceSessionRepository;
+  final ParkingPushNotificationService? parkingPushNotificationService;
   final ParkingTenantAccess? initialTenantAccess;
+  final Uri? notificationLaunchUri;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -250,6 +259,7 @@ class _AppShellState extends State<AppShell> {
   bool _tenantAccessErrorIsMigrationMissing = false;
   bool _tenantAccessErrorIsGeneric = false;
   bool _isLoadingTenantAccess = false;
+  bool _notificationLaunchHandled = false;
   DeviceLimitReachedException? _deviceLimitError;
   String? _deviceLimitTenantId;
 
@@ -266,7 +276,10 @@ class _AppShellState extends State<AppShell> {
       _selectedTenantId = initialAccess.tenants.first.id;
     }
     if (widget.tenantRepository != null) {
-      unawaited(_loadTenantAccess());
+      final launch = _ParkingNotificationLaunch.tryParse(
+        widget.notificationLaunchUri ?? Uri.base,
+      );
+      unawaited(_loadTenantAccess(preferredTenantId: launch?.tenantId));
     } else if (widget.parkingSessionRepository != null &&
         _tenantAccess == null) {
       _tenantAccessErrorIsMigrationMissing = true;
@@ -332,6 +345,11 @@ class _AppShellState extends State<AppShell> {
         _isLoadingTenantAccess = false;
         _dataVersion++;
       });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_handleNotificationLaunch(access));
+        }
+      });
     } on DeviceLimitReachedException catch (error) {
       if (mounted) {
         setState(() {
@@ -370,6 +388,161 @@ class _AppShellState extends State<AppShell> {
 
   Future<void> _handleTenantChanged(ParkingTenant? tenant) {
     return _loadTenantAccess(preferredTenantId: tenant?.id);
+  }
+
+  Future<void> _handleNotificationLaunch(ParkingTenantAccess access) async {
+    if (_notificationLaunchHandled) {
+      return;
+    }
+
+    final Uri launchUri = widget.notificationLaunchUri ?? Uri.base;
+    const launchParameterNames = [
+      'parkingSessionId',
+      'parkingTenantId',
+      'parkingAction',
+    ];
+    final bool hasLaunchParameters = launchParameterNames.any(
+      launchUri.queryParameters.containsKey,
+    );
+    if (!hasLaunchParameters) {
+      return;
+    }
+
+    _notificationLaunchHandled = true;
+    widget.parkingPushNotificationService?.clearLaunchParameters();
+    final _ParkingNotificationLaunch? launch =
+        _ParkingNotificationLaunch.tryParse(launchUri);
+    if (launch == null) {
+      _showNotificationLaunchMessage(
+        AppLocalizations.of(context).parkingNotificationsLaunchInvalid,
+      );
+      return;
+    }
+
+    final ParkingTenant? tenant = _tenantForId(access, launch.tenantId);
+    if (!access.isSuperAdmin &&
+        (tenant == null ||
+            tenant.isArchived ||
+            !tenant.entryPermissions.canView)) {
+      _showNotificationLaunchMessage(
+        AppLocalizations.of(context).parkingNotificationsSessionUnavailable,
+      );
+      return;
+    }
+
+    final ParkingSessionRepository? repository =
+        widget.parkingSessionRepository;
+    if (repository == null) {
+      _showNotificationLaunchMessage(
+        AppLocalizations.of(context).parkingNotificationsSessionUnavailable,
+      );
+      return;
+    }
+
+    final ParkingSessionDetailResult detailResult = await repository.getById(
+      sessionId: launch.sessionId,
+    );
+    if (!mounted) {
+      return;
+    }
+    if (detailResult is! ParkingSessionDetailSuccess ||
+        detailResult.session.tenantId != launch.tenantId) {
+      _showNotificationLaunchMessage(
+        AppLocalizations.of(context).parkingNotificationsSessionUnavailable,
+      );
+      return;
+    }
+
+    ParkingSession session = detailResult.session;
+    if (launch.action == 'full-paid') {
+      final bool canMarkPaid =
+          access.isSuperAdmin ||
+          tenant?.role == ParkingTenantRole.owner ||
+          (tenant?.entryPermissions.canEdit ?? false);
+      if (!canMarkPaid) {
+        _showNotificationLaunchMessage(
+          AppLocalizations.of(context).parkingNotificationsNoEditPermission,
+        );
+      } else {
+        final AppLocalizations l10n = AppLocalizations.of(context);
+        final bool confirmed =
+            await showDialog<bool>(
+              context: context,
+              builder: (BuildContext dialogContext) => AlertDialog(
+                title: Text(l10n.parkingNotificationsPaymentConfirmTitle),
+                content: Text(l10n.parkingNotificationsPaymentConfirmMessage),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    child: Text(l10n.commonCancel),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    child: Text(l10n.parkingNotificationsPaymentConfirmAction),
+                  ),
+                ],
+              ),
+            ) ??
+            false;
+        if (!mounted) {
+          return;
+        }
+
+        if (confirmed) {
+          final ParkingSessionPaymentResult paymentResult = await repository
+              .markFullyPaid(sessionId: launch.sessionId);
+          if (!mounted) {
+            return;
+          }
+          if (paymentResult is ParkingSessionPaymentFailure) {
+            _showNotificationLaunchMessage(
+              AppLocalizations.of(context).parkingNotificationsPaymentFailed,
+            );
+          } else {
+            final bool wasMarkedPaid =
+                (paymentResult as ParkingSessionPaymentSuccess).wasMarkedPaid;
+            _showNotificationLaunchMessage(
+              wasMarkedPaid
+                  ? AppLocalizations.of(context)
+                        .parkingNotificationsPaymentMarked
+                  : AppLocalizations.of(context)
+                        .parkingNotificationsPaymentAlreadyPaid,
+            );
+            _notifyDataChanged();
+            final ParkingSessionDetailResult refreshedResult = await repository
+                .getById(sessionId: launch.sessionId);
+            if (!mounted) {
+              return;
+            }
+            if (refreshedResult is ParkingSessionDetailSuccess &&
+                refreshedResult.session.tenantId == launch.tenantId) {
+              session = refreshedResult.session;
+            }
+          }
+        }
+      }
+    }
+
+    if (!mounted) {
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (BuildContext context) => ParkingSessionDetailsPage(
+          repository: repository,
+          session: session,
+          permissions: access.isSuperAdmin
+              ? const TenantEntryPermissions.all()
+              : tenant!.entryPermissions,
+          onDataChanged: _notifyDataChanged,
+        ),
+      ),
+    );
+  }
+
+  void _showNotificationLaunchMessage(String message) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _selectTenant(String? tenantId) async {
@@ -685,6 +858,7 @@ class _AppShellState extends State<AppShell> {
       SettingsPage(
         onSignOut: widget.onSignOut,
         deviceSessionRepository: widget.deviceSessionRepository,
+        parkingPushNotificationService: widget.parkingPushNotificationService,
         tenant: selectedTenant,
         tenantRepository: widget.tenantRepository,
         isSuperAdmin: access.isSuperAdmin,
@@ -925,5 +1099,56 @@ class _EntryPermissionState extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _ParkingNotificationLaunch {
+  const _ParkingNotificationLaunch({
+    required this.sessionId,
+    required this.tenantId,
+    required this.action,
+  });
+
+  final String sessionId;
+  final String tenantId;
+  final String action;
+
+  static _ParkingNotificationLaunch? tryParse(Uri uri) {
+    final Map<String, List<String>> parameters = uri.queryParametersAll;
+    final String? sessionId = _singleValue(parameters, 'parkingSessionId');
+    final String? tenantId = _singleValue(parameters, 'parkingTenantId');
+    final String? action = _singleValue(parameters, 'parkingAction');
+    if (sessionId == null ||
+        tenantId == null ||
+        action == null ||
+        !_isUuid(sessionId) ||
+        !_isUuid(tenantId) ||
+        (action != 'open' && action != 'full-paid')) {
+      return null;
+    }
+
+    return _ParkingNotificationLaunch(
+      sessionId: sessionId,
+      tenantId: tenantId,
+      action: action,
+    );
+  }
+
+  static String? _singleValue(
+    Map<String, List<String>> parameters,
+    String name,
+  ) {
+    final List<String>? values = parameters[name];
+    if (values == null || values.length != 1 || values.single.isEmpty) {
+      return null;
+    }
+    return values.single;
+  }
+
+  static bool _isUuid(String value) {
+    return RegExp(
+      r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+      caseSensitive: false,
+    ).hasMatch(value);
   }
 }

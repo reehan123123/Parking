@@ -10,6 +10,9 @@ verify_jwt = true
 [functions.send-email]
 verify_jwt = false
 
+[functions.dispatch-parking-notifications]
+verify_jwt = false
+
 [auth]
 site_url = "https://parking-85u.pages.dev"
 additional_redirect_urls = ["https://parking-85u.pages.dev/", "http://localhost:3000"]

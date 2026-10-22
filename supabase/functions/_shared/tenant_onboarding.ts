@@ -205,7 +205,10 @@ function randomInteger(maximum: number): number {
   return value[0] % maximum;
 }
 
-function defaultApiKey(environmentName: string, legacyName: string): string {
+export function defaultApiKey(
+  environmentName: string,
+  legacyName: string,
+): string {
   const namedKeys = Deno.env.get(environmentName);
   if (namedKeys !== undefined) {
     let parsed: unknown;

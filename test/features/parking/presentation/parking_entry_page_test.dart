@@ -361,6 +361,15 @@ class FakeParkingSessionRepository implements ParkingSessionRepository {
   }
 
   @override
+  Future<ParkingSessionPaymentResult> markFullyPaid({
+    required String sessionId,
+  }) async {
+    return const ParkingSessionPaymentFailure(
+      message: 'Payment update failed for testing.',
+    );
+  }
+
+  @override
   Future<ParkingSessionCleanupResult> retryCleanup({
     required String sessionId,
     required String photoPath,

@@ -51,6 +51,7 @@ supabase/migrations/20261023090000_fix_list_tenant_members_email_type.sql
 supabase/migrations/20261024090000_device_session_limits.sql
 supabase/migrations/20261024100000_tenant_member_limits_permissions.sql
 supabase/migrations/20261024110000_fix_device_session_email_return_types.sql
+supabase/migrations/20261025120000_parking_push_notifications.sql
 ```
 
 The first migration creates the initial `parking_sessions` table, private
@@ -91,6 +92,11 @@ migration:
 - The device-session follow-up migration casts Auth email values to `text` in
   three table-returning RPCs whose declared result types previously disagreed
   with `auth.users.email`.
+- The parking-notification migration adds private per-user Web Push
+  subscriptions, once-only 90%-duration and expiry events for unpaid parking
+  sessions, an edit-authorized full-payment RPC, and a `pg_cron` dispatcher
+  using `pg_net` and Vault. This migration is pending review and has not been
+  applied to the hosted project.
 
 The tenant-administration and tenant-management migrations must be reviewed
 and applied in order. They preserve existing parking rows but change their
@@ -129,6 +135,26 @@ Both functions keep JWT verification enabled. Supabase injects the project
 URL and API-key dictionaries into the Edge Function runtime; the privileged
 secret key is used only server-side. Do not put it in Flutter configuration,
 GitHub build settings, browser assets, or function responses.
+
+The parking-notification dispatcher is a separate Edge Function protected by
+a high-entropy cron secret rather than JWT authentication. Before enabling its
+database scheduler, configure the Edge Function secrets
+`PARKING_VAPID_PUBLIC_KEY`, `PARKING_VAPID_PRIVATE_KEY`,
+`PARKING_VAPID_SUBJECT`, and `PARKING_NOTIFICATION_CRON_SECRET`. Keep the
+private VAPID key and cron secret server-side. Store matching
+`parking_notifications_project_url` and
+`parking_notifications_cron_secret` values in Supabase Vault; the migration
+does not contain secret values. Build the browser with only the public VAPID
+key in the `PARKING_PUSH_VAPID_PUBLIC_KEY` define. See
+[opt-in parking Web Push](security.md#opt-in-parking-web-push) for setup and
+safety requirements.
+
+Deploy the dispatcher only after reviewing and applying the migration in the
+intended non-production environment:
+
+```powershell
+supabase functions deploy dispatch-parking-notifications --no-verify-jwt
+```
 
 Use one migration-application path per environment. If a migration was
 applied manually in the SQL Editor, reconcile Supabase's migration history
@@ -213,6 +239,7 @@ supabase/tests/tenant_management.test.sql
 supabase/tests/tenant_owner_onboarding.test.sql
 supabase/tests/device_session_limits.test.sql
 supabase/tests/tenant_member_limits_permissions.test.sql
+supabase/tests/parking_push_notifications.test.sql
 ```
 
 With Docker available, run them only against the local Supabase database:

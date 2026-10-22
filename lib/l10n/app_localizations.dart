@@ -2270,6 +2270,150 @@ abstract class AppLocalizations {
   /// **'Manage member accounts in this tenant, their parking-entry permissions, and member usage.'**
   String get settingsManageMembersDescription;
 
+  /// No description provided for @settingsParkingNotificationsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Parking reminders'**
+  String get settingsParkingNotificationsTitle;
+
+  /// No description provided for @settingsParkingNotificationsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Get reminders at 90% of the parking duration and after expiry when money is still due. View members receive reminders; Full Paid is available only to users with Edit permission.'**
+  String get settingsParkingNotificationsDescription;
+
+  /// No description provided for @parkingNotificationsToggleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable unpaid parking reminders'**
+  String get parkingNotificationsToggleLabel;
+
+  /// No description provided for @parkingNotificationsStatusLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking browser notification settings…'**
+  String get parkingNotificationsStatusLoading;
+
+  /// No description provided for @parkingNotificationsSetupRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Push notifications are not configured for this deployment yet.'**
+  String get parkingNotificationsSetupRequired;
+
+  /// No description provided for @parkingNotificationsUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'This browser does not support Web Push notifications.'**
+  String get parkingNotificationsUnsupported;
+
+  /// No description provided for @parkingNotificationsPermissionBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications are blocked in browser settings. Allow notifications for this site to enable reminders.'**
+  String get parkingNotificationsPermissionBlocked;
+
+  /// No description provided for @parkingNotificationsEnabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Unpaid parking reminders are enabled on this device.'**
+  String get parkingNotificationsEnabled;
+
+  /// No description provided for @parkingNotificationsDisabled.
+  ///
+  /// In en, this message translates to:
+  /// **'Unpaid parking reminders are turned off on this device.'**
+  String get parkingNotificationsDisabled;
+
+  /// No description provided for @parkingNotificationsEnabledMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Parking reminders enabled.'**
+  String get parkingNotificationsEnabledMessage;
+
+  /// No description provided for @parkingNotificationsDisabledMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Parking reminders disabled.'**
+  String get parkingNotificationsDisabledMessage;
+
+  /// No description provided for @parkingNotificationsEndpointInUse.
+  ///
+  /// In en, this message translates to:
+  /// **'This browser subscription is linked to another account. Remove it from that account before enabling reminders here.'**
+  String get parkingNotificationsEndpointInUse;
+
+  /// No description provided for @parkingNotificationsLimitReached.
+  ///
+  /// In en, this message translates to:
+  /// **'This account already has reminders enabled on 10 devices.'**
+  String get parkingNotificationsLimitReached;
+
+  /// No description provided for @parkingNotificationsPermissionRevoked.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account or notification permission changed. Sign in again or check browser settings.'**
+  String get parkingNotificationsPermissionRevoked;
+
+  /// No description provided for @parkingNotificationsRequestFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification settings could not be updated. Check your connection and try again.'**
+  String get parkingNotificationsRequestFailed;
+
+  /// No description provided for @parkingNotificationsPaymentConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark parking as fully paid?'**
+  String get parkingNotificationsPaymentConfirmTitle;
+
+  /// No description provided for @parkingNotificationsPaymentConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark the outstanding balance for this parking session as fully paid?'**
+  String get parkingNotificationsPaymentConfirmMessage;
+
+  /// No description provided for @parkingNotificationsPaymentConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Mark Full Paid'**
+  String get parkingNotificationsPaymentConfirmAction;
+
+  /// No description provided for @parkingNotificationsPaymentMarked.
+  ///
+  /// In en, this message translates to:
+  /// **'Parking session marked fully paid.'**
+  String get parkingNotificationsPaymentMarked;
+
+  /// No description provided for @parkingNotificationsPaymentAlreadyPaid.
+  ///
+  /// In en, this message translates to:
+  /// **'This parking session is already fully paid.'**
+  String get parkingNotificationsPaymentAlreadyPaid;
+
+  /// No description provided for @parkingNotificationsPaymentFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The parking session could not be marked fully paid. Check your permissions and try again.'**
+  String get parkingNotificationsPaymentFailed;
+
+  /// No description provided for @parkingNotificationsSessionUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'That parking session is no longer available in this tenant.'**
+  String get parkingNotificationsSessionUnavailable;
+
+  /// No description provided for @parkingNotificationsNoEditPermission.
+  ///
+  /// In en, this message translates to:
+  /// **'You no longer have permission to mark this parking session as paid.'**
+  String get parkingNotificationsNoEditPermission;
+
+  /// No description provided for @parkingNotificationsLaunchInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'The parking notification link is invalid or expired.'**
+  String get parkingNotificationsLaunchInvalid;
+
   /// No description provided for @settingsManageTenantsTitle.
   ///
   /// In en, this message translates to:

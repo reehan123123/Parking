@@ -11,10 +11,15 @@ import 'core/network/local_api_client.dart';
 import 'features/device_sessions/data/device_session_repository.dart';
 import 'features/parking/data/parking_session_repository.dart';
 import 'features/parking/data/local_api_parking_session_store.dart';
+import 'features/parking_notifications/data/parking_push_notification_service.dart';
 import 'features/parking/data/supabase_parking_session_repository.dart';
 import 'features/tenants/data/local_api_tenant_store.dart';
 import 'features/tenants/data/supabase_tenant_repository.dart';
 import 'features/tenants/data/tenant_repository.dart';
+
+const _parkingPushVapidPublicKey = String.fromEnvironment(
+  'PARKING_PUSH_VAPID_PUBLIC_KEY',
+);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,6 +29,7 @@ Future<void> main() async {
   ParkingSessionRepository? parkingSessionRepository;
   TenantRepository? tenantRepository;
   DeviceSessionRepository? deviceSessionRepository;
+  ParkingPushNotificationService? parkingPushNotificationService;
   SupabaseClient? supabaseClient;
 
   String? configurationError = backendConfig.validationError;
@@ -53,6 +59,10 @@ Future<void> main() async {
         parkingSessionRepository = SupabaseParkingSessionRepository(client);
         tenantRepository = SupabaseTenantRepository(client);
         deviceSessionRepository = SupabaseDeviceSessionRepository(client);
+        parkingPushNotificationService = ParkingPushNotificationService(
+          supabaseClient: client,
+          applicationServerKey: _parkingPushVapidPublicKey,
+        );
         supabaseClient = client;
       } on Exception {
         configurationError =
@@ -67,6 +77,7 @@ Future<void> main() async {
     parkingSessionRepository = null;
     tenantRepository = null;
     deviceSessionRepository = null;
+    parkingPushNotificationService = null;
   }
 
   runApp(
@@ -75,6 +86,7 @@ Future<void> main() async {
       parkingSessionRepository: parkingSessionRepository,
       tenantRepository: tenantRepository,
       deviceSessionRepository: deviceSessionRepository,
+      parkingPushNotificationService: parkingPushNotificationService,
       configurationError: configurationError,
       supabaseClient: supabaseClient,
     ),

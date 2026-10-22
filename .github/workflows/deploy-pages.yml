@@ -25,6 +25,7 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+      PARKING_PUSH_VAPID_PUBLIC_KEY: ${{ vars.PARKING_PUSH_VAPID_PUBLIC_KEY }}
 
     steps:
       - name: Check out source
@@ -53,6 +54,22 @@ jobs:
       - name: Test
         run: flutter test
 
+      - name: Check push notification scripts
+        run: |
+          node --check web/push/push_client.js
+          node --check web/push/parking_push_service_worker.js
+
+      - name: Check parking notification Edge Function
+        run: |
+          npx --yes deno@2.9.6 check \
+            --config supabase/functions/dispatch-parking-notifications/deno.json \
+            supabase/functions/dispatch-parking-notifications/index.ts \
+            supabase/functions/dispatch-parking-notifications/payload.ts \
+            supabase/functions/dispatch-parking-notifications/payload_test.ts
+          npx --yes deno@2.9.6 test \
+            --config supabase/functions/dispatch-parking-notifications/deno.json \
+            supabase/functions/dispatch-parking-notifications/payload_test.ts
+
       - name: Validate public Supabase configuration
         shell: bash
         run: |
@@ -66,6 +83,23 @@ jobs:
           if [[ -z "${SUPABASE_PUBLISHABLE_KEY}" ]]; then
             echo "SUPABASE_PUBLISHABLE_KEY is not configured in GitHub Actions secrets."
             exit 1
+          fi
+
+          if [[ -n "${PARKING_PUSH_VAPID_PUBLIC_KEY}" ]]; then
+            node <<'NODE'
+            const value = process.env.PARKING_PUSH_VAPID_PUBLIC_KEY;
+            let key;
+            try {
+              key = Buffer.from(value, 'base64url');
+            } catch {
+              console.error('The public Web Push VAPID key is not valid base64url.');
+              process.exit(1);
+            }
+            if (key.length !== 65 || key[0] !== 4) {
+              console.error('The public Web Push VAPID key must be a 65-byte P-256 key.');
+              process.exit(1);
+            }
+            NODE
           fi
 
           case "${SUPABASE_URL}" in
@@ -111,7 +145,8 @@ jobs:
 
           flutter build web --release \
             --dart-define="SUPABASE_URL=${SUPABASE_URL}" \
-            --dart-define="SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}"
+            --dart-define="SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}" \
+            --dart-define="PARKING_PUSH_VAPID_PUBLIC_KEY=${PARKING_PUSH_VAPID_PUBLIC_KEY}"
 
       - name: Verify release output
         shell: bash
@@ -125,6 +160,8 @@ jobs:
           test -s build/web/icons/Icon-192.png
           test -s build/web/icons/Icon-512.png
           test -s build/web/_headers
+          test -s build/web/push/push_client.js
+          test -s build/web/push/parking_push_service_worker.js
 
           node <<'NODE'
           const fs = require('fs');

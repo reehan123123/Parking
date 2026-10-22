@@ -33,7 +33,8 @@ release.
 - GitHub Actions installs Flutter `3.47.7`, runs the quality gates, builds the
   release, verifies the output, and uploads it with Wrangler.
 - The browser receives public compile-time configuration: `SUPABASE_URL`,
-  and `SUPABASE_PUBLISHABLE_KEY`. Flutter embeds these values in the public
+  `SUPABASE_PUBLISHABLE_KEY`, and the optional public
+  `PARKING_PUSH_VAPID_PUBLIC_KEY`. Flutter embeds these values in the public
   browser bundle.
 - The local PostgreSQL API described in
   [Local PostgreSQL development](local-development.md) is an opt-in,
@@ -53,15 +54,16 @@ to `main` or an intentional `workflow_dispatch`, and it uses the protected
 GitHub environment named `production`. Preview deployments are not enabled
 because a separate staging Supabase project is not configured.
 
-Configure these secrets in the GitHub **production environment** before
-running the workflow:
+Configure these secrets and variables in the GitHub **production environment**
+before running the workflow:
 
-| Secret | Purpose |
+| Name | Type and purpose |
 | --- | --- |
-| `SUPABASE_URL` | Existing Supabase project URL |
-| `SUPABASE_PUBLISHABLE_KEY` | Existing project publishable/anon key for browser use |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare account containing the Pages project |
-| `CLOUDFLARE_API_TOKEN` | Scoped Cloudflare API token with Pages Edit permission |
+| `SUPABASE_URL` | Secret: existing Supabase project URL |
+| `SUPABASE_PUBLISHABLE_KEY` | Secret: existing project publishable/anon key for browser use |
+| `PARKING_PUSH_VAPID_PUBLIC_KEY` | Variable: public VAPID key; optional until push is configured |
+| `CLOUDFLARE_ACCOUNT_ID` | Secret: Cloudflare account containing the Pages project |
+| `CLOUDFLARE_API_TOKEN` | Secret: scoped Cloudflare API token with Pages Edit permission |
 
 Require an environment reviewer if the repository's protection settings
 support it. The account ID is configuration rather than a credential, but it
@@ -83,9 +85,10 @@ Production hostname: https://parking-85u.pages.dev/
 Wrangler: 4.151.0
 ```
 
-The build validates formatting, analysis, tests, every required non-empty
-Flutter/PWA release asset, and a credential-shaped-value scan before invoking
-Wrangler. The generated Supabase
+The build validates formatting, analysis, Flutter tests, the parking
+notification Edge Function's Deno types and payload tests, every required
+non-empty Flutter/PWA release asset, and a credential-shaped-value scan before
+invoking Wrangler. The generated Supabase
 values are intentionally public client configuration; the workflow still keeps
 them in protected GitHub environment secrets to avoid accidental logging and
 to make environment changes controlled. The workflow records Wrangler's
@@ -127,15 +130,19 @@ Before live testing:
 1. Review all source-controlled migrations:
    `supabase/migrations/20261014160000_create_parking_sessions_security.sql`
    `supabase/migrations/20261018185121_tenant_administration.sql`, and all
-   subsequent timestamped migrations through
-   `supabase/migrations/20261024110000_fix_device_session_email_return_types.sql`.
+   subsequent timestamped migrations. The new
+   `supabase/migrations/20261025120000_parking_push_notifications.sql` is a
+   pending feature migration and has not been applied or deployed.
 2. Apply any pending migrations to the intended Supabase project through the
    approved Supabase workflow. Do not reset the project or run an unreviewed
    migration.
 3. Deploy `create-tenant-owner`, `create-tenant-member`, and
    `complete-temporary-password-reset` with the Supabase CLI. Keep JWT
    verification enabled and do not disable it to resolve authentication
-   errors.
+   errors. Deploy `dispatch-parking-notifications` with JWT verification
+   disabled only after configuring its high-entropy cron secret and VAPID
+   server secrets; the function validates the cron secret itself. See
+   [opt-in parking Web Push](security.md#opt-in-parking-web-push).
 4. Confirm `parking_sessions`, `tenants`, and `tenant_memberships` have RLS
    enabled and the `vehicle-photos` bucket is private.
 5. Create or verify the private Auth account for
@@ -237,13 +244,15 @@ From PowerShell, set the public values only in the current process:
 ```powershell
 $env:SUPABASE_URL = "https://your-project-ref.supabase.co"
 $env:SUPABASE_PUBLISHABLE_KEY = "sb_publishable_..."
+$env:PARKING_PUSH_VAPID_PUBLIC_KEY = "<public VAPID key, if configured>"
 
 dart format .
 flutter analyze
 flutter test
 flutter build web --release `
   --dart-define=SUPABASE_URL=$env:SUPABASE_URL `
-  --dart-define=SUPABASE_PUBLISHABLE_KEY=$env:SUPABASE_PUBLISHABLE_KEY
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=$env:SUPABASE_PUBLISHABLE_KEY `
+  --dart-define=PARKING_PUSH_VAPID_PUBLIC_KEY=$env:PARKING_PUSH_VAPID_PUBLIC_KEY
 git diff --check
 ```
 
@@ -306,6 +315,12 @@ and [Supabase pricing](https://supabase.com/pricing) before production use.
 The app still requires internet access for Supabase operations, does not
 provide an offline photo queue, and cannot promise identical camera,
 or PWA installation behavior across browsers.
+
+Web Push remains unavailable until its pending database migration, Supabase
+Vault values, Edge Function secrets/deployment, and public VAPID build
+variable are configured in the intended environment. No production
+notification migration or dispatcher deployment has been performed as part
+of the current implementation work.
 
 ## Current handover status
 

@@ -187,6 +187,67 @@ The save sequence remains row first, Storage upload second, with cleanup on
 failure. Photo deletion precedes session deletion; cleanup failures remain
 visible and retryable. Lists do not download photo bytes.
 
+## Opt-in parking Web Push
+
+Web Push reminders are opt-in per browser subscription. A registered tenant
+member receives a 90%-duration reminder and a post-expiry reminder only while
+the parking session has an unpaid balance. The server snapshots only current
+tenant members with View access; the Full Paid action is included only when
+the recipient is an owner, Super Admin, or has Edit permission. The expiry
+notice uses a normal dismissible browser notification. If the browser does
+not support notification actions, selecting the notice opens the session in
+the app instead.
+
+The browser stores only the public VAPID key. The VAPID private key and a
+high-entropy dispatcher secret remain in Supabase Edge Function secrets. The
+database scheduler reads the project URL and matching dispatcher secret from
+Vault and invokes the Edge Function once per minute through `pg_net`. The
+dispatcher checks that secret before using its server-only Supabase key, and
+never logs push endpoints, keys, or payload contents. Browser clients cannot
+write subscription rows directly; a narrowly scoped authenticated RPC
+validates Web Push provider hosts and limits an account to ten subscriptions.
+RLS lets users read or remove only their own subscriptions. Notification
+events and delivery details are unavailable to authenticated clients.
+
+Notification payloads include the outstanding amount and opaque session and
+tenant IDs, but omit the vehicle plate, customer contact details, and photos.
+The app rechecks the signed-in user's current tenant access and verifies that
+the session belongs to the notification tenant before showing it. A Full Paid
+launch asks for in-app confirmation; the database RPC independently enforces
+current Edit permission and updates the payment amount atomically. A forged or
+stale URL therefore cannot bypass tenant isolation or silently mark a session
+paid.
+
+The public key is a public compile-time value named
+`PARKING_PUSH_VAPID_PUBLIC_KEY`; configure it as a GitHub production
+environment variable. Generate a VAPID pair in a private terminal, for
+example with `npx web-push generate-vapid-keys --json`. Do not paste or log the
+private key. Configure these values only in the intended Supabase Edge
+Function secret store:
+
+```text
+PARKING_VAPID_PUBLIC_KEY
+PARKING_VAPID_PRIVATE_KEY
+PARKING_VAPID_SUBJECT
+PARKING_NOTIFICATION_CRON_SECRET
+```
+
+Store the matching `parking_notifications_project_url` and
+`parking_notifications_cron_secret` values in Supabase Vault before enabling
+the migration's cron job. The public key may be supplied to the Flutter Web
+build; no service-role key, VAPID private key, or dispatcher secret may be
+included in the browser bundle. The dispatcher currently allows the standard
+FCM, Mozilla, Apple, and Windows Web Push endpoint hosts to prevent arbitrary
+user-provided endpoints from becoming server-side request targets.
+
+Push behavior depends on HTTPS, browser permission, and platform support.
+Some mobile browsers require the PWA to be installed before Web Push works;
+notification action buttons are not universal. If actions are unsupported,
+the normal notification click opens the session details in the authenticated
+app. Use [Supabase setup](supabase.md) for migration and dispatcher commands.
+The notification migration has not been applied to production and no
+dispatcher deployment has been performed for this feature.
+
 ## Self-service "Remember me" and password recovery
 
 Distinct from the administrative temporary-password-reset flow above, the
