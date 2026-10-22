@@ -25,7 +25,7 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-      PARKING_PUSH_VAPID_PUBLIC_KEY: ${{ vars.PARKING_PUSH_VAPID_PUBLIC_KEY }}
+      PARKING_PUSH_VAPID_PUBLIC_KEY: ${{ vars.PARKING_PUSH_VAPID_PUBLIC_KEY || secrets.PARKING_PUSH_VAPID_PUBLIC_KEY }}
 
     steps:
       - name: Check out source
