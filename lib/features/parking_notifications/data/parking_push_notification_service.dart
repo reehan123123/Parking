@@ -259,7 +259,7 @@ class ParkingPushNotificationService {
       return false;
     }
     try {
-      final Uint8List key = base64Url.decode(value);
+      final Uint8List key = base64Url.decode(base64Url.normalize(value));
       return key.length == 65 && key.first == 4;
     } on FormatException {
       return false;

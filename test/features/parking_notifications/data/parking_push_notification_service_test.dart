@@ -30,6 +30,18 @@ void main() {
       },
     );
 
+    test('accepts an unpadded public VAPID key', () {
+      final SupabaseClient client = _createClient();
+      addTearDown(client.dispose);
+      final ParkingPushNotificationService service =
+          ParkingPushNotificationService(
+            supabaseClient: client,
+            applicationServerKey: _publicKey().replaceAll('=', ''),
+          );
+
+      expect(service.isConfigured, isTrue);
+    });
+
     test(
       'reports unsupported browsers before checking authentication',
       () async {
