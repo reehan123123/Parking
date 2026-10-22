@@ -38,7 +38,9 @@ self.addEventListener("push", (event) => {
         icon: iconUrl,
         badge: badgeUrl,
         tag: payload.tag,
-        requireInteraction: false,
+        requireInteraction:
+          payload.requireInteraction === true ||
+          data.notificationType === "expired",
         lang: payload.languageCode === "hi" ? "hi" : "en",
         data: {
           sessionId: data.sessionId,
@@ -79,22 +81,32 @@ self.addEventListener("notificationclick", (event) => {
         type: "window",
         includeUncontrolled: true,
       });
+      const targetUrl = appUrl.toString();
       for (const client of clients) {
-        if (new URL(client.url).origin !== self.location.origin) {
+        if (
+          new URL(client.url).origin !== self.location.origin ||
+          typeof client.navigate !== "function"
+        ) {
           continue;
         }
-        if ("navigate" in client) {
-          const navigatedClient = await client.navigate(appUrl.toString());
+
+        try {
+          const navigatedClient = await client.navigate(targetUrl);
           if (navigatedClient) {
             await navigatedClient.focus();
             return;
           }
+        } catch {
+          console.warn(
+            "Could not navigate an existing app window for a parking notification.",
+          );
         }
-        await client.focus();
-        return;
       }
 
-      await self.clients.openWindow(appUrl.toString());
+      const openedClient = await self.clients.openWindow(targetUrl);
+      if (openedClient) {
+        await openedClient.focus();
+      }
     })(),
   );
 });

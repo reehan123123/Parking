@@ -51,7 +51,7 @@ Deno.test(
     assertEqual(payload.canMarkPaid, false);
     assertEqual(payload.fullPaidAction, "पूरा भुगतान");
     assertEqual(payload.languageCode, "hi");
-    assertEqual(payload.requireInteraction, false);
+    assertEqual(payload.requireInteraction, true);
   },
 );
 

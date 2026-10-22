@@ -15,7 +15,7 @@ export interface ParkingNotificationPayload {
   icon: string;
   badge: string;
   tag: string;
-  requireInteraction: false;
+  requireInteraction: boolean;
   canMarkPaid: boolean;
   fullPaidAction: string;
   languageCode: "en" | "hi";
@@ -62,7 +62,7 @@ export function buildParkingNotificationPayload(
     icon: "../icons/Icon-192.png",
     badge: "../icons/Icon-192.png",
     tag: `parking-${input.sessionId}-${input.notificationType}`,
-    requireInteraction: false,
+    requireInteraction: isExpired,
     canMarkPaid: input.canMarkPaid,
     fullPaidAction: isHindi ? "पूरा भुगतान" : "Full Paid",
     languageCode: isHindi ? "hi" : "en",

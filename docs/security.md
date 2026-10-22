@@ -193,10 +193,12 @@ Web Push reminders are opt-in per browser subscription. A registered tenant
 member receives a 90%-duration reminder and a post-expiry reminder only while
 the parking session has an unpaid balance. The server snapshots only current
 tenant members with View access; the Full Paid action is included only when
-the recipient is an owner, Super Admin, or has Edit permission. The expiry
-notice uses a normal dismissible browser notification. If the browser does
-not support notification actions, selecting the notice opens the session in
-the app instead.
+the recipient is an owner, Super Admin, or has Edit permission. The 90-percent
+reminder is transient; an expiry notice requests persistent display until the
+user dismisses it, where the browser and operating system honor
+`requireInteraction`. Clicking either the notification or its Full Paid action
+opens the associated session in the app. If notification actions are
+unsupported, the normal click still opens the session.
 
 The browser stores only the public VAPID key. The VAPID private key and a
 high-entropy dispatcher secret remain in Supabase Edge Function secrets. The
@@ -245,8 +247,12 @@ Some mobile browsers require the PWA to be installed before Web Push works;
 notification action buttons are not universal. If actions are unsupported,
 the normal notification click opens the session details in the authenticated
 app. Use [Supabase setup](supabase.md) for migration and dispatcher commands.
-The notification migration has not been applied to production and no
-dispatcher deployment has been performed for this feature.
+The notification-claim fix is applied to the verified production project; the
+claim RPC and scheduled dispatcher have since succeeded, and browser delivery
+has been observed. The local service-worker changes add persistent expiry
+notices and a new-window fallback when an existing app window cannot navigate.
+Those web and dispatcher source changes still require deployment and
+click-through verification before they are considered live.
 
 ## Self-service "Remember me" and password recovery
 

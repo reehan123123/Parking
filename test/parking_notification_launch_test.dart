@@ -17,6 +17,28 @@ const String _tenantId = '11111111-1111-4111-8111-111111111111';
 const String _sessionId = '22222222-2222-4222-8222-222222222222';
 
 void main() {
+  testWidgets('notification body click opens the parking session', (
+    WidgetTester tester,
+  ) async {
+    final TestParkingSessionRepository parkingRepository =
+        TestParkingSessionRepository(
+          detailResult: ParkingSessionDetailSuccess(session: _session()),
+        );
+
+    await tester.pumpWidget(
+      _buildNotificationApp(
+        tenant: _ownerTenant(),
+        parkingRepository: parkingRepository,
+        action: 'open',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ParkingSessionDetailsPage), findsOneWidget);
+    expect(find.text('Mark parking as fully paid?'), findsNothing);
+    expect(parkingRepository.markFullyPaidCalls, 0);
+  });
+
   testWidgets('notification payment action requires in-app confirmation', (
     WidgetTester tester,
   ) async {
@@ -103,6 +125,7 @@ void main() {
 Widget _buildNotificationApp({
   required ParkingTenant tenant,
   required TestParkingSessionRepository parkingRepository,
+  String action = 'full-paid',
 }) {
   final ParkingTenantAccess access = ParkingTenantAccess(
     isSuperAdmin: false,
@@ -111,7 +134,7 @@ Widget _buildNotificationApp({
   final Uri launchUri = Uri.https('parking.example', '/', {
     'parkingSessionId': _sessionId,
     'parkingTenantId': _tenantId,
-    'parkingAction': 'full-paid',
+    'parkingAction': action,
   });
 
   return MaterialApp(

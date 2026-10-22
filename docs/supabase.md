@@ -52,6 +52,7 @@ supabase/migrations/20261024090000_device_session_limits.sql
 supabase/migrations/20261024100000_tenant_member_limits_permissions.sql
 supabase/migrations/20261024110000_fix_device_session_email_return_types.sql
 supabase/migrations/20261025120000_parking_push_notifications.sql
+supabase/migrations/20261025130000_fix_parking_notification_claim_ambiguity.sql
 ```
 
 The first migration creates the initial `parking_sessions` table, private
@@ -95,8 +96,14 @@ migration:
 - The parking-notification migration adds private per-user Web Push
   subscriptions, once-only 90%-duration and expiry events for unpaid parking
   sessions, an edit-authorized full-payment RPC, and a `pg_cron` dispatcher
-  using `pg_net` and Vault. This migration is pending review and has not been
-  applied to the hosted project.
+  using `pg_net` and Vault. Both it and the follow-up
+  `20261025130000_fix_parking_notification_claim_ambiguity.sql` are applied to
+  the verified production project. The follow-up uses named constraints and
+  qualified `RETURNING` columns. Migration history is in sync through that
+  fix; the claim RPC no longer errors, scheduled dispatcher requests returned
+  HTTP 200, and browser delivery has been observed. The service-worker
+  persistence and click-through fixes are local source changes and still need
+  deployment and browser verification.
 
 The tenant-administration and tenant-management migrations must be reviewed
 and applied in order. They preserve existing parking rows but change their
@@ -117,8 +124,8 @@ supabase db push
 The Supabase CLI is available in this development environment, but Docker and
 a local Supabase database are unavailable. The verified `parking-management`
 project has migrations applied through
-`20261024110000_fix_device_session_email_return_types.sql`; linked migration
-history is in sync. Post-application
+`20261025130000_fix_parking_notification_claim_ambiguity.sql`, and linked
+migration history is in sync. Post-application
 `supabase db lint --linked --schema public` passed with “No schema errors
 found.” No migration has been applied to a local Supabase database. Do not
 treat a successful Flutter build as proof that a migration reached Supabase.
@@ -149,8 +156,9 @@ key in the `PARKING_PUSH_VAPID_PUBLIC_KEY` define. See
 [opt-in parking Web Push](security.md#opt-in-parking-web-push) for setup and
 safety requirements.
 
-Deploy the dispatcher only after reviewing and applying the migration in the
-intended non-production environment:
+Deploy the dispatcher only after reviewing and applying the migration in a
+safe environment. Apply to non-production first when available; production
+migrations require explicit approval:
 
 ```powershell
 supabase functions deploy dispatch-parking-notifications --no-verify-jwt

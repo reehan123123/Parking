@@ -130,9 +130,11 @@ Before live testing:
 1. Review all source-controlled migrations:
    `supabase/migrations/20261014160000_create_parking_sessions_security.sql`
    `supabase/migrations/20261018185121_tenant_administration.sql`, and all
-   subsequent timestamped migrations. The new
-   `supabase/migrations/20261025120000_parking_push_notifications.sql` is a
-   pending feature migration and has not been applied or deployed.
+   subsequent timestamped migrations. The parking-notification migrations
+   `20261025120000_parking_push_notifications.sql` and
+   `20261025130000_fix_parking_notification_claim_ambiguity.sql` are applied
+   to the verified production project. Verify the migration history of the
+   intended project before deploying.
 2. Apply any pending migrations to the intended Supabase project through the
    approved Supabase workflow. Do not reset the project or run an unreviewed
    migration.
@@ -316,11 +318,13 @@ The app still requires internet access for Supabase operations, does not
 provide an offline photo queue, and cannot promise identical camera,
 or PWA installation behavior across browsers.
 
-Web Push remains unavailable until its pending database migration, Supabase
-Vault values, Edge Function secrets/deployment, and public VAPID build
-variable are configured in the intended environment. No production
-notification migration or dispatcher deployment has been performed as part
-of the current implementation work.
+The production notification migrations, scheduler, dispatcher, required
+Edge Function secret names, and nonempty Vault entries are present. The
+claim-RPC correction is applied, scheduled dispatcher requests returned HTTP
+200, and a browser received an expiry notification. The local changes that
+keep expiry notices visible and route clicks to the session are not deployed.
+Deploy the updated dispatcher and web bundle, then verify notification body
+and Full Paid clicks in a browser before considering click-through complete.
 
 ## Current handover status
 
