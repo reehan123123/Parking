@@ -7,7 +7,6 @@ Deno.test("builds an English 90-percent reminder with the unpaid amount", () => 
     tenantId: "22222222-2222-4222-8222-222222222222",
     remainingBalance: 1234.5,
     locale: "en",
-    canMarkPaid: true,
   });
 
   assertEqual(payload.title, "Parking is nearing expiry");
@@ -21,9 +20,9 @@ Deno.test("builds an English 90-percent reminder with the unpaid amount", () => 
       maximumFractionDigits: 2,
     }).format(1234.5),
   );
-  assertEqual(payload.canMarkPaid, true);
-  assertEqual(payload.fullPaidAction, "Full Paid");
   assertEqual(payload.requireInteraction, false);
+  assertEqual("canMarkPaid" in payload, false);
+  assertEqual("fullPaidAction" in payload, false);
   assertEqual(
     JSON.stringify(payload.data),
     JSON.stringify({
@@ -34,26 +33,36 @@ Deno.test("builds an English 90-percent reminder with the unpaid amount", () => 
   );
 });
 
-Deno.test(
-  "localizes expiry notices and preserves action authorization",
-  () => {
-    const payload = buildParkingNotificationPayload({
-      notificationType: "expired",
-      sessionId: "33333333-3333-4333-8333-333333333333",
-      tenantId: "44444444-4444-4444-8444-444444444444",
-      remainingBalance: 25,
-      locale: "hi",
-      canMarkPaid: false,
-    });
+Deno.test("uses the requested English text for expired notices", () => {
+  const payload = buildParkingNotificationPayload({
+    notificationType: "expired",
+    sessionId: "33333333-3333-4333-8333-333333333333",
+    tenantId: "44444444-4444-4444-8444-444444444444",
+    remainingBalance: 25,
+    locale: "en",
+  });
 
-    assertEqual(payload.title, "पार्किंग का समय समाप्त हो गया");
-    assertIncludes(payload.body, "बकाया राशि:");
-    assertEqual(payload.canMarkPaid, false);
-    assertEqual(payload.fullPaidAction, "पूरा भुगतान");
-    assertEqual(payload.languageCode, "hi");
-    assertEqual(payload.requireInteraction, true);
-  },
-);
+  assertEqual(payload.title, "Parking Expired");
+  assertEqual(payload.body, "Full-Amount Not Paid");
+  assertEqual(payload.requireInteraction, true);
+  assertEqual("canMarkPaid" in payload, false);
+  assertEqual("fullPaidAction" in payload, false);
+});
+
+Deno.test("localizes Hindi expiry notices without a payment action", () => {
+  const payload = buildParkingNotificationPayload({
+    notificationType: "expired",
+    sessionId: "33333333-3333-4333-8333-333333333333",
+    tenantId: "44444444-4444-4444-8444-444444444444",
+    remainingBalance: 25,
+    locale: "hi",
+  });
+
+  assertEqual(payload.title, "पार्किंग का समय समाप्त हो गया");
+  assertEqual(payload.body, "पूरा भुगतान नहीं हुआ।");
+  assertEqual(payload.languageCode, "hi");
+  assertEqual(payload.requireInteraction, true);
+});
 
 Deno.test("rejects an empty or invalid unpaid balance", () => {
   let didThrow = false;
@@ -64,7 +73,6 @@ Deno.test("rejects an empty or invalid unpaid balance", () => {
       tenantId: "22222222-2222-4222-8222-222222222222",
       remainingBalance: 0,
       locale: "en",
-      canMarkPaid: false,
     });
   } catch (error) {
     didThrow = error instanceof RangeError;

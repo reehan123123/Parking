@@ -392,7 +392,7 @@ select ok(
     where claimed.session_id = 'c1111111-1111-4111-8111-111111111111'
       and subscription.user_id = '71111111-1111-4111-8111-111111111111'
   ),
-  'owners receive the Full Paid action'
+  'the service claim result retains owners edit permission data'
 );
 select ok(
   not (
@@ -403,7 +403,7 @@ select ok(
     where claimed.session_id = 'c1111111-1111-4111-8111-111111111111'
       and subscription.user_id = '72222222-2222-4222-8222-222222222222'
   ),
-  'View-only members do not receive the Full Paid action'
+  'the service claim result excludes edit access for View-only members'
 );
 select is(
   (
@@ -458,6 +458,76 @@ select is(
   (select count(*) from public.parking_notification_events),
   4::bigint,
   'the scheduler records one 90-percent or expiry event per session and type'
+);
+
+update public.parking_notification_deliveries as delivery
+set
+  status = 'sent',
+  delivered_at = '2026-10-25 10:09:30+00'
+from public.parking_notification_events as notification_event
+where notification_event.id = delivery.event_id
+  and notification_event.notification_type = 'ninety_percent'
+  and delivery.status = 'sending';
+
+update public.parking_notification_deliveries as delivery
+set
+  status = 'sent',
+  delivered_at = '2026-10-25 10:10:00+00'
+from public.parking_notification_events as notification_event
+where notification_event.id = delivery.event_id
+  and notification_event.notification_type = 'expired'
+  and delivery.status = 'sending';
+
+update public.parking_notification_deliveries as delivery
+set
+  status = 'failed',
+  error_code = 'push_http_503'
+from public.parking_notification_events as notification_event,
+     public.parking_push_subscriptions as subscription
+where notification_event.id = delivery.event_id
+  and subscription.id = delivery.subscription_id
+  and notification_event.session_id = 'c4444444-4444-4444-8444-444444444444'
+  and notification_event.notification_type = 'expired'
+  and subscription.user_id = '75555555-5555-4555-8555-555555555555';
+
+select is(
+  (
+    select count(*)
+    from public.claim_due_parking_notification_deliveries(
+      '2026-10-25 10:14:59+00'
+    )
+  ),
+  0::bigint,
+  'expiry reminders are not repeated before five minutes have elapsed'
+);
+
+create temporary table repeated_expiry_push_claims on commit drop as
+select *
+from public.claim_due_parking_notification_deliveries(
+  '2026-10-25 10:15:00+00'
+);
+
+select is(
+  (select count(*) from repeated_expiry_push_claims),
+  4::bigint,
+  'sent and failed expiry deliveries are retried after five minutes'
+);
+select is(
+  (
+    select count(*)
+    from repeated_expiry_push_claims
+    where notification_type = 'ninety_percent'
+  ),
+  0::bigint,
+  'the 90-percent reminder is not repeated'
+);
+select is(
+  (
+    select count(*)
+    from public.parking_notification_events
+  ),
+  4::bigint,
+  'repeated reminders reuse the original event rows'
 );
 
 set local role authenticated;
@@ -525,8 +595,19 @@ select is(
       and delivery.status = 'skipped'
       and delivery.error_code = 'parking_session_marked_paid'
   ),
-  6::bigint,
-  'marking paid skips any queued expiry notifications'
+  3::bigint,
+  'marking paid skips queued expiry notifications without changing sent history'
+);
+select is(
+  (
+    select count(*)
+    from public.claim_due_parking_notification_deliveries(
+      '2026-10-25 10:20:00+00'
+    ) as claimed
+    where claimed.session_id = 'c1111111-1111-4111-8111-111111111111'
+  ),
+  0::bigint,
+  'fully paid sessions receive no subsequent expiry reminders'
 );
 
 reset role;

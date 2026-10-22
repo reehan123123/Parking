@@ -17,6 +17,8 @@ test("keeps expiry notifications visible until dismissed", async () => {
 
   assert.equal(worker.notifications.length, 1);
   assert.equal(worker.notifications[0].options.requireInteraction, true);
+  assert.equal(worker.notifications[0].options.renotify, true);
+  assert.equal(worker.notifications[0].options.actions, undefined);
 });
 
 test("keeps 90-percent reminders dismissible", async () => {
@@ -26,9 +28,11 @@ test("keeps 90-percent reminders dismissible", async () => {
 
   assert.equal(worker.notifications.length, 1);
   assert.equal(worker.notifications[0].options.requireInteraction, false);
+  assert.equal(worker.notifications[0].options.renotify, false);
+  assert.equal(worker.notifications[0].options.actions, undefined);
 });
 
-test("routes Full Paid clicks to the existing app window", async () => {
+test("routes even legacy Full Paid clicks to the session without marking it", async () => {
   let navigatedUrl;
   let focused = false;
   const client = {
@@ -48,7 +52,7 @@ test("routes Full Paid clicks to the existing app window", async () => {
 
   assert.equal(focused, true);
   assert.equal(worker.openedUrls.length, 0);
-  assertLaunchUrl(navigatedUrl, "full-paid");
+  assertLaunchUrl(navigatedUrl, "open");
 });
 
 test("opens the session when an existing window cannot be navigated", async () => {
@@ -109,7 +113,6 @@ function createWorker({ clients = [] } = {}) {
   vm.runInNewContext(
     workerSource,
     {
-      Notification: { maxActions: 2 },
       URL,
       console: { warn: (...values) => warnings.push(values) },
       self,

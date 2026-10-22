@@ -189,16 +189,19 @@ visible and retryable. Lists do not download photo bytes.
 
 ## Opt-in parking Web Push
 
-Web Push reminders are opt-in per browser subscription. A registered tenant
-member receives a 90%-duration reminder and a post-expiry reminder only while
-the parking session has an unpaid balance. The server snapshots only current
-tenant members with View access; the Full Paid action is included only when
-the recipient is an owner, Super Admin, or has Edit permission. The 90-percent
-reminder is transient; an expiry notice requests persistent display until the
-user dismisses it, where the browser and operating system honor
-`requireInteraction`. Clicking either the notification or its Full Paid action
-opens the associated session in the app. If notification actions are
-unsupported, the normal click still opens the session.
+Web Push reminders are opt-in per browser subscription. Allowing site
+notifications grants display permission but does not register a device; the
+user must also enable the reminder switch in app Settings, which creates the
+Push API subscription and registers it with the server. The app shows reminders
+as enabled only when both the browser subscription and its server registration
+exist. In the pending local implementation, a registered tenant member receives
+one 90%-duration reminder and, while the parking session has an unpaid balance,
+an expiry reminder every five minutes. Tenant and View permission are rechecked
+before each delivery. Expiry notices use the title “Parking Expired” and body
+“Full-Amount Not Paid.” They request persistent, re-notifying display while
+the browser and operating system honor `requireInteraction` and `renotify`.
+Push notifications have no payment action; clicking one opens the associated
+session record so the user can review and update it in the app.
 
 The browser stores only the public VAPID key. The VAPID private key and a
 high-entropy dispatcher secret remain in Supabase Edge Function secrets. The
@@ -211,10 +214,11 @@ validates Web Push provider hosts and limits an account to ten subscriptions.
 RLS lets users read or remove only their own subscriptions. Notification
 events and delivery details are unavailable to authenticated clients.
 
-Notification payloads include the outstanding amount and opaque session and
-tenant IDs, but omit the vehicle plate, customer contact details, and photos.
-The app rechecks the signed-in user's current tenant access and verifies that
-the session belongs to the notification tenant before showing it. A Full Paid
+The 90%-duration notification includes the outstanding amount; expired notices
+contain only their title, unpaid-status text, and opaque session and tenant IDs.
+Payloads omit the vehicle plate, customer contact details, and photos. The app
+rechecks the signed-in user's current tenant access and verifies that the
+session belongs to the notification tenant before showing it. A Full Paid
 launch asks for in-app confirmation; the database RPC independently enforces
 current Edit permission and updates the payment amount atomically. A forged or
 stale URL therefore cannot bypass tenant isolation or silently mark a session
@@ -244,9 +248,9 @@ user-provided endpoints from becoming server-side request targets.
 
 Push behavior depends on HTTPS, browser permission, and platform support.
 Some mobile browsers require the PWA to be installed before Web Push works;
-notification action buttons are not universal. If actions are unsupported,
-the normal notification click opens the session details in the authenticated
-app. Use [Supabase setup](supabase.md) for migration and dispatcher commands.
+some platforms may ignore persistent-display or re-notification requests.
+Clicking a notification opens the session details in the authenticated app.
+Use [Supabase setup](supabase.md) for migration and dispatcher commands.
 The notification-claim fix is applied to the verified production project; the
 claim RPC and scheduled dispatcher have since succeeded, and browser delivery
 has been observed. Commit `40887a0` is deployed: GitHub Actions run
@@ -258,6 +262,11 @@ Function check succeeded. A signed-in production click-through has not been
 verified because the saved Playwright test login was rejected. The
 `requireInteraction` display request remains subject to browser and operating
 system behavior.
+
+The follow-up migration `20261025140000_repeat_expired_unpaid_push_notifications.sql`
+and updated dispatcher/service worker implement five-minute expiry reminders
+with no notification payment action. They are source changes only until the
+migration, Edge Function, and web bundle are deployed.
 
 ## Self-service "Remember me" and password recovery
 

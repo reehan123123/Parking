@@ -333,6 +333,14 @@ Paid actions remains unverified because the saved Playwright test login was
 rejected. `requireInteraction` requests persistent display but remains subject
 to browser and operating-system behavior.
 
+The local follow-up adds a five-minute repeat for expired unpaid reminders,
+removes the Full Paid notification action, and routes clicks to the parking
+record. It also changes the English expiry text to “Parking Expired” /
+“Full-Amount Not Paid.” Production remains on the behavior described above
+until migration `20261025140000_repeat_expired_unpaid_push_notifications.sql`,
+the updated `dispatch-parking-notifications` function, and the web bundle are
+deployed.
+
 ## Previous handover status (2026-10-24)
 
 As of the 2026-10-24 migration review:

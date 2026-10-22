@@ -18,7 +18,6 @@ interface NotificationDelivery {
   p256dh_key: string;
   auth_key: string;
   locale: string;
-  can_mark_paid: boolean;
   remaining_balance: number | string;
 }
 
@@ -154,7 +153,6 @@ async function dispatchDelivery(
     tenantId: delivery.tenant_id,
     remainingBalance,
     locale: delivery.locale,
-    canMarkPaid: delivery.can_mark_paid,
   });
 
   try {

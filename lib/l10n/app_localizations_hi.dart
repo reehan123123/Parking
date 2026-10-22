@@ -1249,7 +1249,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get settingsParkingNotificationsDescription =>
-      'बकाया राशि होने पर पार्किंग अवधि के 90% पर और समय समाप्त होने के बाद रिमाइंडर पाएँ। View अनुमति वाले सदस्यों को रिमाइंडर मिलता है; पूरा भुगतान केवल Edit अनुमति वाले उपयोगकर्ता कर सकते हैं।';
+      'साइट नोटिफिकेशन की अनुमति दें और हर डिवाइस पर नीचे का स्विच चालू करें। पार्किंग अवधि के 90% पर एक रिमाइंडर पाएँ। समय समाप्त होने के बाद, पूरा भुगतान होने तक हर पाँच मिनट में रिमाइंडर दोहराया जाता है। रिमाइंडर पर टैप करने से पार्किंग रिकॉर्ड खुलता है।';
 
   @override
   String get parkingNotificationsToggleLabel =>
@@ -1277,7 +1277,7 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get parkingNotificationsDisabled =>
-      'इस डिवाइस पर बकाया पार्किंग रिमाइंडर बंद हैं।';
+      'इस डिवाइस पर रिमाइंडर पंजीकृत नहीं हैं। इस स्विच को चालू करें; केवल ब्राउज़र अनुमति देने से डिवाइस की सदस्यता नहीं बनती।';
 
   @override
   String get parkingNotificationsEnabledMessage =>

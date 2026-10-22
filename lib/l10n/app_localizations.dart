@@ -2279,7 +2279,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsParkingNotificationsDescription.
   ///
   /// In en, this message translates to:
-  /// **'Get reminders at 90% of the parking duration and after expiry when money is still due. View members receive reminders; Full Paid is available only to users with Edit permission.'**
+  /// **'Allow site notifications and enable the switch below on each device. Get a reminder at 90% of the parking duration. After expiry, reminders repeat every five minutes until fully paid. Tapping a reminder opens the parking record.'**
   String get settingsParkingNotificationsDescription;
 
   /// No description provided for @parkingNotificationsToggleLabel.
@@ -2321,7 +2321,7 @@ abstract class AppLocalizations {
   /// No description provided for @parkingNotificationsDisabled.
   ///
   /// In en, this message translates to:
-  /// **'Unpaid parking reminders are turned off on this device.'**
+  /// **'Reminders are not registered on this device. Enable this switch; browser permission alone does not subscribe the device.'**
   String get parkingNotificationsDisabled;
 
   /// No description provided for @parkingNotificationsEnabledMessage.

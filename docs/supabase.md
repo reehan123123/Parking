@@ -94,9 +94,9 @@ migration:
   three table-returning RPCs whose declared result types previously disagreed
   with `auth.users.email`.
 - The parking-notification migration adds private per-user Web Push
-  subscriptions, once-only 90%-duration and expiry events for unpaid parking
-  sessions, an edit-authorized full-payment RPC, and a `pg_cron` dispatcher
-  using `pg_net` and Vault. Both it and the follow-up
+  subscriptions, once-only 90%-duration and expiry event records for unpaid
+  parking sessions, an edit-authorized full-payment RPC, and a `pg_cron`
+  dispatcher using `pg_net` and Vault. Both it and the follow-up
   `20261025130000_fix_parking_notification_claim_ambiguity.sql` are applied to
   the verified production project. The follow-up uses named constraints and
   qualified `RETURNING` columns. Migration history is in sync through that
@@ -107,6 +107,12 @@ migration:
   persistence and navigation-fallback changes. A signed-in production
   click-through remains unverified because the saved Playwright test login was
   rejected.
+- The local follow-up
+  `20261025140000_repeat_expired_unpaid_push_notifications.sql` requeues
+  expired-notice deliveries every five minutes while a balance remains unpaid.
+  The accompanying payload and service-worker changes remove the Full Paid
+  notification action and route notification clicks to the record. These
+  changes have not been applied or deployed to production.
 
 The tenant-administration and tenant-management migrations must be reviewed
 and applied in order. They preserve existing parking rows but change their

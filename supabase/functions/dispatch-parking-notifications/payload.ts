@@ -6,7 +6,6 @@ export interface ParkingNotificationPayloadInput {
   tenantId: string;
   remainingBalance: number;
   locale: string;
-  canMarkPaid: boolean;
 }
 
 export interface ParkingNotificationPayload {
@@ -16,8 +15,6 @@ export interface ParkingNotificationPayload {
   badge: string;
   tag: string;
   requireInteraction: boolean;
-  canMarkPaid: boolean;
-  fullPaidAction: string;
   languageCode: "en" | "hi";
   data: {
     sessionId: string;
@@ -46,14 +43,14 @@ export function buildParkingNotificationPayload(
       ? "पार्किंग का समय समाप्त हो गया"
       : "पार्किंग का समय समाप्त होने वाला है"
     : isExpired
-    ? "Parking has expired"
+    ? "Parking Expired"
     : "Parking is nearing expiry";
   const body = isHindi
     ? isExpired
-      ? `बकाया राशि: ${amount}।`
+      ? "पूरा भुगतान नहीं हुआ।"
       : `पार्किंग का समय लगभग समाप्त होने वाला है। बकाया राशि: ${amount}।`
     : isExpired
-    ? `Outstanding amount: ${amount}.`
+    ? "Full-Amount Not Paid"
     : `Parking is nearing expiry. Outstanding amount: ${amount}.`;
 
   return {
@@ -63,8 +60,6 @@ export function buildParkingNotificationPayload(
     badge: "../icons/Icon-192.png",
     tag: `parking-${input.sessionId}-${input.notificationType}`,
     requireInteraction: isExpired,
-    canMarkPaid: input.canMarkPaid,
-    fullPaidAction: isHindi ? "पूरा भुगतान" : "Full Paid",
     languageCode: isHindi ? "hi" : "en",
     data: {
       sessionId: input.sessionId,

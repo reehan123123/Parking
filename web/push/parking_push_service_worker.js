@@ -13,6 +13,8 @@ self.addEventListener("push", (event) => {
       if (
         typeof payload.title !== "string" ||
         typeof payload.body !== "string" ||
+        typeof payload.tag !== "string" ||
+        payload.tag.length === 0 ||
         typeof data?.sessionId !== "string" ||
         typeof data?.tenantId !== "string" ||
         !uuidPattern.test(data.sessionId) ||
@@ -29,10 +31,6 @@ self.addEventListener("push", (event) => {
         payload.badge,
         self.registration.scope,
       ).toString();
-      const canMarkPaid = payload.canMarkPaid === true;
-      const actions = canMarkPaid && Notification.maxActions > 0
-        ? [{ action: "full-paid", title: payload.fullPaidAction }]
-        : [];
       await self.registration.showNotification(payload.title, {
         body: payload.body,
         icon: iconUrl,
@@ -41,14 +39,13 @@ self.addEventListener("push", (event) => {
         requireInteraction:
           payload.requireInteraction === true ||
           data.notificationType === "expired",
+        renotify: data.notificationType === "expired",
         lang: payload.languageCode === "hi" ? "hi" : "en",
         data: {
           sessionId: data.sessionId,
           tenantId: data.tenantId,
           notificationType: data.notificationType,
-          canMarkPaid,
         },
-        actions,
       });
     })(),
   );
@@ -67,13 +64,10 @@ self.addEventListener("notificationclick", (event) => {
     return;
   }
 
-  const action = event.action === "full-paid" && data.canMarkPaid === true
-    ? "full-paid"
-    : "open";
   const appUrl = new URL("../", self.registration.scope);
   appUrl.searchParams.set("parkingSessionId", data.sessionId);
   appUrl.searchParams.set("parkingTenantId", data.tenantId);
-  appUrl.searchParams.set("parkingAction", action);
+  appUrl.searchParams.set("parkingAction", "open");
 
   event.waitUntil(
     (async () => {
