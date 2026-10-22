@@ -101,9 +101,12 @@ migration:
   the verified production project. The follow-up uses named constraints and
   qualified `RETURNING` columns. Migration history is in sync through that
   fix; the claim RPC no longer errors, scheduled dispatcher requests returned
-  HTTP 200, and browser delivery has been observed. The service-worker
-  persistence and click-through fixes are local source changes and still need
-  deployment and browser verification.
+  HTTP 200, and browser delivery has been observed. Commit `40887a0` is
+  deployed; GitHub Actions run `39793450735` succeeded, the dispatcher is
+  active at version 2, and the production service-worker asset contains the
+  persistence and navigation-fallback changes. A signed-in production
+  click-through remains unverified because the saved Playwright test login was
+  rejected.
 
 The tenant-administration and tenant-management migrations must be reviewed
 and applied in order. They preserve existing parking rows but change their

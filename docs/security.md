@@ -249,10 +249,15 @@ the normal notification click opens the session details in the authenticated
 app. Use [Supabase setup](supabase.md) for migration and dispatcher commands.
 The notification-claim fix is applied to the verified production project; the
 claim RPC and scheduled dispatcher have since succeeded, and browser delivery
-has been observed. The local service-worker changes add persistent expiry
-notices and a new-window fallback when an existing app window cannot navigate.
-Those web and dispatcher source changes still require deployment and
-click-through verification before they are considered live.
+has been observed. Commit `40887a0` is deployed: GitHub Actions run
+`39793450735` succeeded, the dispatcher is active at version 2, and the
+production service-worker asset includes persistent expiry notices and a
+new-window fallback when an existing app window cannot navigate. The local
+Node and Flutter notification tests passed, and the workflow's Deno Edge
+Function check succeeded. A signed-in production click-through has not been
+verified because the saved Playwright test login was rejected. The
+`requireInteraction` display request remains subject to browser and operating
+system behavior.
 
 ## Self-service "Remember me" and password recovery
 

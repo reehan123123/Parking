@@ -318,15 +318,22 @@ The app still requires internet access for Supabase operations, does not
 provide an offline photo queue, and cannot promise identical camera,
 or PWA installation behavior across browsers.
 
+## Latest Web Push deployment
+
 The production notification migrations, scheduler, dispatcher, required
 Edge Function secret names, and nonempty Vault entries are present. The
 claim-RPC correction is applied, scheduled dispatcher requests returned HTTP
-200, and a browser received an expiry notification. The local changes that
-keep expiry notices visible and route clicks to the session are not deployed.
-Deploy the updated dispatcher and web bundle, then verify notification body
-and Full Paid clicks in a browser before considering click-through complete.
+200, and a browser received an expiry notification. Commit `40887a0` is
+deployed: GitHub Actions run `39793450735` completed successfully, the
+dispatcher is active at version 2, and the production service-worker asset
+contains the persistent-expiry and navigation-fallback changes. Local Node and
+Flutter notification tests passed, as did the workflow's Deno Edge Function
+check. A signed-in production click-through for notification-body and Full
+Paid actions remains unverified because the saved Playwright test login was
+rejected. `requireInteraction` requests persistent display but remains subject
+to browser and operating-system behavior.
 
-## Current handover status
+## Previous handover status (2026-10-24)
 
 As of the 2026-10-24 migration review:
 
