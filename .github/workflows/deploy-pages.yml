@@ -86,20 +86,7 @@ jobs:
           fi
 
           if [[ -n "${PARKING_PUSH_VAPID_PUBLIC_KEY}" ]]; then
-            node <<'NODE'
-            const value = process.env.PARKING_PUSH_VAPID_PUBLIC_KEY;
-            let key;
-            try {
-              key = Buffer.from(value, 'base64url');
-            } catch {
-              console.error('The public Web Push VAPID key is not valid base64url.');
-              process.exit(1);
-            }
-            if (key.length !== 65 || key[0] !== 4) {
-              console.error('The public Web Push VAPID key must be a 65-byte P-256 key.');
-              process.exit(1);
-            }
-            NODE
+            node -e "const value = process.env.PARKING_PUSH_VAPID_PUBLIC_KEY; let key; try { key = Buffer.from(value, 'base64url'); } catch { console.error('The public Web Push VAPID key is not valid base64url.'); process.exit(1); } if (key.length !== 65 || key[0] !== 4) { console.error('The public Web Push VAPID key must be a 65-byte P-256 key.'); process.exit(1); }"
           fi
 
           case "${SUPABASE_URL}" in
