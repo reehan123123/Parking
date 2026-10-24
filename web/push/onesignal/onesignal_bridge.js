@@ -1,5 +1,5 @@
 (() => {
-  const workerPath = "/push/onesignal/OneSignalSDKWorker.js";
+  const workerPath = "push/onesignal/OneSignalSDKWorker.js";
   const workerScope = "/push/onesignal/";
   const initializationTimeoutMs = 18000;
   let appId = null;

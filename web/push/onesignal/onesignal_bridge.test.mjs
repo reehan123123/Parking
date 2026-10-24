@@ -17,7 +17,7 @@ test("initializes OneSignal in a separate Flutter-compatible worker scope", asyn
   assert.equal(await initialization, true);
   assert.equal(JSON.stringify(fakeOneSignal.initOptions), JSON.stringify({
     appId: "11111111-1111-4111-8111-111111111111",
-    serviceWorkerPath: "/push/onesignal/OneSignalSDKWorker.js",
+    serviceWorkerPath: "push/onesignal/OneSignalSDKWorker.js",
     serviceWorkerParam: { scope: "/push/onesignal/" },
   }));
   assert.equal(fakeOneSignal.permissionRequests, 0);
