@@ -428,42 +428,6 @@ class SupabaseParkingSessionRepository implements ParkingSessionRepository {
   }
 
   @override
-  Future<ParkingSessionPaymentResult> markFullyPaid({
-    required String sessionId,
-  }) async {
-    if (_authenticatedUserId() == null) {
-      return const ParkingSessionPaymentFailure(
-        message: 'Your sign-in session has expired. Sign in again and retry.',
-      );
-    }
-
-    final normalizedSessionId = sessionId.trim();
-    if (normalizedSessionId.isEmpty) {
-      return const ParkingSessionPaymentFailure(
-        message: 'The parking session identifier is missing.',
-      );
-    }
-
-    try {
-      final wasMarkedPaid = await _sessionStore.markFullyPaid(
-        sessionId: normalizedSessionId,
-      );
-      return ParkingSessionPaymentSuccess(wasMarkedPaid: wasMarkedPaid);
-    } on PostgrestException catch (error) {
-      return ParkingSessionPaymentFailure(
-        message: error.code == '42501'
-            ? 'You do not have permission to mark this parking session as paid.'
-            : 'The parking session could not be marked as paid. Check your '
-                  'connection and retry.',
-      );
-    } on Exception {
-      return const ParkingSessionPaymentFailure(
-        message: 'The parking session could not be marked as paid. Retry.',
-      );
-    }
-  }
-
-  @override
   Future<ParkingSessionCleanupResult> retryCleanup({
     required String sessionId,
     required String photoPath,
@@ -1026,20 +990,6 @@ class _SupabaseParkingSessionStore implements ParkingSessionStore {
   @override
   Future<void> delete({required String sessionId}) async {
     await _client.from('parking_sessions').delete().eq('id', sessionId);
-  }
-
-  @override
-  Future<bool> markFullyPaid({required String sessionId}) async {
-    final result = await _client.rpc(
-      'mark_parking_session_fully_paid',
-      params: {'p_session_id': sessionId},
-    );
-    if (result is! bool) {
-      throw const FormatException(
-        'Supabase did not confirm the parking payment update.',
-      );
-    }
-    return result;
   }
 }
 

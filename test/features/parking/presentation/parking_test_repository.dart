@@ -19,7 +19,6 @@ class TestParkingSessionRepository implements ParkingSessionRepository {
     this.updateResult,
     this.deleteResult,
     this.saveResult,
-    this.paymentResult,
   });
 
   List<ParkingSession> sessions;
@@ -32,14 +31,12 @@ class TestParkingSessionRepository implements ParkingSessionRepository {
   ParkingSessionUpdateResult? updateResult;
   ParkingSessionDeleteResult? deleteResult;
   ParkingSessionSaveResult? saveResult;
-  ParkingSessionPaymentResult? paymentResult;
   String? lastSearch;
   int listCalls = 0;
   int summaryCalls = 0;
   int detailCalls = 0;
   int deleteCalls = 0;
-  int markFullyPaidCalls = 0;
-  String? lastPaymentSessionId;
+  String? lastDetailSessionId;
   int lastOffset = 0;
   int lastPageSize = 50;
   ParkingTenantScope? lastScope;
@@ -90,6 +87,7 @@ class TestParkingSessionRepository implements ParkingSessionRepository {
     required String sessionId,
   }) async {
     detailCalls++;
+    lastDetailSessionId = sessionId;
     if (detailResult != null) {
       return detailResult!;
     }
@@ -137,16 +135,6 @@ class TestParkingSessionRepository implements ParkingSessionRepository {
   }) async {
     deleteCalls++;
     return deleteResult ?? const ParkingSessionDeleteSuccess();
-  }
-
-  @override
-  Future<ParkingSessionPaymentResult> markFullyPaid({
-    required String sessionId,
-  }) async {
-    markFullyPaidCalls++;
-    lastPaymentSessionId = sessionId;
-    return paymentResult ??
-        const ParkingSessionPaymentSuccess(wasMarkedPaid: false);
   }
 
   @override

@@ -1249,11 +1249,13 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get settingsParkingNotificationsDescription =>
-      'साइट नोटिफिकेशन की अनुमति दें और हर डिवाइस पर नीचे का स्विच चालू करें। पार्किंग अवधि के 90% पर एक रिमाइंडर पाएँ। समय समाप्त होने के बाद, पूरा भुगतान होने तक हर पाँच मिनट में रिमाइंडर दोहराया जाता है। रिमाइंडर पर टैप करने से पार्किंग रिकॉर्ड खुलता है।';
+      'इस डिवाइस पर नोटिफिकेशन की अनुमति दें। समय समाप्त और बकाया राशि वाले पार्किंग सत्रों के लिए हर पाँच मिनट में रिमाइंडर भेजा जाता है। रिमाइंडर पर टैप करने के बाद साइन इन और अनुमति जाँचकर पार्किंग रिकॉर्ड खुलेगा।';
 
   @override
-  String get parkingNotificationsToggleLabel =>
-      'बकाया पार्किंग रिमाइंडर चालू करें';
+  String get parkingNotificationsEnableAction => 'चालू करें';
+
+  @override
+  String get parkingNotificationsDisableAction => 'बंद करें';
 
   @override
   String get parkingNotificationsStatusLoading =>
@@ -1261,23 +1263,27 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get parkingNotificationsSetupRequired =>
-      'इस डिप्लॉयमेंट में अभी पुश नोटिफिकेशन कॉन्फ़िगर नहीं हैं।';
+      'इस डिप्लॉयमेंट में OneSignal कॉन्फ़िगर नहीं है।';
 
   @override
   String get parkingNotificationsUnsupported =>
-      'यह ब्राउज़र Web Push नोटिफिकेशन का समर्थन नहीं करता।';
+      'यह ब्राउज़र या प्लेटफ़ॉर्म पुश नोटिफिकेशन का समर्थन नहीं करता।';
 
   @override
-  String get parkingNotificationsPermissionBlocked =>
-      'ब्राउज़र सेटिंग में नोटिफिकेशन बंद हैं। रिमाइंडर चालू करने के लिए इस साइट के नोटिफिकेशन की अनुमति दें।';
+  String get parkingNotificationsPermissionNotGranted =>
+      'नोटिफिकेशन की अनुमति नहीं है। ब्राउज़र सेटिंग में साइट नोटिफिकेशन चालू करके फिर प्रयास करें।';
+
+  @override
+  String get parkingNotificationsPending =>
+      'पुश सदस्यता अपडेट हो रही है। थोड़ी देर बाद फिर प्रयास करें।';
 
   @override
   String get parkingNotificationsEnabled =>
-      'इस डिवाइस पर बकाया पार्किंग रिमाइंडर चालू हैं।';
+      'इस डिवाइस पर इस खाते के लिए पुश नोटिफिकेशन चालू हैं।';
 
   @override
   String get parkingNotificationsDisabled =>
-      'इस डिवाइस पर रिमाइंडर पंजीकृत नहीं हैं। इस स्विच को चालू करें; केवल ब्राउज़र अनुमति देने से डिवाइस की सदस्यता नहीं बनती।';
+      'इस डिवाइस पर पुश नोटिफिकेशन बंद हैं।';
 
   @override
   String get parkingNotificationsEnabledMessage =>
@@ -1288,52 +1294,48 @@ class AppLocalizationsHi extends AppLocalizations {
       'पार्किंग रिमाइंडर बंद किए गए।';
 
   @override
-  String get parkingNotificationsEndpointInUse =>
-      'यह ब्राउज़र सदस्यता किसी दूसरे खाते से जुड़ी है। यहाँ रिमाइंडर चालू करने से पहले उस खाते से इसे हटाएँ।';
-
-  @override
-  String get parkingNotificationsLimitReached =>
-      'इस खाते में पहले से 10 डिवाइस पर रिमाइंडर चालू हैं।';
-
-  @override
-  String get parkingNotificationsPermissionRevoked =>
-      'आपके खाते या नोटिफिकेशन अनुमति में बदलाव हुआ है। फिर से साइन इन करें या ब्राउज़र सेटिंग जाँचें।';
+  String get parkingNotificationsNotSignedIn =>
+      'पुश नोटिफिकेशन चालू या बंद करने से पहले फिर से साइन इन करें।';
 
   @override
   String get parkingNotificationsRequestFailed =>
-      'नोटिफिकेशन सेटिंग अपडेट नहीं हो सकीं। कनेक्शन जाँचकर फिर प्रयास करें।';
+      'पुश नोटिफिकेशन सेटिंग अपडेट नहीं हो सकीं। कनेक्शन जाँचकर फिर प्रयास करें।';
 
   @override
-  String get parkingNotificationsPaymentConfirmTitle =>
-      'क्या पार्किंग का पूरा भुगतान दर्ज करें?';
+  String get parkingNotificationsCenterTitle => 'पार्किंग नोटिफिकेशन';
 
   @override
-  String get parkingNotificationsPaymentConfirmMessage =>
-      'क्या इस पार्किंग सत्र की बकाया राशि को पूरा भुगतान मानकर दर्ज करें?';
+  String get parkingNotificationsEmptyTitle =>
+      'कोई बकाया पार्किंग रिमाइंडर नहीं';
 
   @override
-  String get parkingNotificationsPaymentConfirmAction =>
-      'पूरा भुगतान दर्ज करें';
+  String get parkingNotificationsEmptyMessage =>
+      'समय समाप्त और बकाया राशि वाले पार्किंग सत्र यहाँ दिखाई देंगे।';
 
   @override
-  String get parkingNotificationsPaymentMarked =>
-      'पार्किंग सत्र का पूरा भुगतान दर्ज किया गया।';
+  String get parkingNotificationsLoadFailed =>
+      'पार्किंग नोटिफिकेशन लोड नहीं हो सके। कनेक्शन जाँचकर फिर प्रयास करें।';
 
   @override
-  String get parkingNotificationsPaymentAlreadyPaid =>
-      'इस पार्किंग सत्र का पूरा भुगतान पहले ही हो चुका है।';
+  String get parkingNotificationsInvalidData =>
+      'पार्किंग नोटिफिकेशन डेटा अमान्य है। सिस्टम प्रशासक से संपर्क करें।';
 
   @override
-  String get parkingNotificationsPaymentFailed =>
-      'पार्किंग सत्र का पूरा भुगतान दर्ज नहीं हो सका। अनुमति जाँचकर फिर प्रयास करें।';
+  String get parkingNotificationsMarkReadFailed =>
+      'नोटिफिकेशन को पढ़ा हुआ नहीं किया जा सका।';
+
+  @override
+  String get parkingNotificationsOpenAction => 'खोलें';
+
+  @override
+  String get parkingNotificationExpiredTitle => 'पार्किंग समय समाप्त';
+
+  @override
+  String get parkingNotificationExpiredBody => 'पूरा भुगतान नहीं हुआ';
 
   @override
   String get parkingNotificationsSessionUnavailable =>
       'यह पार्किंग सत्र अब इस टेनेंट में उपलब्ध नहीं है।';
-
-  @override
-  String get parkingNotificationsNoEditPermission =>
-      'अब आपको इस पार्किंग सत्र का भुगतान दर्ज करने की अनुमति नहीं है।';
 
   @override
   String get parkingNotificationsLaunchInvalid =>

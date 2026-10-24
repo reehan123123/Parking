@@ -25,7 +25,7 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
-      PARKING_PUSH_VAPID_PUBLIC_KEY: ${{ vars.PARKING_PUSH_VAPID_PUBLIC_KEY || secrets.PARKING_PUSH_VAPID_PUBLIC_KEY }}
+      ONE_SIGNAL_APP_ID: ${{ vars.ONE_SIGNAL_APP_ID || secrets.ONE_SIGNAL_APP_ID }}
 
     steps:
       - name: Check out source
@@ -54,21 +54,22 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Check push notification scripts
+      - name: Check OneSignal browser integration
         run: |
-          node --check web/push/push_client.js
-          node --check web/push/parking_push_service_worker.js
+          node --check web/push/onesignal/onesignal_bridge.js
+          node --check web/push/onesignal/OneSignalSDKWorker.js
+          node --test web/push/onesignal/onesignal_bridge.test.mjs
 
       - name: Check parking notification Edge Function
         run: |
           npx --yes deno@2.9.6 check \
             --config supabase/functions/dispatch-parking-notifications/deno.json \
             supabase/functions/dispatch-parking-notifications/index.ts \
-            supabase/functions/dispatch-parking-notifications/payload.ts \
-            supabase/functions/dispatch-parking-notifications/payload_test.ts
+            supabase/functions/dispatch-parking-notifications/onesignal_sender.ts \
+            supabase/functions/dispatch-parking-notifications/onesignal_sender_test.ts
           npx --yes deno@2.9.6 test \
             --config supabase/functions/dispatch-parking-notifications/deno.json \
-            supabase/functions/dispatch-parking-notifications/payload_test.ts
+            supabase/functions/dispatch-parking-notifications/onesignal_sender_test.ts
 
       - name: Validate public Supabase configuration
         shell: bash
@@ -85,8 +86,9 @@ jobs:
             exit 1
           fi
 
-          if [[ -n "${PARKING_PUSH_VAPID_PUBLIC_KEY}" ]]; then
-            node -e "const value = process.env.PARKING_PUSH_VAPID_PUBLIC_KEY; let key; try { key = Buffer.from(value, 'base64url'); } catch { console.error('The public Web Push VAPID key is not valid base64url.'); process.exit(1); } if (key.length !== 65 || key[0] !== 4) { console.error('The public Web Push VAPID key must be a 65-byte P-256 key.'); process.exit(1); }"
+          if [[ ! "${ONE_SIGNAL_APP_ID}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$ ]]; then
+            echo "ONE_SIGNAL_APP_ID must be configured as a public OneSignal App ID."
+            exit 1
           fi
 
           case "${SUPABASE_URL}" in
@@ -133,7 +135,7 @@ jobs:
           flutter build web --release \
             --dart-define="SUPABASE_URL=${SUPABASE_URL}" \
             --dart-define="SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY}" \
-            --dart-define="PARKING_PUSH_VAPID_PUBLIC_KEY=${PARKING_PUSH_VAPID_PUBLIC_KEY}"
+            --dart-define="ONE_SIGNAL_APP_ID=${ONE_SIGNAL_APP_ID}"
 
       - name: Verify release output
         shell: bash
@@ -147,8 +149,8 @@ jobs:
           test -s build/web/icons/Icon-192.png
           test -s build/web/icons/Icon-512.png
           test -s build/web/_headers
-          test -s build/web/push/push_client.js
-          test -s build/web/push/parking_push_service_worker.js
+          test -s build/web/push/onesignal/onesignal_bridge.js
+          test -s build/web/push/onesignal/OneSignalSDKWorker.js
 
           node <<'NODE'
           const fs = require('fs');
@@ -177,6 +179,10 @@ jobs:
 
           for (const file of files) {
             const content = fs.readFileSync(file, 'utf8');
+            if (content.includes('ONE_SIGNAL_API_KEY')) {
+              console.error('The OneSignal REST API key name was found in release output.');
+              process.exit(1);
+            }
             if (exposedKeyPatterns.some((pattern) => pattern.test(content))) {
               console.error('A privileged credential-shaped value was found in release output.');
               process.exit(1);

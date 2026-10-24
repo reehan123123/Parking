@@ -2,7 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show SupabaseClient;
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show AuthState, SupabaseClient;
 
 import 'core/config/configuration_required_page.dart';
 import 'core/locale/locale_controller.dart';
@@ -20,7 +21,11 @@ import 'features/parking/data/parking_session_repository.dart';
 import 'features/parking/domain/parking_session.dart';
 import 'features/parking/presentation/parking_entry_page.dart';
 import 'features/parking/presentation/parking_session_details_page.dart';
-import 'features/parking_notifications/data/parking_push_notification_service.dart';
+import 'features/parking_notifications/data/one_signal_notification_service.dart';
+import 'features/parking_notifications/data/parking_notification_repository.dart';
+import 'features/parking_notifications/domain/parking_notification.dart';
+import 'features/parking_notifications/domain/parking_notification_center_state.dart';
+import 'features/parking_notifications/presentation/parking_notification_center_dialog.dart';
 import 'features/settings/presentation/settings_page.dart';
 import 'features/tenants/data/supabase_tenant_repository.dart';
 import 'features/tenants/data/tenant_repository.dart';
@@ -34,7 +39,8 @@ class ParkingManagementApp extends StatefulWidget {
     this.parkingSessionRepository,
     this.tenantRepository,
     this.deviceSessionRepository,
-    this.parkingPushNotificationService,
+    this.parkingNotificationRepository,
+    this.oneSignalNotificationService,
     this.configurationError,
     this.supabaseClient,
     super.key,
@@ -44,7 +50,8 @@ class ParkingManagementApp extends StatefulWidget {
   final ParkingSessionRepository? parkingSessionRepository;
   final TenantRepository? tenantRepository;
   final DeviceSessionRepository? deviceSessionRepository;
-  final ParkingPushNotificationService? parkingPushNotificationService;
+  final ParkingNotificationRepository? parkingNotificationRepository;
+  final OneSignalNotificationService? oneSignalNotificationService;
   final String? configurationError;
   final SupabaseClient? supabaseClient;
 
@@ -58,11 +65,50 @@ class _ParkingManagementAppState extends State<ParkingManagementApp> {
   late final LocaleController _localeController = LocaleController(
     authClient: widget.supabaseClient,
   );
+  StreamSubscription<AuthState>? _oneSignalAuthSubscription;
 
   @override
   void initState() {
     super.initState();
     unawaited(_loadSavedLocale());
+    final SupabaseClient? client = widget.supabaseClient;
+    final OneSignalNotificationService? service =
+        widget.oneSignalNotificationService;
+    if (client != null && service != null) {
+      unawaited(
+        _synchronizeOneSignalIdentity(service, client.auth.currentUser?.id),
+      );
+      _oneSignalAuthSubscription = client.auth.onAuthStateChange.listen(
+        (AuthState state) => unawaited(
+          _synchronizeOneSignalIdentity(service, state.session?.user.id),
+        ),
+        onError: (Object error, StackTrace stackTrace) {
+          _reportOneSignalFailure(error, stackTrace);
+        },
+      );
+    }
+  }
+
+  Future<void> _synchronizeOneSignalIdentity(
+    OneSignalNotificationService service,
+    String? userId,
+  ) async {
+    try {
+      await service.synchronizeIdentity(userId);
+    } on Object catch (error, stackTrace) {
+      _reportOneSignalFailure(error, stackTrace);
+    }
+  }
+
+  void _reportOneSignalFailure(Object error, StackTrace stackTrace) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stackTrace,
+        library: 'parking_management',
+        context: ErrorDescription('while synchronizing OneSignal identity'),
+      ),
+    );
   }
 
   Future<void> _loadSavedLocale() async {
@@ -108,6 +154,7 @@ class _ParkingManagementAppState extends State<ParkingManagementApp> {
 
   @override
   void dispose() {
+    unawaited(_oneSignalAuthSubscription?.cancel());
     _localeController.dispose();
     super.dispose();
   }
@@ -208,16 +255,27 @@ class _ParkingManagementAppState extends State<ParkingManagementApp> {
         );
 
         Future<void> releaseDeviceSessionAndSignOut() async {
+          final OneSignalNotificationService? notificationService =
+              widget.oneSignalNotificationService;
+          if (notificationService != null) {
+            try {
+              await notificationService.synchronizeIdentity(null);
+            } on Object catch (error, stackTrace) {
+              _reportOneSignalFailure(error, stackTrace);
+            }
+          }
           await widget.deviceSessionRepository?.releaseCurrentSession();
           await onSignOut();
         }
 
         return AppShell(
+          key: ValueKey(widget.supabaseClient?.auth.currentUser?.id),
           onSignOut: releaseDeviceSessionAndSignOut,
           parkingSessionRepository: widget.parkingSessionRepository,
           tenantRepository: widget.tenantRepository,
           deviceSessionRepository: widget.deviceSessionRepository,
-          parkingPushNotificationService: widget.parkingPushNotificationService,
+          parkingNotificationRepository: widget.parkingNotificationRepository,
+          oneSignalNotificationService: widget.oneSignalNotificationService,
         );
       },
     );
@@ -231,7 +289,8 @@ class AppShell extends StatefulWidget {
     this.parkingSessionRepository,
     this.tenantRepository,
     this.deviceSessionRepository,
-    this.parkingPushNotificationService,
+    this.parkingNotificationRepository,
+    this.oneSignalNotificationService,
     this.initialTenantAccess,
     this.notificationLaunchUri,
     super.key,
@@ -242,7 +301,8 @@ class AppShell extends StatefulWidget {
   final ParkingSessionRepository? parkingSessionRepository;
   final TenantRepository? tenantRepository;
   final DeviceSessionRepository? deviceSessionRepository;
-  final ParkingPushNotificationService? parkingPushNotificationService;
+  final ParkingNotificationRepository? parkingNotificationRepository;
+  final OneSignalNotificationService? oneSignalNotificationService;
   final ParkingTenantAccess? initialTenantAccess;
   final Uri? notificationLaunchUri;
 
@@ -250,7 +310,7 @@ class AppShell extends StatefulWidget {
   State<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late int _selectedIndex = widget.initialIndex;
   int _dataVersion = 0;
   ParkingTenantAccess? _tenantAccess;
@@ -262,12 +322,22 @@ class _AppShellState extends State<AppShell> {
   bool _notificationLaunchHandled = false;
   DeviceLimitReachedException? _deviceLimitError;
   String? _deviceLimitTenantId;
+  final ValueNotifier<ParkingNotificationCenterState> _notificationCenter =
+      ValueNotifier(const ParkingNotificationCenterState());
+  Timer? _notificationPollingTimer;
+  int _notificationGeneration = 0;
+  int? _notificationRequestGeneration;
+  bool _hasNotificationSnapshot = false;
+  final Set<String> _shownNotificationToastKeys = {};
+  AppLifecycleState _appLifecycleState =
+      WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed;
 
   static const _allTenantsValue = '__all_tenants__';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final initialAccess = widget.initialTenantAccess;
     _tenantAccess = initialAccess;
     if (initialAccess != null &&
@@ -276,13 +346,12 @@ class _AppShellState extends State<AppShell> {
       _selectedTenantId = initialAccess.tenants.first.id;
     }
     if (widget.tenantRepository != null) {
-      final launch = _ParkingNotificationLaunch.tryParse(
-        widget.notificationLaunchUri ?? Uri.base,
-      );
-      unawaited(_loadTenantAccess(preferredTenantId: launch?.tenantId));
+      unawaited(_loadTenantAccess());
     } else if (widget.parkingSessionRepository != null &&
         _tenantAccess == null) {
       _tenantAccessErrorIsMigrationMissing = true;
+    } else {
+      _configureNotificationPolling();
     }
   }
 
@@ -292,6 +361,7 @@ class _AppShellState extends State<AppShell> {
       return;
     }
 
+    final String? previousTenantId = _selectedTenantId;
     setState(() {
       _isLoadingTenantAccess = true;
       _tenantAccessError = null;
@@ -345,6 +415,10 @@ class _AppShellState extends State<AppShell> {
         _isLoadingTenantAccess = false;
         _dataVersion++;
       });
+      if (previousTenantId != selectedTenantId) {
+        _resetNotificationCenter();
+      }
+      _configureNotificationPolling();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           unawaited(_handleNotificationLaunch(access));
@@ -358,6 +432,7 @@ class _AppShellState extends State<AppShell> {
           _deviceLimitTenantId = attemptedTenantId;
           _isLoadingTenantAccess = false;
         });
+        _stopNotificationPolling();
       }
     } on DeviceSessionRepositoryException catch (error) {
       if (mounted) {
@@ -366,6 +441,7 @@ class _AppShellState extends State<AppShell> {
           _tenantAccessError = error.message;
           _isLoadingTenantAccess = false;
         });
+        _stopNotificationPolling();
       }
     } on TenantRepositoryException catch (error) {
       if (mounted) {
@@ -373,6 +449,7 @@ class _AppShellState extends State<AppShell> {
           _isLoadingTenantAccess = false;
           _tenantAccessError = error.message;
         });
+        _stopNotificationPolling();
       }
     } on Exception {
       if (mounted) {
@@ -382,7 +459,26 @@ class _AppShellState extends State<AppShell> {
           _tenantAccessErrorIsMigrationMissing = false;
           _tenantAccessErrorIsGeneric = true;
         });
+        _stopNotificationPolling();
       }
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _notificationPollingTimer?.cancel();
+    _notificationCenter.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appLifecycleState = state;
+    if (state == AppLifecycleState.resumed) {
+      _configureNotificationPolling();
+    } else {
+      _stopNotificationPolling();
     }
   }
 
@@ -396,20 +492,15 @@ class _AppShellState extends State<AppShell> {
     }
 
     final Uri launchUri = widget.notificationLaunchUri ?? Uri.base;
-    const launchParameterNames = [
-      'parkingSessionId',
-      'parkingTenantId',
-      'parkingAction',
-    ];
-    final bool hasLaunchParameters = launchParameterNames.any(
-      launchUri.queryParameters.containsKey,
+    final bool hasLaunchParameters = launchUri.queryParametersAll.keys.any(
+      (name) => name.startsWith('parking'),
     );
     if (!hasLaunchParameters) {
       return;
     }
 
     _notificationLaunchHandled = true;
-    widget.parkingPushNotificationService?.clearLaunchParameters();
+    widget.oneSignalNotificationService?.clearLaunchParameters();
     final _ParkingNotificationLaunch? launch =
         _ParkingNotificationLaunch.tryParse(launchUri);
     if (launch == null) {
@@ -419,17 +510,18 @@ class _AppShellState extends State<AppShell> {
       return;
     }
 
-    final ParkingTenant? tenant = _tenantForId(access, launch.tenantId);
-    if (!access.isSuperAdmin &&
-        (tenant == null ||
-            tenant.isArchived ||
-            !tenant.entryPermissions.canView)) {
-      _showNotificationLaunchMessage(
-        AppLocalizations.of(context).parkingNotificationsSessionUnavailable,
-      );
-      return;
-    }
+    await _openAuthorizedParkingSession(
+      sessionId: launch.sessionId,
+      access: access,
+    );
+  }
 
+  Future<void> _openAuthorizedParkingSession({
+    required String sessionId,
+    required ParkingTenantAccess access,
+    String? expectedTenantId,
+    String? notificationId,
+  }) async {
     final ParkingSessionRepository? repository =
         widget.parkingSessionRepository;
     if (repository == null) {
@@ -440,104 +532,71 @@ class _AppShellState extends State<AppShell> {
     }
 
     final ParkingSessionDetailResult detailResult = await repository.getById(
-      sessionId: launch.sessionId,
+      sessionId: sessionId,
     );
     if (!mounted) {
       return;
     }
     if (detailResult is! ParkingSessionDetailSuccess ||
-        detailResult.session.tenantId != launch.tenantId) {
+        (expectedTenantId != null &&
+            detailResult.session.tenantId != expectedTenantId)) {
       _showNotificationLaunchMessage(
         AppLocalizations.of(context).parkingNotificationsSessionUnavailable,
       );
       return;
     }
 
-    ParkingSession session = detailResult.session;
-    if (launch.action == 'full-paid') {
-      final bool canMarkPaid =
-          access.isSuperAdmin ||
-          tenant?.role == ParkingTenantRole.owner ||
-          (tenant?.entryPermissions.canEdit ?? false);
-      if (!canMarkPaid) {
-        _showNotificationLaunchMessage(
-          AppLocalizations.of(context).parkingNotificationsNoEditPermission,
-        );
-      } else {
-        final AppLocalizations l10n = AppLocalizations.of(context);
-        final bool confirmed =
-            await showDialog<bool>(
-              context: context,
-              builder: (BuildContext dialogContext) => AlertDialog(
-                title: Text(l10n.parkingNotificationsPaymentConfirmTitle),
-                content: Text(l10n.parkingNotificationsPaymentConfirmMessage),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(false),
-                    child: Text(l10n.commonCancel),
-                  ),
-                  FilledButton(
-                    onPressed: () => Navigator.of(dialogContext).pop(true),
-                    child: Text(l10n.parkingNotificationsPaymentConfirmAction),
-                  ),
-                ],
-              ),
-            ) ??
-            false;
-        if (!mounted) {
-          return;
-        }
-
-        if (confirmed) {
-          final ParkingSessionPaymentResult paymentResult = await repository
-              .markFullyPaid(sessionId: launch.sessionId);
-          if (!mounted) {
-            return;
-          }
-          if (paymentResult is ParkingSessionPaymentFailure) {
-            _showNotificationLaunchMessage(
-              AppLocalizations.of(context).parkingNotificationsPaymentFailed,
-            );
-          } else {
-            final bool wasMarkedPaid =
-                (paymentResult as ParkingSessionPaymentSuccess).wasMarkedPaid;
-            _showNotificationLaunchMessage(
-              wasMarkedPaid
-                  ? AppLocalizations.of(context)
-                        .parkingNotificationsPaymentMarked
-                  : AppLocalizations.of(context)
-                        .parkingNotificationsPaymentAlreadyPaid,
-            );
-            _notifyDataChanged();
-            final ParkingSessionDetailResult refreshedResult = await repository
-                .getById(sessionId: launch.sessionId);
-            if (!mounted) {
-              return;
-            }
-            if (refreshedResult is ParkingSessionDetailSuccess &&
-                refreshedResult.session.tenantId == launch.tenantId) {
-              session = refreshedResult.session;
-            }
-          }
-        }
-      }
-    }
-
-    if (!mounted) {
+    final ParkingSession session = detailResult.session;
+    final ParkingTenant? tenant = _tenantForId(access, session.tenantId);
+    if (tenant == null ||
+        tenant.isArchived ||
+        (!access.isSuperAdmin && !tenant.entryPermissions.canView)) {
+      _showNotificationLaunchMessage(
+        AppLocalizations.of(context).parkingNotificationsSessionUnavailable,
+      );
       return;
     }
-    await Navigator.of(context).push<void>(
+
+    if (_selectedTenantId != session.tenantId) {
+      setState(() {
+        _selectedTenantId = session.tenantId;
+        _selectedIndex = 0;
+        _dataVersion++;
+      });
+      _configureNotificationPolling();
+    }
+
+    final Future<void> navigation = Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (BuildContext context) => ParkingSessionDetailsPage(
           repository: repository,
           session: session,
           permissions: access.isSuperAdmin
               ? const TenantEntryPermissions.all()
-              : tenant!.entryPermissions,
+              : tenant.entryPermissions,
           onDataChanged: _notifyDataChanged,
         ),
       ),
     );
+
+    if (notificationId != null) {
+      try {
+        await widget.parkingNotificationRepository?.markRead(
+          notificationId: notificationId,
+        );
+        if (mounted) {
+          unawaited(_loadNotificationCenter());
+        }
+      } on ParkingNotificationRepositoryException {
+        if (mounted) {
+          _showNotificationLaunchMessage(
+            AppLocalizations.of(context).parkingNotificationsMarkReadFailed,
+          );
+        }
+      }
+    }
+
+    await navigation;
   }
 
   void _showNotificationLaunchMessage(String message) {
@@ -599,6 +658,7 @@ class _AppShellState extends State<AppShell> {
       _selectedIndex = 0;
       _dataVersion++;
     });
+    _configureNotificationPolling();
   }
 
   void _selectDestination(int index) {
@@ -687,6 +747,236 @@ class _AppShellState extends State<AppShell> {
     setState(() {
       _dataVersion++;
     });
+    unawaited(_loadNotificationCenter());
+  }
+
+  void _configureNotificationPolling() {
+    _notificationPollingTimer?.cancel();
+    final ParkingNotificationRepository? repository =
+        widget.parkingNotificationRepository;
+    if (repository == null ||
+        _tenantAccess == null ||
+        _selectedTenantId == null ||
+        _appLifecycleState != AppLifecycleState.resumed) {
+      _stopNotificationPolling();
+      return;
+    }
+
+    _resetNotificationCenter();
+    unawaited(_loadNotificationCenter());
+    _notificationPollingTimer = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => unawaited(_loadNotificationCenter()),
+    );
+  }
+
+  void _stopNotificationPolling() {
+    _notificationPollingTimer?.cancel();
+    _notificationPollingTimer = null;
+    _resetNotificationCenter();
+  }
+
+  void _resetNotificationCenter() {
+    _notificationGeneration++;
+    _notificationRequestGeneration = null;
+    _hasNotificationSnapshot = false;
+    _shownNotificationToastKeys.clear();
+    _notificationCenter.value = const ParkingNotificationCenterState();
+  }
+
+  Future<void> _loadNotificationCenter() async {
+    if (!mounted || _appLifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+
+    final ParkingNotificationRepository? repository =
+        widget.parkingNotificationRepository;
+    final String? tenantId = _selectedTenantId;
+    if (repository == null || tenantId == null || _tenantAccess == null) {
+      return;
+    }
+
+    final int generation = _notificationGeneration;
+    if (_notificationRequestGeneration == generation) {
+      return;
+    }
+    _notificationRequestGeneration = generation;
+
+    final ParkingNotificationCenterState previousState =
+        _notificationCenter.value;
+    _notificationCenter.value = ParkingNotificationCenterState(
+      notifications: previousState.notifications,
+      isLoading: true,
+      errorMessage: previousState.errorMessage,
+    );
+
+    try {
+      final List<ParkingNotification> notifications = await repository
+          .listActive(tenantId: tenantId);
+      if (!mounted || generation != _notificationGeneration) {
+        return;
+      }
+
+      final bool isInitialSnapshot = !_hasNotificationSnapshot;
+      _recordNotificationToastKeys(
+        notifications,
+        isInitialSnapshot: isInitialSnapshot,
+      );
+      _hasNotificationSnapshot = true;
+      _notificationCenter.value = ParkingNotificationCenterState(
+        notifications: notifications,
+      );
+    } on ParkingNotificationRepositoryException catch (error) {
+      if (mounted && generation == _notificationGeneration) {
+        _notificationCenter.value = ParkingNotificationCenterState(
+          notifications: previousState.notifications,
+          errorMessage: _notificationRepositoryErrorMessage(
+            AppLocalizations.of(context),
+            error.code,
+          ),
+        );
+      }
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'parking_management',
+          context: ErrorDescription('while loading parking notifications'),
+        ),
+      );
+      if (mounted && generation == _notificationGeneration) {
+        _notificationCenter.value = ParkingNotificationCenterState(
+          notifications: previousState.notifications,
+          errorMessage: AppLocalizations.of(context)
+              .parkingNotificationsLoadFailed,
+        );
+      }
+    } finally {
+      if (generation == _notificationRequestGeneration) {
+        _notificationRequestGeneration = null;
+      }
+    }
+  }
+
+  void _recordNotificationToastKeys(
+    List<ParkingNotification> notifications, {
+    required bool isInitialSnapshot,
+  }) {
+    final Set<String> currentKeys = notifications
+        .map(_notificationToastKey)
+        .toSet();
+    if (isInitialSnapshot) {
+      _shownNotificationToastKeys
+        ..clear()
+        ..addAll(currentKeys);
+      return;
+    }
+
+    _shownNotificationToastKeys.removeWhere(
+      (key) => !currentKeys.contains(key),
+    );
+    ParkingNotification? newestUnreadNotification;
+    for (final ParkingNotification notification in notifications) {
+      if (_shownNotificationToastKeys.add(
+            _notificationToastKey(notification),
+          ) &&
+          notification.isUnread) {
+        newestUnreadNotification ??= notification;
+      }
+    }
+    if (newestUnreadNotification != null) {
+      _showNotificationToast(newestUnreadNotification);
+    }
+  }
+
+  String _notificationToastKey(ParkingNotification notification) {
+    return '${notification.id}:${notification.reminderIntervalAt.toUtc().toIso8601String()}';
+  }
+
+  void _showNotificationToast(ParkingNotification notification) {
+    final ParkingTenantAccess? access = _tenantAccess;
+    final ScaffoldMessengerState? messenger = ScaffoldMessenger.maybeOf(
+      context,
+    );
+    if (access == null || messenger == null) {
+      return;
+    }
+
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          '${l10n.parkingNotificationExpiredTitle}: '
+          '${l10n.parkingNotificationExpiredBody}',
+        ),
+        action: SnackBarAction(
+          label: l10n.parkingNotificationsOpenAction,
+          onPressed: () => unawaited(
+            _openAuthorizedParkingSession(
+              sessionId: notification.sessionId,
+              expectedTenantId: notification.tenantId,
+              notificationId: notification.id,
+              access: access,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _notificationRepositoryErrorMessage(
+    AppLocalizations l10n,
+    ParkingNotificationRepositoryError error,
+  ) {
+    return switch (error) {
+      ParkingNotificationRepositoryError.tenantUnavailable =>
+        l10n.parkingNotificationsSessionUnavailable,
+      ParkingNotificationRepositoryError.invalidData =>
+        l10n.parkingNotificationsInvalidData,
+      ParkingNotificationRepositoryError.markReadFailed =>
+        l10n.parkingNotificationsMarkReadFailed,
+      ParkingNotificationRepositoryError.loadFailed =>
+        l10n.parkingNotificationsLoadFailed,
+    };
+  }
+
+  Future<void> _showNotificationCenter() async {
+    final ParkingNotificationRepository? repository =
+        widget.parkingNotificationRepository;
+    if (repository == null || _selectedTenantId == null) {
+      return;
+    }
+
+    unawaited(_loadNotificationCenter());
+    await showDialog<void>(
+      context: context,
+      builder: (BuildContext dialogContext) => ParkingNotificationCenterDialog(
+        state: _notificationCenter,
+        onRefresh: _loadNotificationCenter,
+        onOpen: _openNotificationFromCenter,
+      ),
+    );
+  }
+
+  Future<void> _openNotificationFromCenter(
+    ParkingNotification notification,
+  ) async {
+    Navigator.of(context).pop();
+    final ParkingTenantAccess? access = _tenantAccess;
+    if (access == null) {
+      _showNotificationLaunchMessage(
+        AppLocalizations.of(context).parkingNotificationsSessionUnavailable,
+      );
+      return;
+    }
+
+    await _openAuthorizedParkingSession(
+      sessionId: notification.sessionId,
+      expectedTenantId: notification.tenantId,
+      notificationId: notification.id,
+      access: access,
+    );
   }
 
   @override
@@ -858,7 +1148,7 @@ class _AppShellState extends State<AppShell> {
       SettingsPage(
         onSignOut: widget.onSignOut,
         deviceSessionRepository: widget.deviceSessionRepository,
-        parkingPushNotificationService: widget.parkingPushNotificationService,
+        oneSignalNotificationService: widget.oneSignalNotificationService,
         tenant: selectedTenant,
         tenantRepository: widget.tenantRepository,
         isSuperAdmin: access.isSuperAdmin,
@@ -881,7 +1171,12 @@ class _AppShellState extends State<AppShell> {
         return Scaffold(
           appBar: AppBar(
             title: Text(l10n.appTitle),
-            actions: [_buildTenantSelector(context, access)],
+            actions: [
+              if (widget.parkingNotificationRepository != null &&
+                  _selectedTenantId != null)
+                _buildNotificationCenterButton(context),
+              _buildTenantSelector(context, access),
+            ],
           ),
           body: isWide
               ? Row(
@@ -988,6 +1283,25 @@ class _AppShellState extends State<AppShell> {
       }
     }
     return null;
+  }
+
+  Widget _buildNotificationCenterButton(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    return ValueListenableBuilder<ParkingNotificationCenterState>(
+      valueListenable: _notificationCenter,
+      builder: (BuildContext context, ParkingNotificationCenterState state, _) {
+        final int unreadCount = state.unreadCount;
+        return IconButton(
+          tooltip: l10n.parkingNotificationsCenterTitle,
+          onPressed: () => unawaited(_showNotificationCenter()),
+          icon: Badge(
+            isLabelVisible: unreadCount > 0,
+            label: Text(unreadCount > 99 ? '99+' : '$unreadCount'),
+            child: const Icon(Icons.notifications_outlined),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildTenantSelector(
@@ -1103,35 +1417,18 @@ class _EntryPermissionState extends StatelessWidget {
 }
 
 class _ParkingNotificationLaunch {
-  const _ParkingNotificationLaunch({
-    required this.sessionId,
-    required this.tenantId,
-    required this.action,
-  });
+  const _ParkingNotificationLaunch({required this.sessionId});
 
   final String sessionId;
-  final String tenantId;
-  final String action;
 
   static _ParkingNotificationLaunch? tryParse(Uri uri) {
     final Map<String, List<String>> parameters = uri.queryParametersAll;
     final String? sessionId = _singleValue(parameters, 'parkingSessionId');
-    final String? tenantId = _singleValue(parameters, 'parkingTenantId');
-    final String? action = _singleValue(parameters, 'parkingAction');
-    if (sessionId == null ||
-        tenantId == null ||
-        action == null ||
-        !_isUuid(sessionId) ||
-        !_isUuid(tenantId) ||
-        (action != 'open' && action != 'full-paid')) {
+    if (sessionId == null || !_isUuid(sessionId)) {
       return null;
     }
 
-    return _ParkingNotificationLaunch(
-      sessionId: sessionId,
-      tenantId: tenantId,
-      action: action,
-    );
+    return _ParkingNotificationLaunch(sessionId: sessionId);
   }
 
   static String? _singleValue(

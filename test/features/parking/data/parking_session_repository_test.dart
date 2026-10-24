@@ -37,36 +37,6 @@ void main() {
       expect(storage.events, isEmpty);
     });
 
-    test(
-      'rejects unauthenticated payment actions before store access',
-      () async {
-        final store = FakeParkingSessionStore();
-        final repository = SupabaseParkingSessionRepository(
-          null,
-          currentUserId: () => null,
-          sessionStore: store,
-          photoStorage: FakeVehiclePhotoStorage(),
-        );
-
-        final result = await repository.markFullyPaid(sessionId: 'session-1');
-
-        expect(result, isA<ParkingSessionPaymentFailure>());
-        expect(store.events, isEmpty);
-      },
-    );
-
-    test('marks the full balance through the authorized store', () async {
-      final store = FakeParkingSessionStore()..fullyPaidResult = true;
-      final repository = _repository(store: store);
-
-      final result = await repository.markFullyPaid(sessionId: ' session-1 ');
-
-      expect(result, isA<ParkingSessionPaymentSuccess>());
-      expect((result as ParkingSessionPaymentSuccess).wasMarkedPaid, isTrue);
-      expect(store.lastFullyPaidSessionId, 'session-1');
-      expect(store.events, ['markFullyPaid']);
-    });
-
     test('normalizes the plate and maps the exact migration columns', () async {
       final store = FakeParkingSessionStore()..insertedId = 'session-1';
       final repository = _repository(store: store);
@@ -559,8 +529,6 @@ class FakeParkingSessionStore implements ParkingSessionStore {
   DateTime? lastSummaryAsOf;
   Map<String, dynamic>? lastUpdatedValues;
   Exception? updateError;
-  bool fullyPaidResult = false;
-  String? lastFullyPaidSessionId;
 
   @override
   Future<String> insert(Map<String, dynamic> values) async {
@@ -634,13 +602,6 @@ class FakeParkingSessionStore implements ParkingSessionStore {
   @override
   Future<void> delete({required String sessionId}) async {
     events.add('delete');
-  }
-
-  @override
-  Future<bool> markFullyPaid({required String sessionId}) async {
-    events.add('markFullyPaid');
-    lastFullyPaidSessionId = sessionId;
-    return fullyPaidResult;
   }
 }
 

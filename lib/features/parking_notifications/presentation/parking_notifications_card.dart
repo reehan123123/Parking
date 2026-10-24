@@ -3,21 +3,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
-import '../data/parking_push_notification_service.dart';
+import '../data/one_signal_notification_service.dart';
 
-class ParkingNotificationsCard extends StatefulWidget {
-  const ParkingNotificationsCard({required this.service, super.key});
+class OneSignalNotificationsCard extends StatefulWidget {
+  const OneSignalNotificationsCard({required this.service, super.key});
 
-  final ParkingPushNotificationService service;
+  final OneSignalNotificationService service;
 
   @override
-  State<ParkingNotificationsCard> createState() =>
-      _ParkingNotificationsCardState();
+  State<OneSignalNotificationsCard> createState() =>
+      _OneSignalNotificationsCardState();
 }
 
-class _ParkingNotificationsCardState extends State<ParkingNotificationsCard> {
-  ParkingPushNotificationStatus? _status;
-  ParkingPushErrorCode? _errorCode;
+class _OneSignalNotificationsCardState
+    extends State<OneSignalNotificationsCard> {
+  OneSignalNotificationStatus? _status;
+  OneSignalNotificationErrorCode? _errorCode;
   bool _isLoading = true;
   bool _isUpdating = false;
 
@@ -28,7 +29,7 @@ class _ParkingNotificationsCardState extends State<ParkingNotificationsCard> {
   }
 
   @override
-  void didUpdateWidget(covariant ParkingNotificationsCard oldWidget) {
+  void didUpdateWidget(covariant OneSignalNotificationsCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.service != widget.service) {
       unawaited(_loadStatus());
@@ -41,24 +42,15 @@ class _ParkingNotificationsCardState extends State<ParkingNotificationsCard> {
       _errorCode = null;
     });
 
-    try {
-      final status = await widget.service.loadStatus();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _status = status;
-        _isLoading = false;
-      });
-    } on ParkingPushNotificationException catch (error) {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _errorCode = error.code;
-        _isLoading = false;
-      });
+    final OneSignalNotificationStatus status = await widget.service
+        .loadStatus();
+    if (!mounted) {
+      return;
     }
+    setState(() {
+      _status = status;
+      _isLoading = false;
+    });
   }
 
   Future<void> _setEnabled(bool isEnabled) async {
@@ -69,13 +61,12 @@ class _ParkingNotificationsCardState extends State<ParkingNotificationsCard> {
 
     try {
       if (isEnabled) {
-        await widget.service.enable(
-          localeCode: Localizations.localeOf(context).languageCode,
-        );
+        await widget.service.enable();
       } else {
         await widget.service.disable();
       }
-      final status = await widget.service.loadStatus();
+      final OneSignalNotificationStatus status = await widget.service
+          .loadStatus();
       if (!mounted) {
         return;
       }
@@ -94,12 +85,20 @@ class _ParkingNotificationsCardState extends State<ParkingNotificationsCard> {
           ),
         ),
       );
-    } on ParkingPushNotificationException catch (error) {
+    } on OneSignalNotificationException catch (error) {
       if (!mounted) {
         return;
       }
       setState(() {
         _errorCode = error.code;
+        _isUpdating = false;
+      });
+    } on Object {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorCode = OneSignalNotificationErrorCode.requestFailed;
         _isUpdating = false;
       });
     }
@@ -108,11 +107,14 @@ class _ParkingNotificationsCardState extends State<ParkingNotificationsCard> {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final ParkingPushNotificationStatus? status = _status;
+    final OneSignalNotificationAvailability? availability =
+        _status?.availability;
     final bool canToggle =
         !_isLoading &&
         !_isUpdating &&
-        status?.availability == ParkingPushAvailability.ready;
+        availability != OneSignalNotificationAvailability.setupRequired &&
+        availability != OneSignalNotificationAvailability.unsupported &&
+        availability != OneSignalNotificationAvailability.failed;
 
     return Card(
       child: Padding(
@@ -131,12 +133,23 @@ class _ParkingNotificationsCardState extends State<ParkingNotificationsCard> {
             ),
             const SizedBox(height: 12),
             if (_isLoading || _isUpdating) const LinearProgressIndicator(),
-            SwitchListTile.adaptive(
-              contentPadding: EdgeInsets.zero,
-              title: Text(l10n.parkingNotificationsToggleLabel),
-              subtitle: Text(_description(l10n, status)),
-              value: status?.isEnabled ?? false,
-              onChanged: canToggle ? _setEnabled : null,
+            Row(
+              children: [
+                Expanded(child: Text(_description(l10n, availability))),
+                const SizedBox(width: 16),
+                if (availability == OneSignalNotificationAvailability.enabled)
+                  OutlinedButton.icon(
+                    onPressed: canToggle ? () => _setEnabled(false) : null,
+                    icon: const Icon(Icons.notifications_off_outlined),
+                    label: Text(l10n.parkingNotificationsDisableAction),
+                  )
+                else
+                  FilledButton.tonalIcon(
+                    onPressed: canToggle ? () => _setEnabled(true) : null,
+                    icon: const Icon(Icons.notifications_active_outlined),
+                    label: Text(l10n.parkingNotificationsEnableAction),
+                  ),
+              ],
             ),
             if (_errorCode != null) ...[
               const SizedBox(height: 8),
@@ -152,6 +165,17 @@ class _ParkingNotificationsCardState extends State<ParkingNotificationsCard> {
                 ),
               ),
             ],
+            if (availability == OneSignalNotificationAvailability.failed &&
+                _errorCode == null) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: AlignmentDirectional.centerEnd,
+                child: TextButton(
+                  onPressed: _isLoading ? null : _loadStatus,
+                  child: Text(l10n.commonRetry),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -160,41 +184,44 @@ class _ParkingNotificationsCardState extends State<ParkingNotificationsCard> {
 
   String _description(
     AppLocalizations l10n,
-    ParkingPushNotificationStatus? status,
+    OneSignalNotificationAvailability? availability,
   ) {
     if (_isLoading) {
       return l10n.parkingNotificationsStatusLoading;
     }
 
-    return switch (status?.availability) {
-      ParkingPushAvailability.setupRequired =>
+    return switch (availability) {
+      OneSignalNotificationAvailability.setupRequired =>
         l10n.parkingNotificationsSetupRequired,
-      ParkingPushAvailability.unsupported =>
+      OneSignalNotificationAvailability.unsupported =>
         l10n.parkingNotificationsUnsupported,
-      ParkingPushAvailability.permissionBlocked =>
-        l10n.parkingNotificationsPermissionBlocked,
-      ParkingPushAvailability.ready =>
-        status!.isEnabled
-            ? l10n.parkingNotificationsEnabled
-            : l10n.parkingNotificationsDisabled,
+      OneSignalNotificationAvailability.permissionNotGranted =>
+        l10n.parkingNotificationsPermissionNotGranted,
+      OneSignalNotificationAvailability.pending =>
+        l10n.parkingNotificationsPending,
+      OneSignalNotificationAvailability.enabled =>
+        l10n.parkingNotificationsEnabled,
+      OneSignalNotificationAvailability.disabled =>
+        l10n.parkingNotificationsDisabled,
+      OneSignalNotificationAvailability.failed ||
       null => l10n.parkingNotificationsRequestFailed,
     };
   }
 
-  String _errorMessage(AppLocalizations l10n, ParkingPushErrorCode errorCode) {
+  String _errorMessage(
+    AppLocalizations l10n,
+    OneSignalNotificationErrorCode errorCode,
+  ) {
     return switch (errorCode) {
-      ParkingPushErrorCode.setupRequired =>
+      OneSignalNotificationErrorCode.setupRequired =>
         l10n.parkingNotificationsSetupRequired,
-      ParkingPushErrorCode.unsupported => l10n.parkingNotificationsUnsupported,
-      ParkingPushErrorCode.permissionDenied =>
-        l10n.parkingNotificationsPermissionBlocked,
-      ParkingPushErrorCode.endpointInUse =>
-        l10n.parkingNotificationsEndpointInUse,
-      ParkingPushErrorCode.subscriptionLimitReached =>
-        l10n.parkingNotificationsLimitReached,
-      ParkingPushErrorCode.permissionRevoked =>
-        l10n.parkingNotificationsPermissionRevoked,
-      ParkingPushErrorCode.requestFailed =>
+      OneSignalNotificationErrorCode.unsupported =>
+        l10n.parkingNotificationsUnsupported,
+      OneSignalNotificationErrorCode.permissionDenied =>
+        l10n.parkingNotificationsPermissionNotGranted,
+      OneSignalNotificationErrorCode.notSignedIn =>
+        l10n.parkingNotificationsNotSignedIn,
+      OneSignalNotificationErrorCode.requestFailed =>
         l10n.parkingNotificationsRequestFailed,
     };
   }

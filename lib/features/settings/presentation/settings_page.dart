@@ -5,7 +5,7 @@ import '../../../core/locale/language_switch.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../device_sessions/data/device_session_repository.dart';
 import '../../device_sessions/presentation/device_sessions_panel.dart';
-import '../../parking_notifications/data/parking_push_notification_service.dart';
+import '../../parking_notifications/data/one_signal_notification_service.dart';
 import '../../parking_notifications/presentation/parking_notifications_card.dart';
 import '../../tenants/data/tenant_repository.dart';
 import '../../tenants/domain/parking_tenant.dart';
@@ -15,7 +15,7 @@ class SettingsPage extends StatefulWidget {
   const SettingsPage({
     this.onSignOut,
     this.deviceSessionRepository,
-    this.parkingPushNotificationService,
+    this.oneSignalNotificationService,
     this.tenant,
     this.tenantRepository,
     this.isSuperAdmin = false,
@@ -26,7 +26,7 @@ class SettingsPage extends StatefulWidget {
 
   final Future<void> Function()? onSignOut;
   final DeviceSessionRepository? deviceSessionRepository;
-  final ParkingPushNotificationService? parkingPushNotificationService;
+  final OneSignalNotificationService? oneSignalNotificationService;
   final ParkingTenant? tenant;
   final TenantRepository? tenantRepository;
   final bool isSuperAdmin;
@@ -150,9 +150,9 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              if (widget.parkingPushNotificationService != null) ...[
-                ParkingNotificationsCard(
-                  service: widget.parkingPushNotificationService!,
+              if (widget.oneSignalNotificationService != null) ...[
+                OneSignalNotificationsCard(
+                  service: widget.oneSignalNotificationService!,
                 ),
                 const SizedBox(height: 16),
               ],

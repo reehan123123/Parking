@@ -187,86 +187,73 @@ The save sequence remains row first, Storage upload second, with cleanup on
 failure. Photo deletion precedes session deletion; cleanup failures remain
 visible and retryable. Lists do not download photo bytes.
 
-## Opt-in parking Web Push
+## OneSignal parking reminders and in-app notifications
 
-Web Push reminders are opt-in per browser subscription. Allowing site
-notifications grants display permission but does not register a device; the
-user must also enable the reminder switch in app Settings, which creates the
-Push API subscription and registers it with the server. The app shows reminders
-as enabled only when both the browser subscription and its server registration
-exist. In the pending local implementation, a registered tenant member receives
-one 90%-duration reminder and, while the parking session has an unpaid balance,
-an expiry reminder every five minutes. Tenant and View permission are rechecked
-before each delivery. Expiry notices use the title “Parking Expired” and body
-“Full-Amount Not Paid.” They request persistent, re-notifying display while
-the browser and operating system honor `requireInteraction` and `renotify`.
-Push notifications have no payment action; clicking one opens the associated
-session record so the user can review and update it in the app.
+The replacement implementation uses the OneSignal Web SDK v16 as the only
+push-delivery provider. Its page SDK and bridge are loaded by
+`web/index.html`; the official OneSignal worker is kept under
+`/push/onesignal/` with its own service-worker scope. Flutter's root worker,
+manifest, bootstrap, asset caching, offline behavior, and PWA installation
+remain separate and are not replaced.
 
-The browser stores only the public VAPID key. The VAPID private key and a
-high-entropy dispatcher secret remain in Supabase Edge Function secrets. The
-database scheduler reads the project URL and matching dispatcher secret from
-Vault and invokes the Edge Function once per minute through `pg_net`. The
-dispatcher checks that secret before using its server-only Supabase key, and
-never logs push endpoints, keys, or payload contents. Browser clients cannot
-write subscription rows directly; a narrowly scoped authenticated RPC
-validates Web Push provider hosts and limits an account to ten subscriptions.
-RLS lets users read or remove only their own subscriptions. Notification
-events and delivery details are unavailable to authenticated clients.
+Push permission is requested only after a signed-in user selects **Enable**
+in Settings. The client identifies the authenticated account using its stable
+Supabase user UUID as OneSignal's `external_id`; it does not use email,
+tenant IDs, or browser fingerprints. Logout and account changes synchronize
+the OneSignal identity. The app reports unsupported, permission, pending,
+enabled, disabled, and failed states. OneSignal logout detaches the current
+browser subscription from the previous identity; it does not delete other
+devices' subscriptions or recall already queued messages.
 
-The 90%-duration notification includes the outstanding amount; expired notices
-contain only their title, unpaid-status text, and opaque session and tenant IDs.
-Payloads omit the vehicle plate, customer contact details, and photos. The app
-rechecks the signed-in user's current tenant access and verifies that the
-session belongs to the notification tenant before showing it. A Full Paid
-launch asks for in-app confirmation; the database RPC independently enforces
-current Edit permission and updates the payment amount atomically. A forged or
-stale URL therefore cannot bypass tenant isolation or silently mark a session
-paid.
+The scheduler's sole intended delivery path is the Supabase Edge Function
+`dispatch-parking-notifications`, called every five minutes through
+`pg_cron`/`pg_net`. It checks the current expiry, outstanding balance
+(`total_charge > paid_amount`), tenant validity, and owner/View membership
+before each send. Partial payments continue reminders; full payment resolves
+them; a reversal can reactivate reminders. Recipients are resolved server-side
+from the parking session's current tenant memberships. The client cannot
+choose a tenant or recipient.
 
-The public key is a public compile-time value named
-`PARKING_PUSH_VAPID_PUBLIC_KEY`; configure it as a GitHub production
-environment variable. Generate a VAPID pair in a private terminal, for
-example with `npx web-push generate-vapid-keys --json`. Do not paste or log the
-private key. Configure these values only in the intended Supabase Edge
-Function secret store:
+Push content is intentionally generic: title **Parking Expired**, body
+**Full-Amount Not Paid**, and an HTTPS link containing only the exact session
+ID. It omits payment amounts, plates, customer details, and tenant IDs.
+Notification clicks preserve the destination through authentication and then
+load the session through the normal authenticated repository and RLS path.
+The URL is never treated as authorization. In-app alerts use one mutable row
+per recipient/session/type, reopen as unread for a new reminder interval, and
+resolve when the balance is paid. The notification center polls about once
+per minute only while a signed-in app is active with one tenant selected; it
+does not provide background in-app alerts while the app is closed.
 
-```text
-PARKING_VAPID_PUBLIC_KEY
-PARKING_VAPID_PRIVATE_KEY
-PARKING_VAPID_SUBJECT
-PARKING_NOTIFICATION_CRON_SECRET
-```
+`ONE_SIGNAL_APP_ID` is public client configuration, supplied to Flutter as a
+compile-time define and to the Edge Function at runtime. `ONE_SIGNAL_API_KEY`
+is server-side only and belongs only in Supabase Edge Function secrets. The
+scheduled invocation also requires `PARKING_NOTIFICATION_CRON_SECRET`; its
+matching project URL and cron secret are read from Supabase Vault. None of
+these values may be committed or printed. A service-role key, OneSignal REST
+API key, and cron secret must never appear in Flutter code, browser requests,
+build arguments, generated assets, or build logs. See
+[Supabase setup](supabase.md) and
+[production deployment](deployment.md) for the configuration boundary.
 
-Store the matching `parking_notifications_project_url` and
-`parking_notifications_cron_secret` values in Supabase Vault before enabling
-the migration's cron job. The public key may be supplied to the Flutter Web
-build; no service-role key, VAPID private key, or dispatcher secret may be
-included in the browser bundle. The dispatcher currently allows the standard
-FCM, Mozilla, Apple, and Windows Web Push endpoint hosts to prevent arbitrary
-user-provided endpoints from becoming server-side request targets.
+The forward migration
+`20261025150000_onesignal_parking_notifications.sql` and replacement client,
+worker, and Edge Function are local source changes only. They have not been
+applied or deployed to production. The previously verified production
+deployment used the legacy Web Push/VAPID sender; production migrations,
+secrets, subscriptions, and scheduled jobs have not been changed by this
+work. Historical migrations remain immutable, and the legacy subscription
+and delivery data and hosted VAPID secrets are retained pending a separately
+approved cleanup. The current process did not expose `ONE_SIGNAL_APP_ID` or
+`ONE_SIGNAL_API_KEY`; no values were read or printed, and remote Supabase or
+OneSignal configuration was not verified.
 
-Push behavior depends on HTTPS, browser permission, and platform support.
-Some mobile browsers require the PWA to be installed before Web Push works;
-some platforms may ignore persistent-display or re-notification requests.
-Clicking a notification opens the session details in the authenticated app.
-Use [Supabase setup](supabase.md) for migration and dispatcher commands.
-The notification-claim fix is applied to the verified production project; the
-claim RPC and scheduled dispatcher have since succeeded, and browser delivery
-has been observed. Commit `40887a0` is deployed: GitHub Actions run
-`39793450735` succeeded, the dispatcher is active at version 2, and the
-production service-worker asset includes persistent expiry notices and a
-new-window fallback when an existing app window cannot navigate. The local
-Node and Flutter notification tests passed, and the workflow's Deno Edge
-Function check succeeded. A signed-in production click-through has not been
-verified because the saved Playwright test login was rejected. The
-`requireInteraction` display request remains subject to browser and operating
-system behavior.
-
-The follow-up migration `20261025140000_repeat_expired_unpaid_push_notifications.sql`
-and updated dispatcher/service worker implement five-minute expiry reminders
-with no notification payment action. They are source changes only until the
-migration, Edge Function, and web bundle are deployed.
+The migration caps claims at 20 sessions per run to bound work, so a larger
+backlog may be processed across multiple five-minute runs. OneSignal's
+message-volume limits may also constrain high-volume tenants. Push requires
+HTTPS, browser permission, and platform support. Desktop and mobile background
+push have not been verified on the relevant production browsers and operating
+systems; do not infer device behavior from local tests.
 
 ## Self-service "Remember me" and password recovery
 

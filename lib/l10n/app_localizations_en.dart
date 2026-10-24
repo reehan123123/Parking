@@ -1251,35 +1251,41 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsParkingNotificationsDescription =>
-      'Allow site notifications and enable the switch below on each device. Get a reminder at 90% of the parking duration. After expiry, reminders repeat every five minutes until fully paid. Tapping a reminder opens the parking record.';
+      'Allow notifications on this device. Expired parking sessions with an outstanding balance send a reminder every five minutes. Tapping a reminder opens the parking record after sign-in and access checks.';
 
   @override
-  String get parkingNotificationsToggleLabel =>
-      'Enable unpaid parking reminders';
+  String get parkingNotificationsEnableAction => 'Enable';
+
+  @override
+  String get parkingNotificationsDisableAction => 'Disable';
 
   @override
   String get parkingNotificationsStatusLoading =>
-      'Checking browser notification settings…';
+      'Checking push notification settings…';
 
   @override
   String get parkingNotificationsSetupRequired =>
-      'Push notifications are not configured for this deployment yet.';
+      'OneSignal is not configured for this deployment.';
 
   @override
   String get parkingNotificationsUnsupported =>
-      'This browser does not support Web Push notifications.';
+      'This browser or platform does not support push notifications.';
 
   @override
-  String get parkingNotificationsPermissionBlocked =>
-      'Notifications are blocked in browser settings. Allow notifications for this site to enable reminders.';
+  String get parkingNotificationsPermissionNotGranted =>
+      'Notifications are not allowed. Enable site notifications in your browser settings, then retry.';
+
+  @override
+  String get parkingNotificationsPending =>
+      'The push subscription is still being updated. Retry in a moment.';
 
   @override
   String get parkingNotificationsEnabled =>
-      'Unpaid parking reminders are enabled on this device.';
+      'Push notifications are enabled for this account on this device.';
 
   @override
   String get parkingNotificationsDisabled =>
-      'Reminders are not registered on this device. Enable this switch; browser permission alone does not subscribe the device.';
+      'Push notifications are disabled on this device.';
 
   @override
   String get parkingNotificationsEnabledMessage => 'Parking reminders enabled.';
@@ -1289,51 +1295,47 @@ class AppLocalizationsEn extends AppLocalizations {
       'Parking reminders disabled.';
 
   @override
-  String get parkingNotificationsEndpointInUse =>
-      'This browser subscription is linked to another account. Remove it from that account before enabling reminders here.';
-
-  @override
-  String get parkingNotificationsLimitReached =>
-      'This account already has reminders enabled on 10 devices.';
-
-  @override
-  String get parkingNotificationsPermissionRevoked =>
-      'Your account or notification permission changed. Sign in again or check browser settings.';
+  String get parkingNotificationsNotSignedIn =>
+      'Sign in again before enabling or disabling push notifications.';
 
   @override
   String get parkingNotificationsRequestFailed =>
-      'Notification settings could not be updated. Check your connection and try again.';
+      'Push notification settings could not be updated. Check your connection and retry.';
 
   @override
-  String get parkingNotificationsPaymentConfirmTitle =>
-      'Mark parking as fully paid?';
+  String get parkingNotificationsCenterTitle => 'Parking notifications';
 
   @override
-  String get parkingNotificationsPaymentConfirmMessage =>
-      'Mark the outstanding balance for this parking session as fully paid?';
+  String get parkingNotificationsEmptyTitle => 'No unpaid parking reminders';
 
   @override
-  String get parkingNotificationsPaymentConfirmAction => 'Mark Full Paid';
+  String get parkingNotificationsEmptyMessage =>
+      'Expired parking sessions with an outstanding balance will appear here.';
 
   @override
-  String get parkingNotificationsPaymentMarked =>
-      'Parking session marked fully paid.';
+  String get parkingNotificationsLoadFailed =>
+      'Parking notifications could not be loaded. Check your connection and retry.';
 
   @override
-  String get parkingNotificationsPaymentAlreadyPaid =>
-      'This parking session is already fully paid.';
+  String get parkingNotificationsInvalidData =>
+      'Parking notification data is invalid. Contact the system administrator.';
 
   @override
-  String get parkingNotificationsPaymentFailed =>
-      'The parking session could not be marked fully paid. Check your permissions and try again.';
+  String get parkingNotificationsMarkReadFailed =>
+      'The notification could not be marked as read.';
+
+  @override
+  String get parkingNotificationsOpenAction => 'Open';
+
+  @override
+  String get parkingNotificationExpiredTitle => 'Parking Expired';
+
+  @override
+  String get parkingNotificationExpiredBody => 'Full-Amount Not Paid';
 
   @override
   String get parkingNotificationsSessionUnavailable =>
       'That parking session is no longer available in this tenant.';
-
-  @override
-  String get parkingNotificationsNoEditPermission =>
-      'You no longer have permission to mark this parking session as paid.';
 
   @override
   String get parkingNotificationsLaunchInvalid =>

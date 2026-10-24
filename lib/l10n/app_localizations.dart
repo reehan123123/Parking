@@ -2279,49 +2279,61 @@ abstract class AppLocalizations {
   /// No description provided for @settingsParkingNotificationsDescription.
   ///
   /// In en, this message translates to:
-  /// **'Allow site notifications and enable the switch below on each device. Get a reminder at 90% of the parking duration. After expiry, reminders repeat every five minutes until fully paid. Tapping a reminder opens the parking record.'**
+  /// **'Allow notifications on this device. Expired parking sessions with an outstanding balance send a reminder every five minutes. Tapping a reminder opens the parking record after sign-in and access checks.'**
   String get settingsParkingNotificationsDescription;
 
-  /// No description provided for @parkingNotificationsToggleLabel.
+  /// No description provided for @parkingNotificationsEnableAction.
   ///
   /// In en, this message translates to:
-  /// **'Enable unpaid parking reminders'**
-  String get parkingNotificationsToggleLabel;
+  /// **'Enable'**
+  String get parkingNotificationsEnableAction;
+
+  /// No description provided for @parkingNotificationsDisableAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Disable'**
+  String get parkingNotificationsDisableAction;
 
   /// No description provided for @parkingNotificationsStatusLoading.
   ///
   /// In en, this message translates to:
-  /// **'Checking browser notification settings…'**
+  /// **'Checking push notification settings…'**
   String get parkingNotificationsStatusLoading;
 
   /// No description provided for @parkingNotificationsSetupRequired.
   ///
   /// In en, this message translates to:
-  /// **'Push notifications are not configured for this deployment yet.'**
+  /// **'OneSignal is not configured for this deployment.'**
   String get parkingNotificationsSetupRequired;
 
   /// No description provided for @parkingNotificationsUnsupported.
   ///
   /// In en, this message translates to:
-  /// **'This browser does not support Web Push notifications.'**
+  /// **'This browser or platform does not support push notifications.'**
   String get parkingNotificationsUnsupported;
 
-  /// No description provided for @parkingNotificationsPermissionBlocked.
+  /// No description provided for @parkingNotificationsPermissionNotGranted.
   ///
   /// In en, this message translates to:
-  /// **'Notifications are blocked in browser settings. Allow notifications for this site to enable reminders.'**
-  String get parkingNotificationsPermissionBlocked;
+  /// **'Notifications are not allowed. Enable site notifications in your browser settings, then retry.'**
+  String get parkingNotificationsPermissionNotGranted;
+
+  /// No description provided for @parkingNotificationsPending.
+  ///
+  /// In en, this message translates to:
+  /// **'The push subscription is still being updated. Retry in a moment.'**
+  String get parkingNotificationsPending;
 
   /// No description provided for @parkingNotificationsEnabled.
   ///
   /// In en, this message translates to:
-  /// **'Unpaid parking reminders are enabled on this device.'**
+  /// **'Push notifications are enabled for this account on this device.'**
   String get parkingNotificationsEnabled;
 
   /// No description provided for @parkingNotificationsDisabled.
   ///
   /// In en, this message translates to:
-  /// **'Reminders are not registered on this device. Enable this switch; browser permission alone does not subscribe the device.'**
+  /// **'Push notifications are disabled on this device.'**
   String get parkingNotificationsDisabled;
 
   /// No description provided for @parkingNotificationsEnabledMessage.
@@ -2336,77 +2348,77 @@ abstract class AppLocalizations {
   /// **'Parking reminders disabled.'**
   String get parkingNotificationsDisabledMessage;
 
-  /// No description provided for @parkingNotificationsEndpointInUse.
+  /// No description provided for @parkingNotificationsNotSignedIn.
   ///
   /// In en, this message translates to:
-  /// **'This browser subscription is linked to another account. Remove it from that account before enabling reminders here.'**
-  String get parkingNotificationsEndpointInUse;
-
-  /// No description provided for @parkingNotificationsLimitReached.
-  ///
-  /// In en, this message translates to:
-  /// **'This account already has reminders enabled on 10 devices.'**
-  String get parkingNotificationsLimitReached;
-
-  /// No description provided for @parkingNotificationsPermissionRevoked.
-  ///
-  /// In en, this message translates to:
-  /// **'Your account or notification permission changed. Sign in again or check browser settings.'**
-  String get parkingNotificationsPermissionRevoked;
+  /// **'Sign in again before enabling or disabling push notifications.'**
+  String get parkingNotificationsNotSignedIn;
 
   /// No description provided for @parkingNotificationsRequestFailed.
   ///
   /// In en, this message translates to:
-  /// **'Notification settings could not be updated. Check your connection and try again.'**
+  /// **'Push notification settings could not be updated. Check your connection and retry.'**
   String get parkingNotificationsRequestFailed;
 
-  /// No description provided for @parkingNotificationsPaymentConfirmTitle.
+  /// No description provided for @parkingNotificationsCenterTitle.
   ///
   /// In en, this message translates to:
-  /// **'Mark parking as fully paid?'**
-  String get parkingNotificationsPaymentConfirmTitle;
+  /// **'Parking notifications'**
+  String get parkingNotificationsCenterTitle;
 
-  /// No description provided for @parkingNotificationsPaymentConfirmMessage.
+  /// No description provided for @parkingNotificationsEmptyTitle.
   ///
   /// In en, this message translates to:
-  /// **'Mark the outstanding balance for this parking session as fully paid?'**
-  String get parkingNotificationsPaymentConfirmMessage;
+  /// **'No unpaid parking reminders'**
+  String get parkingNotificationsEmptyTitle;
 
-  /// No description provided for @parkingNotificationsPaymentConfirmAction.
+  /// No description provided for @parkingNotificationsEmptyMessage.
   ///
   /// In en, this message translates to:
-  /// **'Mark Full Paid'**
-  String get parkingNotificationsPaymentConfirmAction;
+  /// **'Expired parking sessions with an outstanding balance will appear here.'**
+  String get parkingNotificationsEmptyMessage;
 
-  /// No description provided for @parkingNotificationsPaymentMarked.
+  /// No description provided for @parkingNotificationsLoadFailed.
   ///
   /// In en, this message translates to:
-  /// **'Parking session marked fully paid.'**
-  String get parkingNotificationsPaymentMarked;
+  /// **'Parking notifications could not be loaded. Check your connection and retry.'**
+  String get parkingNotificationsLoadFailed;
 
-  /// No description provided for @parkingNotificationsPaymentAlreadyPaid.
+  /// No description provided for @parkingNotificationsInvalidData.
   ///
   /// In en, this message translates to:
-  /// **'This parking session is already fully paid.'**
-  String get parkingNotificationsPaymentAlreadyPaid;
+  /// **'Parking notification data is invalid. Contact the system administrator.'**
+  String get parkingNotificationsInvalidData;
 
-  /// No description provided for @parkingNotificationsPaymentFailed.
+  /// No description provided for @parkingNotificationsMarkReadFailed.
   ///
   /// In en, this message translates to:
-  /// **'The parking session could not be marked fully paid. Check your permissions and try again.'**
-  String get parkingNotificationsPaymentFailed;
+  /// **'The notification could not be marked as read.'**
+  String get parkingNotificationsMarkReadFailed;
+
+  /// No description provided for @parkingNotificationsOpenAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get parkingNotificationsOpenAction;
+
+  /// No description provided for @parkingNotificationExpiredTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Parking Expired'**
+  String get parkingNotificationExpiredTitle;
+
+  /// No description provided for @parkingNotificationExpiredBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Full-Amount Not Paid'**
+  String get parkingNotificationExpiredBody;
 
   /// No description provided for @parkingNotificationsSessionUnavailable.
   ///
   /// In en, this message translates to:
   /// **'That parking session is no longer available in this tenant.'**
   String get parkingNotificationsSessionUnavailable;
-
-  /// No description provided for @parkingNotificationsNoEditPermission.
-  ///
-  /// In en, this message translates to:
-  /// **'You no longer have permission to mark this parking session as paid.'**
-  String get parkingNotificationsNoEditPermission;
 
   /// No description provided for @parkingNotificationsLaunchInvalid.
   ///

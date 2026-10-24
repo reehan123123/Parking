@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parking_management/app.dart';
+import 'package:parking_management/features/auth/presentation/auth_gate.dart';
 import 'package:parking_management/features/parking/data/parking_session_repository.dart';
 import 'package:parking_management/features/parking/domain/parking_duration.dart';
 import 'package:parking_management/features/parking/domain/parking_duration_unit.dart';
@@ -9,15 +10,17 @@ import 'package:parking_management/features/parking/presentation/parking_session
 import 'package:parking_management/features/tenants/domain/parking_tenant.dart';
 import 'package:parking_management/l10n/app_localizations.dart';
 
+import 'features/auth/fake_auth_repository.dart';
 import 'features/parking/presentation/parking_test_repository.dart';
 import 'features/tenants/test_tenant_repository.dart';
 import 'support/localization_test_support.dart';
 
 const String _tenantId = '11111111-1111-4111-8111-111111111111';
+const String _otherTenantId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const String _sessionId = '22222222-2222-4222-8222-222222222222';
 
 void main() {
-  testWidgets('notification body click opens the parking session', (
+  testWidgets('notification click opens the exact authorized parking record', (
     WidgetTester tester,
   ) async {
     final TestParkingSessionRepository parkingRepository =
@@ -27,116 +30,105 @@ void main() {
 
     await tester.pumpWidget(
       _buildNotificationApp(
-        tenant: _ownerTenant(),
+        access: _access(),
         parkingRepository: parkingRepository,
-        action: 'open',
+        launchUri: _launchUri(),
       ),
     );
     await tester.pumpAndSettle();
 
     expect(find.byType(ParkingSessionDetailsPage), findsOneWidget);
-    expect(find.text('Mark parking as fully paid?'), findsNothing);
-    expect(parkingRepository.markFullyPaidCalls, 0);
+    expect(parkingRepository.lastDetailSessionId, _sessionId);
   });
 
-  testWidgets('notification payment action requires in-app confirmation', (
+  testWidgets('unauthenticated notification destination survives sign-in', (
+    WidgetTester tester,
+  ) async {
+    final FakeAuthRepository authRepository = FakeAuthRepository();
+    addTearDown(authRepository.dispose);
+    final TestParkingSessionRepository parkingRepository =
+        TestParkingSessionRepository(
+          detailResult: ParkingSessionDetailSuccess(session: _session()),
+        );
+
+    await tester.pumpWidget(
+      _buildAuthNotificationApp(
+        authRepository: authRepository,
+        access: _access(),
+        parkingRepository: parkingRepository,
+        launchUri: _launchUri(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ParkingSessionDetailsPage), findsNothing);
+    expect(parkingRepository.detailCalls, 0);
+
+    authRepository.emitSignedIn(true);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ParkingSessionDetailsPage), findsOneWidget);
+    expect(parkingRepository.lastDetailSessionId, _sessionId);
+  });
+
+  testWidgets('a notification cannot open a session from another tenant', (
     WidgetTester tester,
   ) async {
     final TestParkingSessionRepository parkingRepository =
         TestParkingSessionRepository(
-          detailResult: ParkingSessionDetailSuccess(session: _session()),
-          paymentResult: const ParkingSessionPaymentSuccess(
-            wasMarkedPaid: true,
+          detailResult: ParkingSessionDetailSuccess(
+            session: _session(tenantId: _otherTenantId),
           ),
         );
 
     await tester.pumpWidget(
       _buildNotificationApp(
-        tenant: _ownerTenant(),
+        access: _access(),
         parkingRepository: parkingRepository,
+        launchUri: _launchUri(),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Mark parking as fully paid?'), findsOneWidget);
-    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-    await tester.pumpAndSettle();
-
-    expect(parkingRepository.markFullyPaidCalls, 0);
-    expect(find.byType(ParkingSessionDetailsPage), findsOneWidget);
-  });
-
-  testWidgets('confirmed notification payment uses the authorized repository', (
-    WidgetTester tester,
-  ) async {
-    final TestParkingSessionRepository parkingRepository =
-        TestParkingSessionRepository(
-          detailResult: ParkingSessionDetailSuccess(session: _session()),
-          paymentResult: const ParkingSessionPaymentSuccess(
-            wasMarkedPaid: true,
-          ),
-        );
-
-    await tester.pumpWidget(
-      _buildNotificationApp(
-        tenant: _ownerTenant(),
-        parkingRepository: parkingRepository,
-      ),
+    expect(find.byType(ParkingSessionDetailsPage), findsNothing);
+    expect(
+      find.text('That parking session is no longer available in this tenant.'),
+      findsOneWidget,
     );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(FilledButton, 'Mark Full Paid'));
-    await tester.pumpAndSettle();
-
-    expect(parkingRepository.markFullyPaidCalls, 1);
-    expect(parkingRepository.lastPaymentSessionId, _sessionId);
-    expect(find.byType(ParkingSessionDetailsPage), findsOneWidget);
   });
 
-  testWidgets('view-only members cannot use a forged Full Paid launch', (
+  testWidgets('a malformed notification link is rejected before lookup', (
     WidgetTester tester,
   ) async {
     final TestParkingSessionRepository parkingRepository =
-        TestParkingSessionRepository(
-          detailResult: ParkingSessionDetailSuccess(session: _session()),
-        );
-    const ParkingTenant tenant = ParkingTenant(
-      id: _tenantId,
-      name: 'North lot',
-      slug: 'north-lot',
-      role: ParkingTenantRole.member,
-      entryPermissions: TenantEntryPermissions.viewOnly(),
+        TestParkingSessionRepository();
+    final Uri malformedUri = Uri.parse(
+      'https://parking.example/?parkingSessionId=$_sessionId'
+      '&parkingSessionId=$_sessionId',
     );
 
     await tester.pumpWidget(
       _buildNotificationApp(
-        tenant: tenant,
+        access: _access(),
         parkingRepository: parkingRepository,
+        launchUri: malformedUri,
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Mark parking as fully paid?'), findsNothing);
-    expect(parkingRepository.markFullyPaidCalls, 0);
-    expect(find.byType(ParkingSessionDetailsPage), findsOneWidget);
+    expect(parkingRepository.detailCalls, 0);
+    expect(
+      find.text('The parking notification link is invalid or expired.'),
+      findsOneWidget,
+    );
   });
 }
 
 Widget _buildNotificationApp({
-  required ParkingTenant tenant,
+  required ParkingTenantAccess access,
   required TestParkingSessionRepository parkingRepository,
-  String action = 'full-paid',
+  required Uri launchUri,
 }) {
-  final ParkingTenantAccess access = ParkingTenantAccess(
-    isSuperAdmin: false,
-    tenants: [tenant],
-  );
-  final Uri launchUri = Uri.https('parking.example', '/', {
-    'parkingSessionId': _sessionId,
-    'parkingTenantId': _tenantId,
-    'parkingAction': action,
-  });
-
   return MaterialApp(
     locale: const Locale('en'),
     localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -151,6 +143,38 @@ Widget _buildNotificationApp({
   );
 }
 
+Widget _buildAuthNotificationApp({
+  required FakeAuthRepository authRepository,
+  required ParkingTenantAccess access,
+  required TestParkingSessionRepository parkingRepository,
+  required Uri launchUri,
+}) {
+  return MaterialApp(
+    locale: const Locale('en'),
+    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    supportedLocales: AppLocalizations.supportedLocales,
+    builder: testLocalizationBuilder,
+    home: AuthGate(
+      authRepository: authRepository,
+      authenticatedBuilder: (context, onSignOut) => AppShell(
+        onSignOut: onSignOut,
+        initialTenantAccess: access,
+        tenantRepository: TestTenantRepository(access: access),
+        parkingSessionRepository: parkingRepository,
+        notificationLaunchUri: launchUri,
+      ),
+    ),
+  );
+}
+
+ParkingTenantAccess _access() {
+  return ParkingTenantAccess(isSuperAdmin: false, tenants: [_ownerTenant()]);
+}
+
+Uri _launchUri() {
+  return Uri.https('parking.example', '/', {'parkingSessionId': _sessionId});
+}
+
 ParkingTenant _ownerTenant() {
   return const ParkingTenant(
     id: _tenantId,
@@ -160,10 +184,10 @@ ParkingTenant _ownerTenant() {
   );
 }
 
-ParkingSession _session() {
+ParkingSession _session({String tenantId = _tenantId}) {
   return ParkingSession(
     id: _sessionId,
-    tenantId: _tenantId,
+    tenantId: tenantId,
     plateNumber: 'AB 123',
     entryTime: DateTime(2026, 10, 25, 10),
     allowedDuration: const ParkingDuration(

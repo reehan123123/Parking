@@ -1,28 +1,38 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-// @deno-types="npm:@types/web-push@3.6.4"
-import webPush from "web-push";
 
 import { defaultApiKey } from "../_shared/tenant_onboarding.ts";
 import {
-  buildParkingNotificationPayload,
-  type ParkingNotificationType,
-} from "./payload.ts";
+  sendParkingNotification,
+  type OneSignalSendResult,
+} from "./onesignal_sender.ts";
 
-interface NotificationDelivery {
-  delivery_id: string;
-  subscription_id: string;
+interface ClaimedNotificationEvent {
+  event_id: string;
   session_id: string;
   tenant_id: string;
-  notification_type: ParkingNotificationType;
-  endpoint: string;
-  p256dh_key: string;
-  auth_key: string;
-  locale: string;
-  remaining_balance: number | string;
+  claim_token: string;
+  idempotency_key: string;
+  attempt_count: number;
+}
+
+interface NotificationDispatchTarget {
+  event_id: string;
+  session_id: string;
+  tenant_id: string;
+  idempotency_key: string;
+  recipient_external_ids: string[];
+}
+
+interface DispatchConfiguration {
+  appId: string;
+  apiKey: string;
+  projectUrl: string;
+  serviceRoleKey: string;
 }
 
 const requestHeader = "x-parking-notification-secret";
-const maximumConcurrentDeliveries = 10;
+const maximumConcurrentEvents = 20;
+const applicationOrigin = "https://parking-85u.pages.dev";
 
 Deno.serve(async (request: Request): Promise<Response> => {
   if (request.method !== "POST") {
@@ -40,34 +50,21 @@ Deno.serve(async (request: Request): Promise<Response> => {
   }
 
   try {
-    const projectUrl = requiredEnvironmentValue("SUPABASE_URL");
-    const serviceRoleKey = defaultApiKey(
-      "SUPABASE_SECRET_KEYS",
-      "SUPABASE_SERVICE_ROLE_KEY",
-    );
-    const vapidPublicKey = requiredEnvironmentValue(
-      "PARKING_VAPID_PUBLIC_KEY",
-    );
-    const vapidPrivateKey = requiredEnvironmentValue(
-      "PARKING_VAPID_PRIVATE_KEY",
-    );
-    const vapidSubject = requiredEnvironmentValue("PARKING_VAPID_SUBJECT");
+    const configuration = loadConfiguration();
 
-    webPush.setVapidDetails(
-      vapidSubject,
-      vapidPublicKey,
-      vapidPrivateKey,
-    );
-
-    const admin = createClient(projectUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-        persistSession: false,
+    const admin = createClient(
+      configuration.projectUrl,
+      configuration.serviceRoleKey,
+      {
+        auth: {
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+          persistSession: false,
+        },
       },
-    });
+    );
     const { data, error } = await admin.rpc(
-      "claim_due_parking_notification_deliveries",
+      "claim_due_parking_notification_events",
     );
     if (error !== null) {
       console.error(
@@ -81,30 +78,30 @@ Deno.serve(async (request: Request): Promise<Response> => {
       return jsonResponse({ code: "notification_claim_failed" }, 503);
     }
 
-    const deliveries = data as NotificationDelivery[];
-    let delivered = 0;
+    const events = data as ClaimedNotificationEvent[];
+    let sent = 0;
     let failed = 0;
-    let removedSubscriptions = 0;
+    let skipped = 0;
 
     for (
       let offset = 0;
-      offset < deliveries.length;
-      offset += maximumConcurrentDeliveries
+      offset < events.length;
+      offset += maximumConcurrentEvents
     ) {
-      const batch = deliveries.slice(
+      const batch = events.slice(
         offset,
-        offset + maximumConcurrentDeliveries,
+        offset + maximumConcurrentEvents,
       );
       const results = await Promise.allSettled(
-        batch.map((delivery) => dispatchDelivery(admin, delivery)),
+        batch.map((event) => dispatchEvent(admin, configuration, event)),
       );
       for (const result of results) {
         if (result.status === "rejected") {
           failed++;
-        } else if (result.value === "delivered") {
-          delivered++;
-        } else if (result.value === "removed") {
-          removedSubscriptions++;
+        } else if (result.value === "sent") {
+          sent++;
+        } else if (result.value === "skipped") {
+          skipped++;
         } else {
           failed++;
         }
@@ -112,10 +109,10 @@ Deno.serve(async (request: Request): Promise<Response> => {
     }
 
     return jsonResponse({
-      claimed: deliveries.length,
-      delivered,
+      claimed: events.length,
+      sent,
       failed,
-      removedSubscriptions,
+      skipped,
     });
   } catch (error) {
     console.error(
@@ -126,106 +123,121 @@ Deno.serve(async (request: Request): Promise<Response> => {
   }
 });
 
-async function dispatchDelivery(
+async function dispatchEvent(
   admin: SupabaseClient,
-  delivery: NotificationDelivery,
-): Promise<"delivered" | "failed" | "removed"> {
-  const remainingBalance = Number(delivery.remaining_balance);
+  configuration: DispatchConfiguration,
+  event: ClaimedNotificationEvent,
+): Promise<"sent" | "failed" | "skipped"> {
   if (
-    !Number.isFinite(remainingBalance) ||
-    remainingBalance <= 0 ||
-    !isUuid(delivery.session_id) ||
-    !isUuid(delivery.tenant_id) ||
-    !isAllowedPushEndpoint(delivery.endpoint)
+    !isUuid(event.event_id) ||
+    !isUuid(event.session_id) ||
+    !isUuid(event.tenant_id) ||
+    !isUuid(event.claim_token) ||
+    !isUuid(event.idempotency_key)
   ) {
-    await updateDeliveryStatus(
+    await completeDispatch(
       admin,
-      delivery.delivery_id,
-      "failed",
-      "invalid_notification_data",
-    );
-    return "failed";
-  }
-
-  const payload = buildParkingNotificationPayload({
-    notificationType: delivery.notification_type,
-    sessionId: delivery.session_id,
-    tenantId: delivery.tenant_id,
-    remainingBalance,
-    locale: delivery.locale,
-  });
-
-  try {
-    await webPush.sendNotification(
+      event,
       {
-        endpoint: delivery.endpoint,
-        keys: {
-          p256dh: delivery.p256dh_key,
-          auth: delivery.auth_key,
-        },
+        delivered: false,
+        httpStatus: null,
+        messageId: null,
+        errorCode: "delivery_failed",
+        retryAfter: null,
       },
-      JSON.stringify(payload),
-      { TTL: 120, urgency: "normal" },
-    );
-  } catch (error) {
-    const statusCode = readStatusCode(error);
-    if (statusCode === 404 || statusCode === 410) {
-      const { error: deleteError } = await admin
-        .from("parking_push_subscriptions")
-        .delete()
-        .eq("id", delivery.subscription_id);
-      if (deleteError !== null) {
-        throw new Error("push_subscription_cleanup_failed");
-      }
-      return "removed";
-    }
-
-    await updateDeliveryStatus(
-      admin,
-      delivery.delivery_id,
-      "failed",
-      statusCode === null ? "push_delivery_failed" : `push_http_${statusCode}`,
     );
     return "failed";
   }
 
-  await updateDeliveryStatus(
-    admin,
-    delivery.delivery_id,
-    "sent",
-    null,
+  const { data, error } = await admin.rpc(
+    "get_parking_notification_dispatch_target",
+    {
+      p_event_id: event.event_id,
+      p_claim_token: event.claim_token,
+    },
   );
-  return "delivered";
-}
-
-async function updateDeliveryStatus(
-  admin: SupabaseClient,
-  deliveryId: string,
-  status: "sent" | "failed",
-  errorCode: string | null,
-): Promise<void> {
-  const { error } = await admin
-    .from("parking_notification_deliveries")
-    .update({
-      status,
-      error_code: errorCode,
-      delivered_at: status === "sent" ? new Date().toISOString() : null,
-    })
-    .eq("id", deliveryId)
-    .eq("status", "sending");
-
   if (error !== null) {
-    throw new Error("notification_delivery_status_update_failed");
+    console.error(
+      "Parking notification target lookup failed",
+      error.code ?? "database_error",
+    );
+    return "failed";
   }
+
+  if (!Array.isArray(data) || data.length === 0) {
+    return "skipped";
+  }
+  const target = data[0] as NotificationDispatchTarget;
+  if (
+    target.event_id !== event.event_id ||
+    target.session_id !== event.session_id ||
+    target.tenant_id !== event.tenant_id ||
+    target.idempotency_key !== event.idempotency_key ||
+    !Array.isArray(target.recipient_external_ids) ||
+    target.recipient_external_ids.length === 0 ||
+    target.recipient_external_ids.length > 20_000 ||
+    target.recipient_external_ids.some((userId) => !isUuid(userId))
+  ) {
+    await completeDispatch(
+      admin,
+      event,
+      {
+        delivered: false,
+        httpStatus: null,
+        messageId: null,
+        errorCode: "recipient_limit",
+        retryAfter: null,
+      },
+    );
+    return "failed";
+  }
+
+  const result: OneSignalSendResult = await sendParkingNotification(
+    {
+      appId: configuration.appId,
+      apiKey: configuration.apiKey,
+      recipientExternalIds: target.recipient_external_ids,
+      sessionId: target.session_id,
+      idempotencyKey: target.idempotency_key,
+      applicationOrigin,
+    },
+    {
+      fetcher: fetch,
+      now: Date.now,
+      wait: delay,
+    },
+  );
+
+  await completeDispatch(admin, event, {
+    delivered: result.delivered,
+    httpStatus: result.httpStatus,
+    messageId: result.messageId,
+    errorCode: result.errorCode,
+    retryAfter: result.retryAfter,
+  });
+  return result.delivered ? "sent" : "failed";
 }
 
-function readStatusCode(error: unknown): number | null {
-  if (typeof error !== "object" || error === null || !("statusCode" in error)) {
-    return null;
+async function completeDispatch(
+  admin: SupabaseClient,
+  event: ClaimedNotificationEvent,
+  result: OneSignalSendResult,
+): Promise<void> {
+  const { data, error } = await admin.rpc(
+    "complete_parking_notification_dispatch",
+    {
+      p_event_id: event.event_id,
+      p_claim_token: event.claim_token,
+      p_delivered: result.delivered,
+      p_http_status: result.httpStatus,
+      p_message_id: result.messageId,
+      p_error_code: result.errorCode,
+      p_retry_after: result.retryAfter,
+    },
+  );
+  if (error !== null || data !== true) {
+    throw new Error("notification_dispatch_result_update_failed");
   }
-
-  const statusCode = Number(error.statusCode);
-  return Number.isInteger(statusCode) ? statusCode : null;
 }
 
 function isUuid(value: string): boolean {
@@ -233,23 +245,20 @@ function isUuid(value: string): boolean {
     .test(value);
 }
 
-function isAllowedPushEndpoint(endpoint: string): boolean {
-  try {
-    const url = new URL(endpoint);
-    const host = url.hostname.toLowerCase();
-    return url.protocol === "https:" &&
-      url.port === "" &&
-      url.username === "" &&
-      url.password === "" &&
-      (
-        host === "fcm.googleapis.com" ||
-        host === "updates.push.services.mozilla.com" ||
-        host === "web.push.apple.com" ||
-        host.endsWith(".notify.windows.com")
-      );
-  } catch {
-    return false;
+function loadConfiguration(): DispatchConfiguration {
+  const projectUrl = requiredEnvironmentValue("SUPABASE_URL");
+  const serviceRoleKey = defaultApiKey(
+    "SUPABASE_SECRET_KEYS",
+    "SUPABASE_SERVICE_ROLE_KEY",
+  );
+  const appId = requiredEnvironmentValue("ONE_SIGNAL_APP_ID");
+  const apiKey = requiredEnvironmentValue("ONE_SIGNAL_API_KEY");
+
+  if (!isUuid(appId)) {
+    throw new Error("server_configuration_error");
   }
+
+  return { appId, apiKey, projectUrl, serviceRoleKey };
 }
 
 function requiredEnvironmentValue(name: string): string {
@@ -258,6 +267,10 @@ function requiredEnvironmentValue(name: string): string {
     throw new Error("server_configuration_error");
   }
   return value;
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function secretsMatch(supplied: string | null, expected: string): boolean {

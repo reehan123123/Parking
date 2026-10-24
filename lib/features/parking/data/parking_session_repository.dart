@@ -34,11 +34,6 @@ abstract interface class ParkingSessionRepository {
 
   Future<ParkingSessionDeleteResult> delete({required ParkingSession session});
 
-  /// Marks the remaining parking charge as paid through the authorized store.
-  Future<ParkingSessionPaymentResult> markFullyPaid({
-    required String sessionId,
-  });
-
   Future<ParkingSessionCleanupResult> retryCleanup({
     required String sessionId,
     required String photoPath,
@@ -79,8 +74,6 @@ abstract interface class ParkingSessionStore {
   });
 
   Future<void> delete({required String sessionId});
-
-  Future<bool> markFullyPaid({required String sessionId});
 }
 
 abstract interface class VehiclePhotoStorage {
@@ -240,22 +233,6 @@ final class ParkingSessionDeleteFailure extends ParkingSessionDeleteResult {
 
   final String message;
   final String sessionId;
-}
-
-sealed class ParkingSessionPaymentResult {
-  const ParkingSessionPaymentResult();
-}
-
-final class ParkingSessionPaymentSuccess extends ParkingSessionPaymentResult {
-  const ParkingSessionPaymentSuccess({required this.wasMarkedPaid});
-
-  final bool wasMarkedPaid;
-}
-
-final class ParkingSessionPaymentFailure extends ParkingSessionPaymentResult {
-  const ParkingSessionPaymentFailure({required this.message});
-
-  final String message;
 }
 
 sealed class ParkingSessionCleanupResult {

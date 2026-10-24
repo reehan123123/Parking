@@ -33,9 +33,9 @@ release.
 - GitHub Actions installs Flutter `3.47.7`, runs the quality gates, builds the
   release, verifies the output, and uploads it with Wrangler.
 - The browser receives public compile-time configuration: `SUPABASE_URL`,
-  `SUPABASE_PUBLISHABLE_KEY`, and the optional public
-  `PARKING_PUSH_VAPID_PUBLIC_KEY`. Flutter embeds these values in the public
-  browser bundle.
+  `SUPABASE_PUBLISHABLE_KEY`, and `ONE_SIGNAL_APP_ID`. Flutter embeds these
+  values in the public browser bundle. The OneSignal REST API key is never a
+  client build value.
 - The local PostgreSQL API described in
   [Local PostgreSQL development](local-development.md) is an opt-in,
   loopback-only development aid. The production workflow does not set
@@ -61,9 +61,15 @@ before running the workflow:
 | --- | --- |
 | `SUPABASE_URL` | Secret: existing Supabase project URL |
 | `SUPABASE_PUBLISHABLE_KEY` | Secret: existing project publishable/anon key for browser use |
-| `PARKING_PUSH_VAPID_PUBLIC_KEY` | Variable: public VAPID key; optional until push is configured |
+| `ONE_SIGNAL_APP_ID` | Variable: public OneSignal App ID used by the Web SDK and Edge Function |
 | `CLOUDFLARE_ACCOUNT_ID` | Secret: Cloudflare account containing the Pages project |
 | `CLOUDFLARE_API_TOKEN` | Secret: scoped Cloudflare API token with Pages Edit permission |
+
+`ONE_SIGNAL_APP_ID` is public configuration and belongs in a GitHub
+environment variable. The workflow also accepts a same-named environment
+secret for compatibility, but a variable is preferred. Keep
+`ONE_SIGNAL_API_KEY` only in Supabase Edge Function secrets; never add it to
+GitHub, Flutter `--dart-define`, browser code, or release assets.
 
 Require an environment reviewer if the repository's protection settings
 support it. The account ID is configuration rather than a credential, but it
@@ -85,10 +91,10 @@ Production hostname: https://parking-85u.pages.dev/
 Wrangler: 4.151.0
 ```
 
-The build validates formatting, analysis, Flutter tests, the parking
-notification Edge Function's Deno types and payload tests, every required
-non-empty Flutter/PWA release asset, and a credential-shaped-value scan before
-invoking Wrangler. The generated Supabase
+The build validates formatting, analysis, Flutter tests, the OneSignal browser
+bridge and worker, the parking notification Edge Function's Deno types and
+sender tests, every required non-empty Flutter/PWA release asset, and a
+credential-shaped-value scan before invoking Wrangler. The generated Supabase
 values are intentionally public client configuration; the workflow still keeps
 them in protected GitHub environment secrets to avoid accidental logging and
 to make environment changes controlled. The workflow records Wrangler's
@@ -104,7 +110,8 @@ deployment URL and Pages alias URL in the GitHub Actions summary.
 4. Copy the Cloudflare account ID into
    `CLOUDFLARE_ACCOUNT_ID`. Do not put either value in the repository.
 5. Add the two Supabase public configuration values to the corresponding
-   GitHub `production` environment secrets.
+   GitHub `production` environment secrets and set `ONE_SIGNAL_APP_ID` as a
+   `production` environment variable.
 6. Review the workflow and trigger it from the GitHub Actions tab with
    `workflow_dispatch`, or push an approved change to `main`. The workflow
    deploys `build/web` with:
@@ -132,19 +139,29 @@ Before live testing:
    `supabase/migrations/20261018185121_tenant_administration.sql`, and all
    subsequent timestamped migrations. The parking-notification migrations
    `20261025120000_parking_push_notifications.sql` and
-   `20261025130000_fix_parking_notification_claim_ambiguity.sql` are applied
-   to the verified production project. Verify the migration history of the
-   intended project before deploying.
-2. Apply any pending migrations to the intended Supabase project through the
-   approved Supabase workflow. Do not reset the project or run an unreviewed
-   migration.
+   `20261025130000_fix_parking_notification_claim_ambiguity.sql` were
+   previously recorded as applied to the verified production project. The
+   repeat VAPID migration
+   `20261025140000_repeat_expired_unpaid_push_notifications.sql` and the
+   OneSignal replacement migration
+   `20261025150000_onesignal_parking_notifications.sql` are local source
+   changes and have not been applied or verified against the current remote
+   project. Recheck the target project and migration history before any
+   rollout.
+2. Review the entire pending migration sequence and dry-run it in a safe
+   environment. The OneSignal migration removes the old schedules and
+   client-facing VAPID registration path while retaining legacy subscription
+   and delivery rows. Do not reset the project or apply the production
+   migration without explicit approval.
 3. Deploy `create-tenant-owner`, `create-tenant-member`, and
    `complete-temporary-password-reset` with the Supabase CLI. Keep JWT
    verification enabled and do not disable it to resolve authentication
-   errors. Deploy `dispatch-parking-notifications` with JWT verification
-   disabled only after configuring its high-entropy cron secret and VAPID
-   server secrets; the function validates the cron secret itself. See
-   [opt-in parking Web Push](security.md#opt-in-parking-web-push).
+   errors. The replacement `dispatch-parking-notifications` function uses
+   OneSignal and has JWT verification disabled because it authenticates the
+   scheduled request with `PARKING_NOTIFICATION_CRON_SECRET`. Deploy it only
+   after the approved migration and server-side `ONE_SIGNAL_APP_ID`,
+   `ONE_SIGNAL_API_KEY`, and cron secret configuration are ready. See
+   [OneSignal parking reminders](security.md#onesignal-parking-reminders-and-in-app-notifications).
 4. Confirm `parking_sessions`, `tenants`, and `tenant_memberships` have RLS
    enabled and the `vehicle-photos` bucket is private.
 5. Create or verify the private Auth account for
@@ -246,7 +263,7 @@ From PowerShell, set the public values only in the current process:
 ```powershell
 $env:SUPABASE_URL = "https://your-project-ref.supabase.co"
 $env:SUPABASE_PUBLISHABLE_KEY = "sb_publishable_..."
-$env:PARKING_PUSH_VAPID_PUBLIC_KEY = "<public VAPID key, if configured>"
+$env:ONE_SIGNAL_APP_ID = "<public OneSignal App ID>"
 
 dart format .
 flutter analyze
@@ -254,13 +271,13 @@ flutter test
 flutter build web --release `
   --dart-define=SUPABASE_URL=$env:SUPABASE_URL `
   --dart-define=SUPABASE_PUBLISHABLE_KEY=$env:SUPABASE_PUBLISHABLE_KEY `
-  --dart-define=PARKING_PUSH_VAPID_PUBLIC_KEY=$env:PARKING_PUSH_VAPID_PUBLIC_KEY
+  --dart-define=ONE_SIGNAL_APP_ID=$env:ONE_SIGNAL_APP_ID
 git diff --check
 ```
 
 Inspect `build/web` for the manifest and icons, and verify the absence of
-service-role keys, secret keys, database passwords, access tokens, or local
-configuration files. Never commit `build/` or `.env`.
+service-role keys, the OneSignal REST API key, database passwords, access
+tokens, or local configuration files. Never commit `build/` or `.env`.
 
 ## Live verification checklist
 
@@ -283,6 +300,11 @@ Record each item as **Passed**, **Failed**, **Blocked**, **Not tested**, or
   where the device is available.
 - Two-account RLS and private Storage isolation are verified without sharing
   credentials.
+- OneSignal permission is requested only from Settings after an explicit
+  action; account switching, notification click-through, and tenant
+  authorization are verified with named test accounts.
+- Desktop and mobile background push are tested on each supported browser/OS
+  combination before being claimed as supported.
 - `curl -I` confirms HTTPS, expected MIME types, and no public-cache rule for
   private Supabase resources.
 
@@ -318,28 +340,24 @@ The app still requires internet access for Supabase operations, does not
 provide an offline photo queue, and cannot promise identical camera,
 or PWA installation behavior across browsers.
 
-## Latest Web Push deployment
+## Historical production VAPID deployment
 
-The production notification migrations, scheduler, dispatcher, required
-Edge Function secret names, and nonempty Vault entries are present. The
-claim-RPC correction is applied, scheduled dispatcher requests returned HTTP
-200, and a browser received an expiry notification. Commit `40887a0` is
-deployed: GitHub Actions run `39793450735` completed successfully, the
-dispatcher is active at version 2, and the production service-worker asset
-contains the persistent-expiry and navigation-fallback changes. Local Node and
-Flutter notification tests passed, as did the workflow's Deno Edge Function
-check. A signed-in production click-through for notification-body and Full
-Paid actions remains unverified because the saved Playwright test login was
-rejected. `requireInteraction` requests persistent display but remains subject
-to browser and operating-system behavior.
+The last recorded production notification rollout used the legacy Web
+Push/VAPID sender. The production notification migrations and initial
+dispatcher were previously reported as applied/deployed; scheduled requests
+returned HTTP 200 and a browser received an expiry notification. Commit
+`40887a0` was recorded as deployed by GitHub Actions run `39793450735`. A
+signed-in production click-through was not verified because the saved
+Playwright test login was rejected.
 
-The local follow-up adds a five-minute repeat for expired unpaid reminders,
-removes the Full Paid notification action, and routes clicks to the parking
-record. It also changes the English expiry text to “Parking Expired” /
-“Full-Amount Not Paid.” Production remains on the behavior described above
-until migration `20261025140000_repeat_expired_unpaid_push_notifications.sql`,
-the updated `dispatch-parking-notifications` function, and the web bundle are
-deployed.
+The current local OneSignal migration, Edge Function, web client, and in-app
+notification center have not been deployed. No production migration, secret,
+Cron schedule, notification, or static asset was changed during this work.
+Until a separately approved rollout, treat production as still using its
+previous VAPID implementation. Retain historical migrations, VAPID
+subscription/delivery rows, and hosted secrets; do not delete them
+automatically. The OneSignal App ID and API key are not available in this
+process, and OneSignal production configuration has not been verified.
 
 ## Previous handover status (2026-10-24)
 

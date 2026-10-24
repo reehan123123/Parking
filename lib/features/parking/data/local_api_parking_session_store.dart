@@ -116,29 +116,6 @@ class LocalApiParkingSessionStore implements ParkingSessionStore {
     );
   }
 
-  @override
-  Future<bool> markFullyPaid({required String sessionId}) async {
-    final Map<String, dynamic>? row = await find(sessionId: sessionId);
-    if (row == null) {
-      return false;
-    }
-
-    final Object? totalChargeValue = row['total_charge'];
-    final double? totalCharge = totalChargeValue is num
-        ? totalChargeValue.toDouble()
-        : double.tryParse(totalChargeValue?.toString() ?? '');
-    final Object? paidAmountValue = row['paid_amount'];
-    final double paidAmount = paidAmountValue is num
-        ? paidAmountValue.toDouble()
-        : double.tryParse(paidAmountValue?.toString() ?? '') ?? 0;
-    if (totalCharge == null || totalCharge <= 0 || paidAmount >= totalCharge) {
-      return false;
-    }
-
-    await update(sessionId: sessionId, values: {'paid_amount': totalCharge});
-    return true;
-  }
-
   List<Map<String, dynamic>> _rows(Object? value) {
     if (value is! List) {
       throw const FormatException(

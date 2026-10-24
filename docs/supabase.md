@@ -19,21 +19,27 @@ from hosted Supabase and does not apply its migrations.
 4. In **Authentication > Providers**, enable Email. Keep public sign-ups
    disabled for this private application.
 
-The Flutter app reads the two public values through compile-time defines:
+The Flutter app reads the public Supabase values and OneSignal App ID through
+compile-time defines:
 
 ```powershell
 $env:SUPABASE_URL = "https://your-project-ref.supabase.co"
 $env:SUPABASE_PUBLISHABLE_KEY = "sb_publishable_replace_me"
+$env:ONE_SIGNAL_APP_ID = "<public OneSignal App ID>"
 
 flutter run -d chrome `
   --dart-define=SUPABASE_URL=$env:SUPABASE_URL `
-  --dart-define=SUPABASE_PUBLISHABLE_KEY=$env:SUPABASE_PUBLISHABLE_KEY
+  --dart-define=SUPABASE_PUBLISHABLE_KEY=$env:SUPABASE_PUBLISHABLE_KEY `
+  --dart-define=ONE_SIGNAL_APP_ID=$env:ONE_SIGNAL_APP_ID
 ```
 
 PowerShell expands the values before Flutter embeds them. Do not record real
-values in shared logs or commit them. Production builds use the same two
-public values from GitHub settings; no Supabase secret/service-role key is
-needed by the build workflow.
+values in shared logs or commit them. The OneSignal App ID is public
+configuration; the OneSignal REST API key is not a Flutter build value.
+Production builds use the Supabase values from GitHub settings and
+`ONE_SIGNAL_APP_ID` from the protected GitHub environment. No Supabase
+secret/service-role key or OneSignal REST API key is needed by the build
+workflow.
 
 ## 2. Apply the migrations
 
@@ -53,6 +59,8 @@ supabase/migrations/20261024100000_tenant_member_limits_permissions.sql
 supabase/migrations/20261024110000_fix_device_session_email_return_types.sql
 supabase/migrations/20261025120000_parking_push_notifications.sql
 supabase/migrations/20261025130000_fix_parking_notification_claim_ambiguity.sql
+supabase/migrations/20261025140000_repeat_expired_unpaid_push_notifications.sql
+supabase/migrations/20261025150000_onesignal_parking_notifications.sql
 ```
 
 The first migration creates the initial `parking_sessions` table, private
@@ -93,26 +101,28 @@ migration:
 - The device-session follow-up migration casts Auth email values to `text` in
   three table-returning RPCs whose declared result types previously disagreed
   with `auth.users.email`.
-- The parking-notification migration adds private per-user Web Push
-  subscriptions, once-only 90%-duration and expiry event records for unpaid
-  parking sessions, an edit-authorized full-payment RPC, and a `pg_cron`
-  dispatcher using `pg_net` and Vault. Both it and the follow-up
-  `20261025130000_fix_parking_notification_claim_ambiguity.sql` are applied to
-  the verified production project. The follow-up uses named constraints and
-  qualified `RETURNING` columns. Migration history is in sync through that
-  fix; the claim RPC no longer errors, scheduled dispatcher requests returned
-  HTTP 200, and browser delivery has been observed. Commit `40887a0` is
-  deployed; GitHub Actions run `39793450735` succeeded, the dispatcher is
-  active at version 2, and the production service-worker asset contains the
-  persistence and navigation-fallback changes. A signed-in production
-  click-through remains unverified because the saved Playwright test login was
-  rejected.
-- The local follow-up
-  `20261025140000_repeat_expired_unpaid_push_notifications.sql` requeues
-  expired-notice deliveries every five minutes while a balance remains unpaid.
-  The accompanying payload and service-worker changes remove the Full Paid
-  notification action and route notification clicks to the record. These
-  changes have not been applied or deployed to production.
+- The historical parking-notification migrations
+  `20261025120000_parking_push_notifications.sql` and
+  `20261025130000_fix_parking_notification_claim_ambiguity.sql` implement the
+  prior Web Push/VAPID sender and its initial scheduler. A prior production
+  verification recorded both as applied through the verified project; the
+  migration history must be rechecked before any future rollout.
+- `20261025140000_repeat_expired_unpaid_push_notifications.sql` is the
+  historical VAPID repeat-reminder migration. It was previously documented
+  as source-only and not applied to production. It remains immutable; the
+  OneSignal migration that follows is designed to remove the old schedules
+  and server RPC path when applied.
+- `20261025150000_onesignal_parking_notifications.sql` is a forward-only
+  migration for the OneSignal replacement and in-app alert center. It reuses
+  the existing event row as bounded dispatch state, preserves prior send time
+  where available, adds one mutable row per user/session/type, applies
+  recipient-scoped RLS, replaces the old schedule with one five-minute
+  `parking-notification-dispatch` job, revokes client access to old
+  subscriptions, and removes obsolete VAPID RPCs. It deliberately retains
+  historical subscription and delivery rows. This migration is local source
+  only; it has not been applied or verified against the current remote schema.
+  Do not edit earlier migration files or infer remote migration state from
+  this source tree.
 
 The tenant-administration and tenant-management migrations must be reviewed
 and applied in order. They preserve existing parking rows but change their
@@ -131,13 +141,16 @@ supabase db push
 ```
 
 The Supabase CLI is available in this development environment, but Docker and
-a local Supabase database are unavailable. The verified `parking-management`
-project has migrations applied through
-`20261025130000_fix_parking_notification_claim_ambiguity.sql`, and linked
-migration history is in sync. Post-application
-`supabase db lint --linked --schema public` passed with “No schema errors
-found.” No migration has been applied to a local Supabase database. Do not
-treat a successful Flutter build as proof that a migration reached Supabase.
+a local Supabase database are unavailable. A previous deployment record says
+the verified `parking-management` project had migrations applied through
+`20261025130000_fix_parking_notification_claim_ambiguity.sql`, and that linked
+migration history was in sync. `supabase db lint --linked --schema public`
+previously passed with “No schema errors found.” The target project, remote
+migration history, and local database were not rechecked for this OneSignal
+change. No migration or remote secret has been applied or changed in this
+work. Do not treat a successful Flutter build as proof that a migration
+reached Supabase, and do not run a production `db push` without explicit
+approval.
 
 After applying all migrations, deploy the authenticated Edge Functions:
 
@@ -152,22 +165,42 @@ URL and API-key dictionaries into the Edge Function runtime; the privileged
 secret key is used only server-side. Do not put it in Flutter configuration,
 GitHub build settings, browser assets, or function responses.
 
-The parking-notification dispatcher is a separate Edge Function protected by
-a high-entropy cron secret rather than JWT authentication. Before enabling its
-database scheduler, configure the Edge Function secrets
-`PARKING_VAPID_PUBLIC_KEY`, `PARKING_VAPID_PRIVATE_KEY`,
-`PARKING_VAPID_SUBJECT`, and `PARKING_NOTIFICATION_CRON_SECRET`. Keep the
-private VAPID key and cron secret server-side. Store matching
-`parking_notifications_project_url` and
-`parking_notifications_cron_secret` values in Supabase Vault; the migration
-does not contain secret values. Build the browser with only the public VAPID
-key in the `PARKING_PUSH_VAPID_PUBLIC_KEY` define. See
-[opt-in parking Web Push](security.md#opt-in-parking-web-push) for setup and
-safety requirements.
+The replacement dispatcher is a separate Edge Function protected by
+`PARKING_NOTIFICATION_CRON_SECRET` rather than JWT authentication. The OneSignal
+REST API key must be available only to the Edge Function as
+`ONE_SIGNAL_API_KEY`; the public app ID is `ONE_SIGNAL_APP_ID`. The Edge
+Function needs both values at runtime, while Flutter receives only the public
+App ID through `--dart-define=ONE_SIGNAL_APP_ID=...`. Do not pass the REST API
+key to Flutter, GitHub build variables, browser code, or `--dart-define`.
+`ONE_SIGNAL_APP_ID` and `ONE_SIGNAL_API_KEY` are absent from the current
+process. Neither has been configured remotely by this work.
 
-Deploy the dispatcher only after reviewing and applying the migration in a
-safe environment. Apply to non-production first when available; production
-migrations require explicit approval:
+After the intended project and rollout are explicitly approved, source the
+values from the current PowerShell process without printing them, then
+configure the Supabase Edge Function environment. For example:
+
+```powershell
+if (-not $env:ONE_SIGNAL_APP_ID -or -not $env:ONE_SIGNAL_API_KEY) {
+  throw "Required OneSignal environment variables are not available."
+}
+
+supabase secrets set `
+  ONE_SIGNAL_APP_ID="$env:ONE_SIGNAL_APP_ID" `
+  ONE_SIGNAL_API_KEY="$env:ONE_SIGNAL_API_KEY"
+```
+
+Do not execute that command against production without separate approval and
+confirmation of the linked project. The scheduled function also requires the
+existing high-entropy `PARKING_NOTIFICATION_CRON_SECRET` Edge Function
+setting. Store matching `parking_notifications_project_url` and
+`parking_notifications_cron_secret` values in Supabase Vault; the migration
+contains no secret values. Do not delete retained VAPID secrets or subscription
+data as part of this setup.
+
+Deploy the replacement dispatcher only after reviewing the migration,
+configuring the approved server-side secrets, and validating OneSignal in a
+safe environment. Production migration, secret, schedule, and function
+changes require explicit approval:
 
 ```powershell
 supabase functions deploy dispatch-parking-notifications --no-verify-jwt
@@ -256,7 +289,7 @@ supabase/tests/tenant_management.test.sql
 supabase/tests/tenant_owner_onboarding.test.sql
 supabase/tests/device_session_limits.test.sql
 supabase/tests/tenant_member_limits_permissions.test.sql
-supabase/tests/parking_push_notifications.test.sql
+supabase/tests/parking_notifications.test.sql
 ```
 
 With Docker available, run them only against the local Supabase database:
@@ -269,7 +302,12 @@ The tests cover anonymous denial, tenant-scoped reads and writes,
 cross-tenant transfer denial, prevention of client-side Super Admin grants,
 Super Admin access, tenant creation and management, archive/restore behavior,
 owner retention, temporary-password RLS denial, request idempotency, and
-private Storage policy definitions. The tenant-member test also covers
+private Storage policy definitions. The notification test covers eligibility,
+recipient scoping, current balance rechecks, five-minute cadence, payment
+reversal, alert RLS, and the single scheduled job. Its SQL suite has not been
+run because Docker/local PostgreSQL are unavailable; the repeated-claim test
+does not substitute for a true two-connection production concurrency test.
+The tenant-member test also covers
 capacity, role transitions, member permissions, tenant isolation, audit
 visibility, and the pending-photo lifecycle. They have not been executed in
 this environment. Hosted RLS and photo access still require a safe project
