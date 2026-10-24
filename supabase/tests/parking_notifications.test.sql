@@ -376,7 +376,7 @@ select is(
     null,
     'upstream_5xx',
     null,
-    '2026-10-25 10:10:00+00'
+    '2026-10-25 10:10:03+00'
   ),
   true,
   'a transient failure preserves the claimed event for a bounded retry'
@@ -399,10 +399,21 @@ select is(
     '55555555-5555-4555-8555-555555555555',
     null,
     null,
-    '2026-10-25 10:10:00+00'
+    '2026-10-25 10:10:03+00'
   ),
   true,
-  'a successful push schedules the next interval five minutes later'
+  'a successful push anchors the next interval to the scheduler claim'
+);
+select is(
+  (
+    select notification_event.next_reminder_at
+    from public.parking_notification_events as notification_event
+    where notification_event.session_id =
+      'c1111111-1111-4111-8111-111111111111'
+      and notification_event.notification_type = 'expired'
+  ),
+  '2026-10-25 10:15:00+00'::timestamptz,
+  'a delayed send completion does not drift the five-minute reminder schedule'
 );
 
 update public.parking_sessions
