@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../l10n/app_localizations.dart';
+import '../../shared/widgets/parking_brand_title.dart';
 
 class ConfigurationRequiredPage extends StatelessWidget {
   const ConfigurationRequiredPage({this.message, super.key});
@@ -11,7 +12,7 @@ class ConfigurationRequiredPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.appTitle)),
+      appBar: AppBar(title: ParkingBrandTitle(title: l10n.appTitle)),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),

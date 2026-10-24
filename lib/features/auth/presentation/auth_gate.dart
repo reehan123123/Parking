@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../../shared/widgets/error_state_view.dart';
+import '../../../shared/widgets/parking_brand_title.dart';
 import '../data/auth_repository.dart';
 import 'password_recovery_page.dart';
 import 'sign_in_page.dart';
@@ -120,7 +121,7 @@ class _AuthGateState extends State<AuthGate> {
     if (_hasAuthError) {
       final l10n = AppLocalizations.of(context);
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.appTitle)),
+        appBar: AppBar(title: ParkingBrandTitle(title: l10n.appTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),

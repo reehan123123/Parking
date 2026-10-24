@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:parking_management/features/auth/presentation/sign_in_page.dart';
 import 'package:parking_management/l10n/app_localizations.dart';
+import 'package:parking_management/shared/widgets/parking_brand_title.dart';
 
 import '../../support/localization_test_support.dart';
 
@@ -25,6 +26,7 @@ void main() {
     addTearDown(repository.dispose);
 
     await tester.pumpWidget(_buildSignInPage(repository));
+    expect(find.byType(ParkingBrandTitle), findsOneWidget);
     await tester.tap(find.byType(FilledButton));
     await tester.pump();
 

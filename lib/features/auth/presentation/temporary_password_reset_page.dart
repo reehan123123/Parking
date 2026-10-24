@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/parking_brand_title.dart';
 import '../data/auth_repository.dart';
 
 class TemporaryPasswordResetPage extends StatefulWidget {
@@ -93,7 +94,7 @@ class _TemporaryPasswordResetPageState
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.appTitle),
+        title: ParkingBrandTitle(title: l10n.appTitle),
         actions: [
           TextButton.icon(
             onPressed: _isSubmitting ? null : _signOut,

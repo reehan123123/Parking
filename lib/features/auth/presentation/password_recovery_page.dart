@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/parking_brand_title.dart';
 import '../data/auth_repository.dart';
 
 /// Shown whenever the app detects an active Supabase password-recovery
@@ -96,7 +97,7 @@ class _PasswordRecoveryPageState extends State<PasswordRecoveryPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.appTitle),
+        title: ParkingBrandTitle(title: l10n.appTitle),
         actions: [
           TextButton(
             onPressed: _isSubmitting ? null : _cancel,

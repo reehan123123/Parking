@@ -58,6 +58,8 @@ flutter:
   # Enables Flutter's gen-l10n code generation from lib/l10n/*.arb files,
   # configured via l10n.yaml.
   generate: true
+  assets:
+    - assets/branding/parking-icon.png
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

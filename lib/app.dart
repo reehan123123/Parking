@@ -11,6 +11,7 @@ import 'l10n/app_localizations.dart';
 import 'shared/widgets/empty_state_view.dart';
 import 'shared/widgets/error_state_view.dart';
 import 'shared/widgets/loading_view.dart';
+import 'shared/widgets/parking_brand_title.dart';
 import 'features/auth/data/auth_repository.dart';
 import 'features/auth/presentation/auth_gate.dart';
 import 'features/dashboard/presentation/dashboard_page.dart';
@@ -1092,7 +1093,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           ? l10n.tenantAccessLoadError
           : _tenantAccessError!;
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.appTitle)),
+        appBar: AppBar(title: ParkingBrandTitle(title: l10n.appTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -1109,7 +1110,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     }
     if (!access.isSuperAdmin && access.tenants.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.appTitle)),
+        appBar: AppBar(title: ParkingBrandTitle(title: l10n.appTitle)),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -1249,7 +1250,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text(l10n.appTitle),
+            title: ParkingBrandTitle(title: l10n.appTitle),
             actions: [
               if (widget.parkingNotificationRepository != null &&
                   _selectedTenantId != null)

@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/locale/language_switch.dart';
 import '../../../l10n/app_localizations.dart';
+import '../../../shared/widgets/parking_brand_title.dart';
 import '../data/auth_repository.dart';
 import '../data/remembered_email_store.dart';
 import 'email_validation.dart';
@@ -125,7 +126,7 @@ class _SignInPageState extends State<SignInPage> {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: Text(l10n.appTitle),
+        title: ParkingBrandTitle(title: l10n.appTitle),
         actions: const [
           Padding(
             padding: EdgeInsets.only(right: 12),
