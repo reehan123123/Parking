@@ -243,7 +243,7 @@ values
 create temporary table first_notification_claims on commit drop as
 select *
 from public.claim_due_parking_notification_events(
-  '2026-10-25 10:10:00+00'
+  '2026-10-25 10:10:00.250+00'
 );
 
 select is(
