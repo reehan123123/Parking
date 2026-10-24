@@ -887,6 +887,7 @@ class _SupabaseParkingSessionStore implements ParkingSessionStore {
         'p_total_charge': values['total_charge'],
         'p_paid_amount': values['paid_amount'],
         'p_has_photo': values['has_photo'],
+        'p_contact_number': values['contact_number'],
       },
     );
     if (id is! String || id.isEmpty) {

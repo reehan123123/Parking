@@ -433,8 +433,18 @@
   "parkingNotificationsLoadFailed": "पार्किंग नोटिफिकेशन लोड नहीं हो सके। कनेक्शन जाँचकर फिर प्रयास करें।",
   "parkingNotificationsInvalidData": "पार्किंग नोटिफिकेशन डेटा अमान्य है। सिस्टम प्रशासक से संपर्क करें।",
   "parkingNotificationsMarkReadFailed": "नोटिफिकेशन को पढ़ा हुआ नहीं किया जा सका।",
+  "parkingNotificationsClearAll": "सभी साफ़ करें",
+  "parkingNotificationsClearAllFailed": "नोटिफिकेशन साफ़ नहीं हो सके। कृपया फिर प्रयास करें।",
   "parkingNotificationsOpenAction": "खोलें",
-  "parkingNotificationExpiredTitle": "पार्किंग समय समाप्त",
+  "parkingNotificationExpiredTitle": "पार्किंग समय समाप्त - {platePrefix}...",
+  "@parkingNotificationExpiredTitle": {
+    "description": "वाहन पंजीकरण के संक्षिप्त विवरण सहित समाप्त पार्किंग नोटिफिकेशन का शीर्षक।",
+    "placeholders": {
+      "platePrefix": {
+        "type": "String"
+      }
+    }
+  },
   "parkingNotificationExpiredBody": "पूरा भुगतान नहीं हुआ",
   "parkingNotificationsSessionUnavailable": "यह पार्किंग सत्र अब इस टेनेंट में उपलब्ध नहीं है।",
   "parkingNotificationsLaunchInvalid": "पार्किंग नोटिफिकेशन लिंक अमान्य है या समाप्त हो गया है।",

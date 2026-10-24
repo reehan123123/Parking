@@ -664,7 +664,8 @@ select set_config(
     now() + interval '1 hour',
     0,
     0,
-    true
+    true,
+    '+919876543210'
   )::text,
   true
 );
@@ -700,6 +701,18 @@ select ok(
   not public.can_upload_vehicle_photo(current_setting('test.member_photo_path')),
   'completed uploads no longer use the pending-upload exception'
 );
+
+reset role;
+select is(
+  (
+    select contact_number
+    from public.parking_sessions
+    where id = current_setting('test.member_photo_session_id')::uuid
+  ),
+  '+919876543210',
+  'the create RPC persists the contact number for a new parking session'
+);
+set local role authenticated;
 
 select set_config(
   'request.jwt.claim.sub',

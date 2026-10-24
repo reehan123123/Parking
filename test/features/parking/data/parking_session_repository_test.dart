@@ -63,6 +63,46 @@ void main() {
       expect(store.events, ['insert']);
     });
 
+    test('sends the plate and contact number to the create RPC', () async {
+      final requests = <http.Request>[];
+      final mockClient = MockClient((request) async {
+        requests.add(request);
+        return http.Response(
+          jsonEncode('session-rpc'),
+          200,
+          headers: {'content-type': 'application/json'},
+          request: request,
+        );
+      });
+      final client = SupabaseClient(
+        'https://parking-test.supabase.co',
+        'test-publishable-key',
+        httpClient: mockClient,
+      );
+      addTearDown(() async {
+        await client.dispose();
+        mockClient.close();
+      });
+      final repository = SupabaseParkingSessionRepository(
+        client,
+        currentUserId: () => 'user-1',
+      );
+
+      final result = await repository.save(
+        session: _session(plateNumber: '67765RYTR67675'),
+      );
+
+      expect(result, isA<ParkingSessionSaveSuccess>());
+      expect(requests, hasLength(1));
+      final http.Request request = requests.single;
+      expect(request.method, 'POST');
+      expect(request.url.path, '/rest/v1/rpc/create_parking_session');
+      final Map<String, dynamic> parameters =
+          jsonDecode(request.body) as Map<String, dynamic>;
+      expect(parameters['p_plate_number'], '67765RYTR67675');
+      expect(parameters['p_contact_number'], '+919876543210');
+    });
+
     test(
       'inserts the row before setting and uploading the photo path',
       () async {

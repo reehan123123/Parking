@@ -7,6 +7,7 @@ enum ParkingNotificationRepositoryError {
   loadFailed,
   invalidData,
   markReadFailed,
+  clearAllFailed,
 }
 
 class ParkingNotificationRepositoryException implements Exception {
@@ -19,6 +20,8 @@ abstract interface class ParkingNotificationRepository {
   Future<List<ParkingNotification>> listActive({required String tenantId});
 
   Future<void> markRead({required String notificationId});
+
+  Future<void> clearAll({required String tenantId});
 }
 
 class SupabaseParkingNotificationRepository
@@ -29,7 +32,8 @@ class SupabaseParkingNotificationRepository
   static const int maximumNotifications = 50;
   static const String _notificationColumns =
       'id,tenant_id,session_id,notification_type,created_at,'
-      'last_reminded_at,reminder_interval_at,read_at';
+      'last_reminded_at,reminder_interval_at,read_at,'
+      'parking_sessions(plate_number)';
 
   final SupabaseClient _client;
 
@@ -100,6 +104,30 @@ class SupabaseParkingNotificationRepository
     } on Exception {
       throw const ParkingNotificationRepositoryException(
         ParkingNotificationRepositoryError.markReadFailed,
+      );
+    }
+  }
+
+  @override
+  Future<void> clearAll({required String tenantId}) async {
+    if (!_isUuid(tenantId)) {
+      throw const ParkingNotificationRepositoryException(
+        ParkingNotificationRepositoryError.tenantUnavailable,
+      );
+    }
+
+    try {
+      await _client.rpc(
+        'mark_all_parking_in_app_notifications_read',
+        params: {'p_tenant_id': tenantId},
+      );
+    } on PostgrestException {
+      throw const ParkingNotificationRepositoryException(
+        ParkingNotificationRepositoryError.clearAllFailed,
+      );
+    } on Exception {
+      throw const ParkingNotificationRepositoryException(
+        ParkingNotificationRepositoryError.clearAllFailed,
       );
     }
   }

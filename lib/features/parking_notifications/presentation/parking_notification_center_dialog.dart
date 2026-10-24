@@ -16,12 +16,14 @@ class ParkingNotificationCenterDialog extends StatelessWidget {
     required this.state,
     required this.onRefresh,
     required this.onOpen,
+    required this.onClearAll,
     super.key,
   });
 
   final ValueListenable<ParkingNotificationCenterState> state;
   final Future<void> Function() onRefresh;
   final Future<void> Function(ParkingNotification notification) onOpen;
+  final Future<void> Function() onClearAll;
 
   @override
   Widget build(BuildContext context) {
@@ -63,25 +65,45 @@ class ParkingNotificationCenterDialog extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
+              ValueListenableBuilder<ParkingNotificationCenterState>(
+                valueListenable: state,
+                builder: (context, snapshot, _) {
+                  if (snapshot.unreadCount == 0) {
+                    return const SizedBox.shrink();
+                  }
+                  return Align(
+                    alignment: AlignmentDirectional.centerEnd,
+                    child: ActionChip(
+                      label: Text(l10n.parkingNotificationsClearAll),
+                      onPressed: snapshot.isLoading
+                          ? null
+                          : () => unawaited(onClearAll()),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 4),
               Expanded(
                 child: ValueListenableBuilder<ParkingNotificationCenterState>(
                   valueListenable: state,
                   builder: (context, snapshot, _) {
+                    final List<ParkingNotification> notifications =
+                        snapshot.unreadNotifications;
                     if (snapshot.isLoading &&
-                        snapshot.notifications.isEmpty &&
+                        notifications.isEmpty &&
                         snapshot.errorMessage == null) {
                       return LoadingView(
                         message: l10n.parkingNotificationsStatusLoading,
                       );
                     }
                     if (snapshot.errorMessage != null &&
-                        snapshot.notifications.isEmpty) {
+                        notifications.isEmpty) {
                       return ErrorStateView(
                         message: snapshot.errorMessage!,
                         onRetry: onRefresh,
                       );
                     }
-                    if (snapshot.notifications.isEmpty) {
+                    if (notifications.isEmpty) {
                       return EmptyStateView(
                         icon: Icons.notifications_none_outlined,
                         title: l10n.parkingNotificationsEmptyTitle,
@@ -105,12 +127,12 @@ class ParkingNotificationCenterDialog extends StatelessWidget {
                         const SizedBox(height: 8),
                         Expanded(
                           child: ListView.separated(
-                            itemCount: snapshot.notifications.length,
+                            itemCount: notifications.length,
                             separatorBuilder: (context, index) =>
                                 const Divider(height: 1),
                             itemBuilder: (context, index) {
                               final ParkingNotification notification =
-                                  snapshot.notifications[index];
+                                  notifications[index];
                               return _ParkingNotificationTile(
                                 notification: notification,
                                 onTap: () => unawaited(onOpen(notification)),
@@ -157,7 +179,9 @@ class _ParkingNotificationTile extends StatelessWidget {
             ? Theme.of(context).colorScheme.primary
             : Theme.of(context).colorScheme.onSurfaceVariant,
       ),
-      title: Text(l10n.parkingNotificationExpiredTitle),
+      title: Text(
+        l10n.parkingNotificationExpiredTitle(notification.plateNumberPrefix),
+      ),
       subtitle: Text('${l10n.parkingNotificationExpiredBody}\n$timestamp'),
       isThreeLine: true,
       trailing: notification.isUnread

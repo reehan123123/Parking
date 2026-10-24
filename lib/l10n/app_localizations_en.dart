@@ -1325,10 +1325,19 @@ class AppLocalizationsEn extends AppLocalizations {
       'The notification could not be marked as read.';
 
   @override
+  String get parkingNotificationsClearAll => 'Clear all';
+
+  @override
+  String get parkingNotificationsClearAllFailed =>
+      'The notifications could not be cleared. Please retry.';
+
+  @override
   String get parkingNotificationsOpenAction => 'Open';
 
   @override
-  String get parkingNotificationExpiredTitle => 'Parking Expired';
+  String parkingNotificationExpiredTitle(String platePrefix) {
+    return 'Parking Expired - $platePrefix...';
+  }
 
   @override
   String get parkingNotificationExpiredBody => 'Full-Amount Not Paid';

@@ -21,6 +21,7 @@ interface NotificationDispatchTarget {
   tenant_id: string;
   idempotency_key: string;
   recipient_external_ids: string[];
+  plate_number: string;
 }
 
 interface DispatchConfiguration {
@@ -173,6 +174,9 @@ async function dispatchEvent(
     target.session_id !== event.session_id ||
     target.tenant_id !== event.tenant_id ||
     target.idempotency_key !== event.idempotency_key ||
+    typeof target.plate_number !== "string" ||
+    target.plate_number.trim().length === 0 ||
+    target.plate_number.length > 64 ||
     !Array.isArray(target.recipient_external_ids) ||
     target.recipient_external_ids.length === 0 ||
     target.recipient_external_ids.length > 20_000 ||
@@ -198,6 +202,7 @@ async function dispatchEvent(
       apiKey: configuration.apiKey,
       recipientExternalIds: target.recipient_external_ids,
       sessionId: target.session_id,
+      plateNumber: target.plate_number,
       idempotencyKey: target.idempotency_key,
       applicationOrigin,
     },

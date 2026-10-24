@@ -1325,10 +1325,19 @@ class AppLocalizationsHi extends AppLocalizations {
       'नोटिफिकेशन को पढ़ा हुआ नहीं किया जा सका।';
 
   @override
+  String get parkingNotificationsClearAll => 'सभी साफ़ करें';
+
+  @override
+  String get parkingNotificationsClearAllFailed =>
+      'नोटिफिकेशन साफ़ नहीं हो सके। कृपया फिर प्रयास करें।';
+
+  @override
   String get parkingNotificationsOpenAction => 'खोलें';
 
   @override
-  String get parkingNotificationExpiredTitle => 'पार्किंग समय समाप्त';
+  String parkingNotificationExpiredTitle(String platePrefix) {
+    return 'पार्किंग समय समाप्त - $platePrefix...';
+  }
 
   @override
   String get parkingNotificationExpiredBody => 'पूरा भुगतान नहीं हुआ';

@@ -2396,17 +2396,29 @@ abstract class AppLocalizations {
   /// **'The notification could not be marked as read.'**
   String get parkingNotificationsMarkReadFailed;
 
+  /// No description provided for @parkingNotificationsClearAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear all'**
+  String get parkingNotificationsClearAll;
+
+  /// No description provided for @parkingNotificationsClearAllFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'The notifications could not be cleared. Please retry.'**
+  String get parkingNotificationsClearAllFailed;
+
   /// No description provided for @parkingNotificationsOpenAction.
   ///
   /// In en, this message translates to:
   /// **'Open'**
   String get parkingNotificationsOpenAction;
 
-  /// No description provided for @parkingNotificationExpiredTitle.
+  /// Title for an expired parking notification with a shortened vehicle registration.
   ///
   /// In en, this message translates to:
-  /// **'Parking Expired'**
-  String get parkingNotificationExpiredTitle;
+  /// **'Parking Expired - {platePrefix}...'**
+  String parkingNotificationExpiredTitle(String platePrefix);
 
   /// No description provided for @parkingNotificationExpiredBody.
   ///

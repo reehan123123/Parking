@@ -907,7 +907,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     messenger.showSnackBar(
       SnackBar(
         content: Text(
-          '${l10n.parkingNotificationExpiredTitle}: '
+          '${l10n.parkingNotificationExpiredTitle(notification.plateNumberPrefix)}: '
           '${l10n.parkingNotificationExpiredBody}',
         ),
         action: SnackBarAction(
@@ -936,6 +936,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         l10n.parkingNotificationsInvalidData,
       ParkingNotificationRepositoryError.markReadFailed =>
         l10n.parkingNotificationsMarkReadFailed,
+      ParkingNotificationRepositoryError.clearAllFailed =>
+        l10n.parkingNotificationsClearAllFailed,
       ParkingNotificationRepositoryError.loadFailed =>
         l10n.parkingNotificationsLoadFailed,
     };
@@ -955,8 +957,63 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         state: _notificationCenter,
         onRefresh: _loadNotificationCenter,
         onOpen: _openNotificationFromCenter,
+        onClearAll: _clearAllNotifications,
       ),
     );
+  }
+
+  Future<void> _clearAllNotifications() async {
+    final ParkingNotificationRepository? repository =
+        widget.parkingNotificationRepository;
+    final String? tenantId = _selectedTenantId;
+    if (repository == null || tenantId == null) {
+      return;
+    }
+
+    final int generation = _notificationGeneration;
+    final ParkingNotificationCenterState previousState =
+        _notificationCenter.value;
+    _notificationCenter.value = ParkingNotificationCenterState(
+      notifications: previousState.notifications,
+      isLoading: true,
+    );
+
+    try {
+      await repository.clearAll(tenantId: tenantId);
+      if (!mounted || generation != _notificationGeneration) {
+        return;
+      }
+      _notificationCenter.value = const ParkingNotificationCenterState(
+        isLoading: true,
+      );
+      await _loadNotificationCenter();
+    } on ParkingNotificationRepositoryException catch (error) {
+      if (mounted && generation == _notificationGeneration) {
+        _notificationCenter.value = ParkingNotificationCenterState(
+          notifications: previousState.notifications,
+          errorMessage: _notificationRepositoryErrorMessage(
+            AppLocalizations.of(context),
+            error.code,
+          ),
+        );
+      }
+    } on Object catch (error, stackTrace) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stackTrace,
+          library: 'parking_management',
+          context: ErrorDescription('while clearing parking notifications'),
+        ),
+      );
+      if (mounted && generation == _notificationGeneration) {
+        _notificationCenter.value = ParkingNotificationCenterState(
+          notifications: previousState.notifications,
+          errorMessage: AppLocalizations.of(context)
+              .parkingNotificationsClearAllFailed,
+        );
+      }
+    }
   }
 
   Future<void> _openNotificationFromCenter(

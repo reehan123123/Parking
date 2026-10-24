@@ -16,6 +16,7 @@ Deno.test("targets only external IDs with a generic session link", async () => {
       apiKey: "server-only-test-key",
       recipientExternalIds: [userId],
       sessionId,
+      plateNumber: "REMINDER-PARTIAL",
       idempotencyKey,
       applicationOrigin: "https://parking-85u.pages.dev",
     },
@@ -46,7 +47,7 @@ Deno.test("targets only external IDs with a generic session link", async () => {
     `https://parking-85u.pages.dev/?parkingSessionId=${sessionId}`,
   );
   assertEquals(requestBody.idempotency_key, idempotencyKey);
-  assertEquals(requestBody.headings.en, "Parking Expired");
+  assertEquals(requestBody.headings.en, "Parking Expired - REMINDE...");
   assertEquals(requestBody.contents.en, "Full-Amount Not Paid");
   assert(
     requestInit?.signal instanceof AbortSignal,
@@ -58,6 +59,10 @@ Deno.test("targets only external IDs with a generic session link", async () => {
   );
   assert(!("tenant_id" in requestBody), "the push must not contain a tenant id");
   assert(!("amount" in requestBody), "the push must not contain payment data");
+  assert(
+    !JSON.stringify(requestBody).includes("REMINDER-PARTIAL"),
+    "the push must include only the first seven registration characters",
+  );
 });
 
 Deno.test("honors a long Retry-After without retrying early", async () => {
@@ -158,6 +163,7 @@ function validInput() {
     apiKey: "server-only-test-key",
     recipientExternalIds: [userId],
     sessionId,
+    plateNumber: "REMINDER-PARTIAL",
     idempotencyKey,
     applicationOrigin: "https://parking-85u.pages.dev",
   };

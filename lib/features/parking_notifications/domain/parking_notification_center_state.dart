@@ -11,6 +11,9 @@ class ParkingNotificationCenterState {
   final bool isLoading;
   final String? errorMessage;
 
-  int get unreadCount =>
-      notifications.where((notification) => notification.isUnread).length;
+  List<ParkingNotification> get unreadNotifications => notifications
+      .where((notification) => notification.isUnread)
+      .toList(growable: false);
+
+  int get unreadCount => unreadNotifications.length;
 }

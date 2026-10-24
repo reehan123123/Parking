@@ -13,6 +13,7 @@ export interface OneSignalNotificationInput {
   apiKey: string;
   recipientExternalIds: string[];
   sessionId: string;
+  plateNumber: string;
   idempotencyKey: string;
   applicationOrigin: string;
 }
@@ -58,6 +59,8 @@ export async function sendParkingNotification(
     !sessionIdPattern.test(input.sessionId) ||
     !sessionIdPattern.test(input.idempotencyKey) ||
     input.apiKey.trim().length === 0 ||
+    input.plateNumber.trim().length === 0 ||
+    input.plateNumber.length > 64 ||
     input.recipientExternalIds.length === 0 ||
     input.recipientExternalIds.some((userId) => !sessionIdPattern.test(userId))
   ) {
@@ -72,6 +75,7 @@ export async function sendParkingNotification(
     return failedResult(null, "configuration_error", null);
   }
 
+  const platePrefix = input.plateNumber.trim().slice(0, 7);
   const payload = {
     app_id: input.appId,
     target_channel: "push",
@@ -79,8 +83,8 @@ export async function sendParkingNotification(
       external_id: input.recipientExternalIds,
     },
     headings: {
-      en: "Parking Expired",
-      hi: "पार्किंग का समय समाप्त हो गया",
+      en: `Parking Expired - ${platePrefix}...`,
+      hi: `पार्किंग का समय समाप्त - ${platePrefix}...`,
     },
     contents: {
       en: "Full-Amount Not Paid",

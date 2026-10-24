@@ -433,8 +433,18 @@
   "parkingNotificationsLoadFailed": "Parking notifications could not be loaded. Check your connection and retry.",
   "parkingNotificationsInvalidData": "Parking notification data is invalid. Contact the system administrator.",
   "parkingNotificationsMarkReadFailed": "The notification could not be marked as read.",
+  "parkingNotificationsClearAll": "Clear all",
+  "parkingNotificationsClearAllFailed": "The notifications could not be cleared. Please retry.",
   "parkingNotificationsOpenAction": "Open",
-  "parkingNotificationExpiredTitle": "Parking Expired",
+  "parkingNotificationExpiredTitle": "Parking Expired - {platePrefix}...",
+  "@parkingNotificationExpiredTitle": {
+    "description": "Title for an expired parking notification with a shortened vehicle registration.",
+    "placeholders": {
+      "platePrefix": {
+        "type": "String"
+      }
+    }
+  },
   "parkingNotificationExpiredBody": "Full-Amount Not Paid",
   "parkingNotificationsSessionUnavailable": "That parking session is no longer available in this tenant.",
   "parkingNotificationsLaunchInvalid": "The parking notification link is invalid or expired.",

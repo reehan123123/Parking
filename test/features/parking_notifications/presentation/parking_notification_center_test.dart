@@ -42,9 +42,9 @@ void main() {
       expect(notifications.requestedTenantIds, [_tenantId]);
       await tester.tap(find.byTooltip('Parking notifications'));
       await tester.pumpAndSettle();
-      expect(find.text('Parking Expired'), findsOneWidget);
+      expect(find.text('Parking Expired - AB12345...'), findsOneWidget);
 
-      await tester.tap(find.text('Parking Expired'));
+      await tester.tap(find.text('Parking Expired - AB12345...'));
       await tester.pumpAndSettle();
 
       expect(parkingRepository.lastDetailSessionId, _sessionId);
@@ -52,6 +52,28 @@ void main() {
       expect(notifications.markedReadIds, [_notificationId]);
     },
   );
+
+  testWidgets('clears all current tenant alerts without deleting them', (
+    WidgetTester tester,
+  ) async {
+    final _FakeParkingNotificationRepository notifications =
+        _FakeParkingNotificationRepository([_notification()]);
+
+    await tester.pumpWidget(
+      _buildApp(access: _ownerAccess(), notificationRepository: notifications),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Parking notifications'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Clear all'));
+    await tester.pumpAndSettle();
+
+    expect(notifications.clearedAllTenantIds, [_tenantId]);
+    expect(find.text('Parking Expired - AB12345...'), findsNothing);
+    expect(find.text('No unpaid parking reminders'), findsOneWidget);
+    expect(notifications.notifications.single.readAt, isNotNull);
+  });
 
   testWidgets('hides the notification bell in All Tenants mode', (
     WidgetTester tester,
@@ -169,6 +191,7 @@ ParkingNotification _notification({
   String tenantId = _tenantId,
   String sessionId = _sessionId,
   String id = _notificationId,
+  String plateNumber = 'AB123456789',
   DateTime? readAt,
 }) {
   final DateTime timestamp = DateTime.utc(2026, 10, 25, 10, 15);
@@ -176,6 +199,7 @@ ParkingNotification _notification({
     id: id,
     tenantId: tenantId,
     sessionId: sessionId,
+    plateNumber: plateNumber,
     createdAt: timestamp,
     lastRemindedAt: timestamp,
     reminderIntervalAt: timestamp,
@@ -207,6 +231,7 @@ class _FakeParkingNotificationRepository
   List<ParkingNotification> notifications;
   final List<String> requestedTenantIds = [];
   final List<String> markedReadIds = [];
+  final List<String> clearedAllTenantIds = [];
   int listCalls = 0;
 
   @override
@@ -230,7 +255,27 @@ class _FakeParkingNotificationRepository
                   id: notification.id,
                   tenantId: notification.tenantId,
                   sessionId: notification.sessionId,
+                  plateNumber: notification.plateNumber,
                   readAt: DateTime.utc(2026, 10, 25, 10, 16),
+                )
+              : notification,
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> clearAll({required String tenantId}) async {
+    clearedAllTenantIds.add(tenantId);
+    notifications = notifications
+        .map(
+          (notification) => notification.tenantId == tenantId
+              ? _notification(
+                  id: notification.id,
+                  tenantId: notification.tenantId,
+                  sessionId: notification.sessionId,
+                  plateNumber: notification.plateNumber,
+                  readAt:
+                      notification.readAt ?? DateTime.utc(2026, 10, 25, 10, 16),
                 )
               : notification,
         )

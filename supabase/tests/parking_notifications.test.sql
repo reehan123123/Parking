@@ -340,6 +340,27 @@ select is(
 
 select is(
   (
+    select plate_number
+    from public.get_parking_notification_dispatch_target(
+      (
+        select event_id
+        from first_notification_claims
+        where session_id = 'c1111111-1111-4111-8111-111111111111'
+      ),
+      (
+        select claim_token
+        from first_notification_claims
+        where session_id = 'c1111111-1111-4111-8111-111111111111'
+      ),
+      '2026-10-25 10:10:00+00'
+    )
+  ),
+  'REMINDER-PARTIAL',
+  'the authorized server dispatch target includes the vehicle registration'
+);
+
+select is(
+  (
     select recipient_external_ids
     from public.get_parking_notification_dispatch_target(
       (
@@ -483,6 +504,22 @@ select ok(
   'RLS hides notifications for sessions in another tenant'
 );
 select is(
+  public.mark_all_parking_in_app_notifications_read(
+    'a1111111-1111-4111-8111-111111111111'
+  ),
+  1,
+  'a user can clear all unread notifications in the selected tenant'
+);
+select is(
+  (
+    select count(*)
+    from public.parking_in_app_notifications
+    where read_at is null
+  ),
+  0::bigint,
+  'clearing all marks the current user''s visible alerts as read'
+);
+select is(
   public.mark_parking_in_app_notification_read(
     (
       select id
@@ -515,6 +552,18 @@ select throws_ok(
   'authenticated clients cannot directly update notification state'
 );
 reset role;
+
+select is(
+  (
+    select count(*)
+    from public.parking_in_app_notifications
+    where session_id = 'c1111111-1111-4111-8111-111111111111'
+      and recipient_user_id = '72222222-2222-4222-8222-222222222222'
+      and read_at is null
+  ),
+  1::bigint,
+  'clearing all does not change another authorized recipient''s alerts'
+);
 
 select is(
   (
