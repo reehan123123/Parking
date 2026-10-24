@@ -23,6 +23,29 @@ test("initializes OneSignal in a separate Flutter-compatible worker scope", asyn
   assert.equal(fakeOneSignal.permissionRequests, 0);
 });
 
+test("allows initialization to retry when the deferred SDK callback never runs", async () => {
+  const { bridge, deferred, fakeOneSignal, timers } = await loadBridge();
+  const firstAttempt = bridge.initialize(
+    "11111111-1111-4111-8111-111111111111",
+  );
+
+  assert.equal(deferred.length, 1);
+  const timeout = timers.values().next().value;
+  assert.equal(timeout.delay, 18000);
+  timeout.callback();
+  await assert.rejects(firstAttempt, /initialization timed out/);
+
+  const retry = bridge.initialize(
+    "11111111-1111-4111-8111-111111111111",
+  );
+  assert.equal(deferred.length, 2);
+  await deferred[0](fakeOneSignal);
+  await deferred[1](fakeOneSignal);
+
+  assert.equal(await retry, true);
+  assert.equal(fakeOneSignal.initCalls, 1);
+});
+
 test("exposes subscription state and supports account identity changes", async () => {
   const { bridge, deferred, fakeOneSignal, window } = await loadBridge();
   const initialization = bridge.initialize(
@@ -97,13 +120,17 @@ test("keeps Flutter startup assets and the official OneSignal worker", async () 
 async function loadBridge() {
   const source = await readFile(bridgePath, "utf8");
   const deferred = [];
+  const timers = new Map();
+  let nextTimerId = 0;
   const fakeOneSignal = {
     initOptions: null,
+    initCalls: 0,
     permissionRequests: 0,
     optInCalls: 0,
     optOutCalls: 0,
     currentExternalId: "",
     init: async function (options) {
+      this.initCalls++;
       this.initOptions = options;
     },
     User: {
@@ -144,6 +171,20 @@ async function loadBridge() {
         window.replacedUrl = url;
       },
     },
+    setTimeout(callback, delay) {
+      const id = nextTimerId++;
+      timers.set(id, {
+        callback: () => {
+          timers.delete(id);
+          callback();
+        },
+        delay,
+      });
+      return id;
+    },
+    clearTimeout(id) {
+      timers.delete(id);
+    },
   };
   const navigator = { serviceWorker: {} };
 
@@ -159,6 +200,7 @@ async function loadBridge() {
     bridge: window.ParkingOneSignalBridge,
     deferred,
     fakeOneSignal,
+    timers,
     window,
   };
 }

@@ -170,6 +170,34 @@ void main() {
         );
       },
     );
+
+    test(
+      'retries the latest identity update when refreshing failed status',
+      () async {
+        final _FakeOneSignalBrowserBridge browserBridge =
+            _FakeOneSignalBrowserBridge()
+              ..loginError = StateError('temporary login failure');
+        final OneSignalNotificationService service =
+            OneSignalNotificationService(
+              appId: _appId,
+              browserBridge: browserBridge,
+            );
+
+        await expectLater(
+          service.synchronizeIdentity(_userId),
+          throwsA(isA<StateError>()),
+        );
+
+        browserBridge.loginError = null;
+        final OneSignalNotificationStatus status = await service.loadStatus();
+
+        expect(
+          status.availability,
+          OneSignalNotificationAvailability.permissionNotGranted,
+        );
+        expect(browserBridge.identityChanges, ['login:$_userId']);
+      },
+    );
   });
 }
 

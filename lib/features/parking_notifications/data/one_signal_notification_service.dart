@@ -48,6 +48,7 @@ class OneSignalNotificationService {
   Future<void>? _initialization;
   Future<void> _identityQueue = Future<void>.value();
   String? _identifiedUserId;
+  String? _requestedUserId;
 
   bool get isConfigured =>
       RegExp(_uuidPattern, caseSensitive: false).hasMatch(_appId);
@@ -84,6 +85,7 @@ class OneSignalNotificationService {
 
   Future<void> synchronizeIdentity(String? userId) {
     final String? normalizedUserId = userId?.trim();
+    _requestedUserId = normalizedUserId;
     final Future<void> operation = () async {
       try {
         await _identityQueue;
@@ -108,7 +110,7 @@ class OneSignalNotificationService {
           OneSignalNotificationAvailability.unsupported,
         );
       }
-      await _identityQueue;
+      await _waitForIdentitySynchronization();
       await initialize();
       final OneSignalBrowserStatus status = await _browserBridge.loadStatus();
       if (status.permission != 'granted') {
@@ -234,6 +236,14 @@ class OneSignalNotificationService {
       throw const OneSignalNotificationException(
         OneSignalNotificationErrorCode.setupRequired,
       );
+    }
+  }
+
+  Future<void> _waitForIdentitySynchronization() async {
+    try {
+      await _identityQueue;
+    } on Object {
+      await synchronizeIdentity(_requestedUserId);
     }
   }
 }

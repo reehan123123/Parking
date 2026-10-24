@@ -1,8 +1,10 @@
 (() => {
   const workerPath = "/push/onesignal/OneSignalSDKWorker.js";
   const workerScope = "/push/onesignal/";
+  const initializationTimeoutMs = 18000;
   let appId = null;
   let initialization = null;
+  let initializationAttempt = 0;
   let oneSignal = null;
 
   window.OneSignalDeferred = window.OneSignalDeferred || [];
@@ -26,23 +28,47 @@
       return initialization;
     }
 
-    initialization = new Promise((resolve, reject) => {
+    const attemptId = ++initializationAttempt;
+    let timeoutHandle;
+    const attempt = new Promise((resolve, reject) => {
+      timeoutHandle = window.setTimeout(() => {
+        if (attemptId !== initializationAttempt) {
+          return;
+        }
+        initialization = null;
+        initializationAttempt++;
+        reject(new Error("OneSignal SDK initialization timed out."));
+      }, initializationTimeoutMs);
+
       window.OneSignalDeferred.push(async (sdk) => {
+        if (attemptId !== initializationAttempt) {
+          return;
+        }
         try {
           await sdk.init({
             appId,
             serviceWorkerPath: workerPath,
             serviceWorkerParam: { scope: workerScope },
           });
+          if (attemptId !== initializationAttempt) {
+            return;
+          }
           oneSignal = sdk;
+          window.clearTimeout(timeoutHandle);
+          initializationAttempt++;
           resolve(true);
         } catch (error) {
-          initialization = null;
+          window.clearTimeout(timeoutHandle);
+          if (attemptId === initializationAttempt) {
+            initialization = null;
+            initializationAttempt++;
+          }
           reject(error);
         }
       });
     });
-    return initialization;
+    initialization = attempt;
+    return attempt;
   }
 
   function requireInitialized() {
