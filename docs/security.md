@@ -67,6 +67,20 @@ photos across tenants, create parking entries for an active tenant, and create
 or manage tenant workspaces and memberships. This is not access to Supabase
 project settings, passwords, or service-role credentials.
 
+## Platform maintenance mode
+
+The global maintenance setting is stored in a singleton database row that
+authenticated clients cannot read or modify directly. Status is exposed
+through an authenticated RPC, and the update RPC verifies the caller with
+`public.is_super_admin()`. The app checks this state after sign-in, shows a
+maintenance screen to non-admin users until the server-side end time, and
+allows Super Admins to continue using the app. The status is polled while the
+app is open and is rechecked at expiry.
+
+This is an app-UI gate, not a database-wide outage control: direct Supabase API
+requests remain governed by the existing RLS policies and are not disabled.
+The local API development backend does not implement this platform setting.
+
 ## Tenant and database authorization
 
 `public.tenants` identifies parking workspaces.

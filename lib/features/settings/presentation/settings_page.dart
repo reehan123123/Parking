@@ -5,6 +5,8 @@ import '../../../core/locale/language_switch.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../device_sessions/data/device_session_repository.dart';
 import '../../device_sessions/presentation/device_sessions_panel.dart';
+import '../../maintenance/data/maintenance_mode_repository.dart';
+import '../../maintenance/presentation/maintenance_mode_card.dart';
 import '../../parking_notifications/data/one_signal_notification_service.dart';
 import '../../parking_notifications/presentation/parking_notifications_card.dart';
 import '../../tenants/data/tenant_repository.dart';
@@ -15,6 +17,7 @@ class SettingsPage extends StatefulWidget {
   const SettingsPage({
     this.onSignOut,
     this.deviceSessionRepository,
+    this.maintenanceModeRepository,
     this.oneSignalNotificationService,
     this.tenant,
     this.tenantRepository,
@@ -26,6 +29,7 @@ class SettingsPage extends StatefulWidget {
 
   final Future<void> Function()? onSignOut;
   final DeviceSessionRepository? deviceSessionRepository;
+  final MaintenanceModeRepository? maintenanceModeRepository;
   final OneSignalNotificationService? oneSignalNotificationService;
   final ParkingTenant? tenant;
   final TenantRepository? tenantRepository;
@@ -153,6 +157,13 @@ class _SettingsPageState extends State<SettingsPage> {
               if (widget.oneSignalNotificationService != null) ...[
                 OneSignalNotificationsCard(
                   service: widget.oneSignalNotificationService!,
+                ),
+                const SizedBox(height: 16),
+              ],
+              if (widget.isSuperAdmin &&
+                  widget.maintenanceModeRepository != null) ...[
+                MaintenanceModeCard(
+                  repository: widget.maintenanceModeRepository!,
                 ),
                 const SizedBox(height: 16),
               ],

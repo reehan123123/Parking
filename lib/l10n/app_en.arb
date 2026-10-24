@@ -90,6 +90,41 @@
   "settingsSigningOut": "Signing out…",
   "settingsLanguageTitle": "Language",
   "settingsLanguageDescription": "Choose the language used throughout the app.",
+  "maintenanceModeTitle": "Platform maintenance",
+  "maintenanceModeDescription": "Show a maintenance screen to all users except Super Admins until the selected date and time.",
+  "maintenanceModeSwitchLabel": "Maintenance mode",
+  "maintenanceModeOff": "Maintenance mode is off.",
+  "maintenanceModeEndsAt": "Maintenance mode is on until {date} at {time}.",
+  "@maintenanceModeEndsAt": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "maintenanceSettingsLoadError": "Maintenance status could not be loaded. Try again.",
+  "maintenanceSettingsSaveError": "Maintenance mode could not be updated. Try again.",
+  "maintenanceAdminOnly": "Only Super Admins can change this setting.",
+  "maintenanceInvalidEnd": "Choose a future date and time.",
+  "maintenanceCheckingStatus": "Checking maintenance status…",
+  "maintenanceStatusLoadError": "The app's maintenance status could not be checked. Please retry.",
+  "maintenancePageTitle": "Temporarily unavailable",
+  "maintenancePageMessage": "Parking Management is undergoing maintenance. Please return after the time shown below.",
+  "maintenancePageEndTime": "Service is expected to resume by {date} at {time}.",
+  "@maintenancePageEndTime": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "maintenanceRetry": "Retry",
 
   "deviceSessionTitle": "Your devices",
   "deviceSessionDescription": "Review and remove active device sessions for your account.",

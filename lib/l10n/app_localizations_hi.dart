@@ -265,6 +265,60 @@ class AppLocalizationsHi extends AppLocalizations {
       'ऐप में उपयोग की जाने वाली भाषा चुनें।';
 
   @override
+  String get maintenanceModeTitle => 'प्लेटफ़ॉर्म रखरखाव';
+
+  @override
+  String get maintenanceModeDescription =>
+      'चुनी गई तारीख और समय तक सुपर एडमिन को छोड़कर सभी उपयोगकर्ताओं को रखरखाव स्क्रीन दिखाएँ।';
+
+  @override
+  String get maintenanceModeSwitchLabel => 'रखरखाव मोड';
+
+  @override
+  String get maintenanceModeOff => 'रखरखाव मोड बंद है।';
+
+  @override
+  String maintenanceModeEndsAt(String date, String time) {
+    return 'रखरखाव मोड $date को $time तक चालू है।';
+  }
+
+  @override
+  String get maintenanceSettingsLoadError =>
+      'रखरखाव स्थिति लोड नहीं हो सकी। फिर से प्रयास करें।';
+
+  @override
+  String get maintenanceSettingsSaveError =>
+      'रखरखाव मोड अपडेट नहीं हो सका। फिर से प्रयास करें।';
+
+  @override
+  String get maintenanceAdminOnly => 'यह सेटिंग केवल सुपर एडमिन बदल सकते हैं।';
+
+  @override
+  String get maintenanceInvalidEnd => 'भविष्य की तारीख और समय चुनें।';
+
+  @override
+  String get maintenanceCheckingStatus => 'रखरखाव स्थिति जाँची जा रही है…';
+
+  @override
+  String get maintenanceStatusLoadError =>
+      'ऐप की रखरखाव स्थिति जाँची नहीं जा सकी। कृपया फिर से प्रयास करें।';
+
+  @override
+  String get maintenancePageTitle => 'अभी उपलब्ध नहीं';
+
+  @override
+  String get maintenancePageMessage =>
+      'पार्किंग मैनेजमेंट ऐप का रखरखाव चल रहा है। नीचे दिए गए समय के बाद फिर से आएँ।';
+
+  @override
+  String maintenancePageEndTime(String date, String time) {
+    return 'सेवा $date को $time तक फिर से शुरू होने की उम्मीद है।';
+  }
+
+  @override
+  String get maintenanceRetry => 'फिर से प्रयास करें';
+
+  @override
   String get deviceSessionTitle => 'आपके डिवाइस';
 
   @override

@@ -12,6 +12,8 @@ import 'features/device_sessions/data/device_session_repository.dart';
 import 'features/parking/data/parking_session_repository.dart';
 import 'features/parking/data/local_api_parking_session_store.dart';
 import 'features/parking/data/supabase_parking_session_repository.dart';
+import 'features/maintenance/data/maintenance_mode_repository.dart';
+import 'features/maintenance/data/supabase_maintenance_mode_repository.dart';
 import 'features/parking_notifications/data/one_signal_notification_service.dart';
 import 'features/parking_notifications/data/parking_notification_repository.dart';
 import 'features/tenants/data/local_api_tenant_store.dart';
@@ -28,6 +30,7 @@ Future<void> main() async {
   ParkingSessionRepository? parkingSessionRepository;
   TenantRepository? tenantRepository;
   DeviceSessionRepository? deviceSessionRepository;
+  MaintenanceModeRepository? maintenanceModeRepository;
   ParkingNotificationRepository? parkingNotificationRepository;
   OneSignalNotificationService? oneSignalNotificationService;
   SupabaseClient? supabaseClient;
@@ -59,6 +62,7 @@ Future<void> main() async {
         parkingSessionRepository = SupabaseParkingSessionRepository(client);
         tenantRepository = SupabaseTenantRepository(client);
         deviceSessionRepository = SupabaseDeviceSessionRepository(client);
+        maintenanceModeRepository = SupabaseMaintenanceModeRepository(client);
         parkingNotificationRepository = SupabaseParkingNotificationRepository(
           client,
         );
@@ -79,6 +83,7 @@ Future<void> main() async {
     parkingSessionRepository = null;
     tenantRepository = null;
     deviceSessionRepository = null;
+    maintenanceModeRepository = null;
     parkingNotificationRepository = null;
     oneSignalNotificationService = null;
   }
@@ -89,6 +94,7 @@ Future<void> main() async {
       parkingSessionRepository: parkingSessionRepository,
       tenantRepository: tenantRepository,
       deviceSessionRepository: deviceSessionRepository,
+      maintenanceModeRepository: maintenanceModeRepository,
       parkingNotificationRepository: parkingNotificationRepository,
       oneSignalNotificationService: oneSignalNotificationService,
       configurationError: configurationError,

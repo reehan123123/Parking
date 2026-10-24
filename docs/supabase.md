@@ -61,6 +61,12 @@ supabase/migrations/20261025120000_parking_push_notifications.sql
 supabase/migrations/20261025130000_fix_parking_notification_claim_ambiguity.sql
 supabase/migrations/20261025140000_repeat_expired_unpaid_push_notifications.sql
 supabase/migrations/20261025150000_onesignal_parking_notifications.sql
+supabase/migrations/20261025160000_fix_onesignal_notification_claim_ambiguity.sql
+supabase/migrations/20261025170000_align_notification_reminders_to_cron_ticks.sql
+supabase/migrations/20261025180000_align_notification_reminders_to_cron_minute.sql
+supabase/migrations/20261025190000_clear_all_and_plate_notification_titles.sql
+supabase/migrations/20261025200000_save_contact_number_on_insert.sql
+supabase/migrations/20261025210000_platform_maintenance_mode.sql
 ```
 
 The first migration creates the initial `parking_sessions` table, private
@@ -109,9 +115,9 @@ migration:
   migration history must be rechecked before any future rollout.
 - `20261025140000_repeat_expired_unpaid_push_notifications.sql` is the
   historical VAPID repeat-reminder migration. It was previously documented
-  as source-only and not applied to production. It remains immutable; the
-  OneSignal migration that follows is designed to remove the old schedules
-  and server RPC path when applied.
+  as source-only, but the linked project reports it as applied. It remains
+  immutable; the OneSignal migration that follows removes the old schedules
+  and server RPC path.
 - `20261025150000_onesignal_parking_notifications.sql` is a forward-only
   migration for the OneSignal replacement and in-app alert center. It reuses
   the existing event row as bounded dispatch state, preserves prior send time
@@ -119,10 +125,23 @@ migration:
   recipient-scoped RLS, replaces the old schedule with one five-minute
   `parking-notification-dispatch` job, revokes client access to old
   subscriptions, and removes obsolete VAPID RPCs. It deliberately retains
-  historical subscription and delivery rows. This migration is local source
-  only; it has not been applied or verified against the current remote schema.
-  Do not edit earlier migration files or infer remote migration state from
-  this source tree.
+  historical subscription and delivery rows. The linked project reports this
+  migration and its OneSignal follow-ups through
+  `20261025200000_save_contact_number_on_insert.sql` as applied. Do not edit
+  earlier migration files or infer remote migration state from this source
+  tree.
+- The OneSignal follow-up migrations refine claim handling, align the
+  five-minute reminder cadence, add the Clear All and plate-title behavior,
+  and persist contact numbers on initial inserts.
+- `20261025210000_platform_maintenance_mode.sql` adds a single global
+  maintenance setting and authenticated status/update RPCs. The database
+  checks `public.is_super_admin()` before changes and calculates expiry using
+  server time, so no scheduled cleanup job is needed. Flutter displays a
+  maintenance screen to signed-in non-admins and lets Super Admins continue
+  using the app. This is an app-UI gate, not a lock on direct Supabase API
+  access. It was applied to the linked `parking-management` project on
+  `2026-10-25 21:00 UTC`. The local API development backend does not implement
+  this feature.
 
 The tenant-administration and tenant-management migrations must be reviewed
 and applied in order. They preserve existing parking rows but change their
@@ -140,17 +159,20 @@ supabase link --project-ref your-project-ref
 supabase db push
 ```
 
-The Supabase CLI is available in this development environment, but Docker and
-a local Supabase database are unavailable. A previous deployment record says
-the verified `parking-management` project had migrations applied through
-`20261025130000_fix_parking_notification_claim_ambiguity.sql`, and that linked
-migration history was in sync. `supabase db lint --linked --schema public`
-previously passed with “No schema errors found.” The target project, remote
-migration history, and local database were not rechecked for this OneSignal
-change. No migration or remote secret has been applied or changed in this
-work. Do not treat a successful Flutter build as proof that a migration
-reached Supabase, and do not run a production `db push` without explicit
-approval.
+The linked `parking-management` project
+(`spqeeksdzhggijwlsrzo`, South Asia/Mumbai) reports migrations through
+`20261025210000_platform_maintenance_mode.sql` as applied. Before applying,
+`supabase db push --dry-run --linked --skip-vault` listed only that migration;
+the post-apply dry-run reported that the remote database is up to date. The
+checked-in CLI config contains an email-hook secret format rejected by the
+installed CLI, so history and dry-run checks used a temporary workdir with a
+parser-only placeholder and `--skip-vault`; the repository config and Vault
+were not changed. An after-apply read-only query confirmed the table and both
+RPCs exist, authenticated users have RPC execution but no direct table access,
+and anonymous users have neither. Docker is unavailable, so the local pgTAP
+test could not connect to the local database. Do not treat a successful
+Flutter build as proof that a migration reached Supabase; verify the linked
+migration history after future migrations.
 
 After applying all migrations, deploy the authenticated Edge Functions:
 

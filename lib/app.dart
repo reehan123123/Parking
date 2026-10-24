@@ -17,6 +17,8 @@ import 'features/dashboard/presentation/dashboard_page.dart';
 import 'features/device_sessions/data/device_session_repository.dart';
 import 'features/device_sessions/presentation/device_session_limit_page.dart';
 import 'features/history/presentation/history_page.dart';
+import 'features/maintenance/data/maintenance_mode_repository.dart';
+import 'features/maintenance/presentation/maintenance_mode_gate.dart';
 import 'features/parking/data/parking_session_repository.dart';
 import 'features/parking/domain/parking_session.dart';
 import 'features/parking/presentation/parking_entry_page.dart';
@@ -39,6 +41,7 @@ class ParkingManagementApp extends StatefulWidget {
     this.parkingSessionRepository,
     this.tenantRepository,
     this.deviceSessionRepository,
+    this.maintenanceModeRepository,
     this.parkingNotificationRepository,
     this.oneSignalNotificationService,
     this.configurationError,
@@ -50,6 +53,7 @@ class ParkingManagementApp extends StatefulWidget {
   final ParkingSessionRepository? parkingSessionRepository;
   final TenantRepository? tenantRepository;
   final DeviceSessionRepository? deviceSessionRepository;
+  final MaintenanceModeRepository? maintenanceModeRepository;
   final ParkingNotificationRepository? parkingNotificationRepository;
   final OneSignalNotificationService? oneSignalNotificationService;
   final String? configurationError;
@@ -268,14 +272,29 @@ class _ParkingManagementAppState extends State<ParkingManagementApp> {
           await onSignOut();
         }
 
-        return AppShell(
-          key: ValueKey(widget.supabaseClient?.auth.currentUser?.id),
+        final String? currentUserId =
+            widget.supabaseClient?.auth.currentUser?.id;
+        final Widget appShell = AppShell(
+          key: ValueKey(currentUserId),
           onSignOut: releaseDeviceSessionAndSignOut,
           parkingSessionRepository: widget.parkingSessionRepository,
           tenantRepository: widget.tenantRepository,
           deviceSessionRepository: widget.deviceSessionRepository,
+          maintenanceModeRepository: widget.maintenanceModeRepository,
           parkingNotificationRepository: widget.parkingNotificationRepository,
           oneSignalNotificationService: widget.oneSignalNotificationService,
+        );
+        final MaintenanceModeRepository? maintenanceModeRepository =
+            widget.maintenanceModeRepository;
+        if (maintenanceModeRepository == null) {
+          return appShell;
+        }
+
+        return MaintenanceModeGate(
+          key: ValueKey(currentUserId),
+          repository: maintenanceModeRepository,
+          onSignOut: releaseDeviceSessionAndSignOut,
+          child: appShell,
         );
       },
     );
@@ -289,6 +308,7 @@ class AppShell extends StatefulWidget {
     this.parkingSessionRepository,
     this.tenantRepository,
     this.deviceSessionRepository,
+    this.maintenanceModeRepository,
     this.parkingNotificationRepository,
     this.oneSignalNotificationService,
     this.initialTenantAccess,
@@ -301,6 +321,7 @@ class AppShell extends StatefulWidget {
   final ParkingSessionRepository? parkingSessionRepository;
   final TenantRepository? tenantRepository;
   final DeviceSessionRepository? deviceSessionRepository;
+  final MaintenanceModeRepository? maintenanceModeRepository;
   final ParkingNotificationRepository? parkingNotificationRepository;
   final OneSignalNotificationService? oneSignalNotificationService;
   final ParkingTenantAccess? initialTenantAccess;
@@ -1205,6 +1226,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       SettingsPage(
         onSignOut: widget.onSignOut,
         deviceSessionRepository: widget.deviceSessionRepository,
+        maintenanceModeRepository: widget.maintenanceModeRepository,
         oneSignalNotificationService: widget.oneSignalNotificationService,
         tenant: selectedTenant,
         tenantRepository: widget.tenantRepository,

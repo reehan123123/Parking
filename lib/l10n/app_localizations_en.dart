@@ -264,6 +264,61 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose the language used throughout the app.';
 
   @override
+  String get maintenanceModeTitle => 'Platform maintenance';
+
+  @override
+  String get maintenanceModeDescription =>
+      'Show a maintenance screen to all users except Super Admins until the selected date and time.';
+
+  @override
+  String get maintenanceModeSwitchLabel => 'Maintenance mode';
+
+  @override
+  String get maintenanceModeOff => 'Maintenance mode is off.';
+
+  @override
+  String maintenanceModeEndsAt(String date, String time) {
+    return 'Maintenance mode is on until $date at $time.';
+  }
+
+  @override
+  String get maintenanceSettingsLoadError =>
+      'Maintenance status could not be loaded. Try again.';
+
+  @override
+  String get maintenanceSettingsSaveError =>
+      'Maintenance mode could not be updated. Try again.';
+
+  @override
+  String get maintenanceAdminOnly =>
+      'Only Super Admins can change this setting.';
+
+  @override
+  String get maintenanceInvalidEnd => 'Choose a future date and time.';
+
+  @override
+  String get maintenanceCheckingStatus => 'Checking maintenance status…';
+
+  @override
+  String get maintenanceStatusLoadError =>
+      'The app\'s maintenance status could not be checked. Please retry.';
+
+  @override
+  String get maintenancePageTitle => 'Temporarily unavailable';
+
+  @override
+  String get maintenancePageMessage =>
+      'Parking Management is undergoing maintenance. Please return after the time shown below.';
+
+  @override
+  String maintenancePageEndTime(String date, String time) {
+    return 'Service is expected to resume by $date at $time.';
+  }
+
+  @override
+  String get maintenanceRetry => 'Retry';
+
+  @override
   String get deviceSessionTitle => 'Your devices';
 
   @override

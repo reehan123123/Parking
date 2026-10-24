@@ -560,6 +560,96 @@ abstract class AppLocalizations {
   /// **'Choose the language used throughout the app.'**
   String get settingsLanguageDescription;
 
+  /// No description provided for @maintenanceModeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Platform maintenance'**
+  String get maintenanceModeTitle;
+
+  /// No description provided for @maintenanceModeDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Show a maintenance screen to all users except Super Admins until the selected date and time.'**
+  String get maintenanceModeDescription;
+
+  /// No description provided for @maintenanceModeSwitchLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Maintenance mode'**
+  String get maintenanceModeSwitchLabel;
+
+  /// No description provided for @maintenanceModeOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Maintenance mode is off.'**
+  String get maintenanceModeOff;
+
+  /// No description provided for @maintenanceModeEndsAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Maintenance mode is on until {date} at {time}.'**
+  String maintenanceModeEndsAt(String date, String time);
+
+  /// No description provided for @maintenanceSettingsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Maintenance status could not be loaded. Try again.'**
+  String get maintenanceSettingsLoadError;
+
+  /// No description provided for @maintenanceSettingsSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Maintenance mode could not be updated. Try again.'**
+  String get maintenanceSettingsSaveError;
+
+  /// No description provided for @maintenanceAdminOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Only Super Admins can change this setting.'**
+  String get maintenanceAdminOnly;
+
+  /// No description provided for @maintenanceInvalidEnd.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a future date and time.'**
+  String get maintenanceInvalidEnd;
+
+  /// No description provided for @maintenanceCheckingStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking maintenance status…'**
+  String get maintenanceCheckingStatus;
+
+  /// No description provided for @maintenanceStatusLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'The app\'s maintenance status could not be checked. Please retry.'**
+  String get maintenanceStatusLoadError;
+
+  /// No description provided for @maintenancePageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Temporarily unavailable'**
+  String get maintenancePageTitle;
+
+  /// No description provided for @maintenancePageMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Parking Management is undergoing maintenance. Please return after the time shown below.'**
+  String get maintenancePageMessage;
+
+  /// No description provided for @maintenancePageEndTime.
+  ///
+  /// In en, this message translates to:
+  /// **'Service is expected to resume by {date} at {time}.'**
+  String maintenancePageEndTime(String date, String time);
+
+  /// No description provided for @maintenanceRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get maintenanceRetry;
+
   /// No description provided for @deviceSessionTitle.
   ///
   /// In en, this message translates to:
